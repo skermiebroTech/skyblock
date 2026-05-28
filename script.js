@@ -34,6 +34,7 @@ const CONFIG = {
   /* Static SkyShards datasets (bundled in /data/). */
   FUSION_PROPS_URL: "data/fusion-properties.json",
   FUSION_DATA_URL:  "data/fusion-data.json",
+  ATTR_DESC_URL:    "data/attribute-desc.json",
 
   /* Public bazaar endpoint needs no key. The key IS required for profile
    * lookups — surfaced to the user with a clear error. */
@@ -59,7 +60,14 @@ const CONFIG = {
   CACHE_KEY_FUSION_PROPS:  "shardmarket.cache.fusionProps.v1",
   CACHE_KEY_FUSION_DATA:   "shardmarket.cache.fusionData.v1",
   CACHE_KEY_ITEMS:         "shardmarket.cache.items.v1",
+  CACHE_KEY_ATTR_DESC:     "shardmarket.cache.attrDesc.v1",
+  CACHE_KEY_BINS:          "shardmarket.cache.lowestBins.v1",
   CACHE_KEY_PROFILE_PREFIX: "shardmarket.cache.profile.",  // + uuid
+  CACHE_TTL_BINS_MS:       300_000,   // 5 min — AH moves but a full scan is heavy
+
+  /* Accessory page preferences. */
+  BAZAAR_MODE_STORAGE: "shardmarket.bazaarMode",  // "instaBuy" | "buyOrder"
+  PREFER_MAX_STORAGE:  "shardmarket.preferMax",   // "1" | "0"
 
   /* Filter out dead markets where no shards traded in the past week. */
   MIN_WEEKLY_VOLUME: 1,
@@ -108,14 +116,26 @@ const state = {
     huntingXp:     null,
     ownedAccessories: null,  // Set<string> of owned accessory ids (null = not loaded)
     accessoryAnalysis: null, // {currentMP, maxMP, missing, upgrades}
+    attributeStacks: null,   // raw {attrId: shards} from profile
+    attributeAnalysis: null, // {rows, totalShardsNeeded, totalCost, ...}
     loading:       false,
     error:         null,
   },
 
   /* Item catalog (accessories) — loaded once from the resources endpoint. */
   accessoryCatalog: null,
+  attributeCatalog: null,    // from attribute-desc.json
+  lowestBins: null,          // Map<bazaarId, price> | null (not loaded)
+  binsLoading: false,
+  binsProgress: 0,           // 0..1
 
-  /* Active page: "shards" | "missing" | "upgrades" */
+  /* Accessory sourcing preferences. Prefer-max defaults ON (matches the
+   * "max this accessory out" intent); user can turn it off to target the
+   * cheaper next tier instead. */
+  bazaarMode: localStorage.getItem(CONFIG.BAZAAR_MODE_STORAGE) || "instaBuy",
+  preferMax:  localStorage.getItem(CONFIG.PREFER_MAX_STORAGE) !== "0",
+
+  /* Active page: "shards" | "missing" | "upgrades" | "attributes" */
   view: "shards",
 };
 
@@ -259,6 +279,12 @@ const api = {
       cacheTtl: CONFIG.CACHE_TTL_STATIC_MS,
     });
   },
+
+  /* Bundled attribute metadata (attribute-id → rarity/title/desc). */
+  fetchAttrDesc: () => staticFetch(CONFIG.ATTR_DESC_URL, {
+    cacheKey: CONFIG.CACHE_KEY_ATTR_DESC,
+    cacheTtl: CONFIG.CACHE_TTL_STATIC_MS,
+  }),
 };
 
 /* =========================================================================
@@ -292,13 +318,14 @@ function xpToLevel(xp) {
 /* Pull out the bits of a SkyBlock profile we care about for shard work. */
 function extractProfileStats(profile, uuid) {
   const member = profile?.members?.[uuid];
-  if (!member) return { coinPurse: null, huntingLevel: null, huntingXp: null };
+  if (!member) return { coinPurse: null, huntingLevel: null, huntingXp: null, attributeStacks: null };
 
   const coinPurse  = member.currencies?.coin_purse ?? null;
   const huntingXp  = member.player_data?.experience?.SKILL_HUNTING ?? null;
   const huntingLevel = huntingXp != null ? xpToLevel(huntingXp) : null;
+  const attributeStacks = member.attributes?.stacks ?? null;
 
-  return { coinPurse, huntingLevel, huntingXp };
+  return { coinPurse, huntingLevel, huntingXp, attributeStacks };
 }
 
 /* Load (and cache) the player's profiles. Errors set state.player.error. */
@@ -392,11 +419,14 @@ function selectProfile(profileId) {
   state.player.coinPurse    = stats.coinPurse;
   state.player.huntingLevel = stats.huntingLevel;
   state.player.huntingXp    = stats.huntingXp;
+  state.player.attributeStacks = stats.attributeStacks;
 
   /* Accessory analysis runs async (NBT decode). Reset, then fill in. */
   state.player.ownedAccessories  = null;
   state.player.accessoryAnalysis = null;
+  state.player.attributeAnalysis = null;
   loadAccessoryAnalysis(prof._raw);
+  loadAttributeAnalysis();
 }
 
 /* Decode inventories + analyse accessories for the selected profile. */
@@ -409,7 +439,7 @@ async function loadAccessoryAnalysis(rawProfile) {
     const member = rawProfile?.members?.[state.player.uuid];
     const owned = await extractOwnedAccessories(member, state.accessoryCatalog);
     state.player.ownedAccessories  = owned;
-    state.player.accessoryAnalysis = analyseAccessories(state.accessoryCatalog, owned);
+    state.player.accessoryAnalysis = analyseAccessories(state.accessoryCatalog, owned, { preferMax: state.preferMax });
   } catch (e) {
     console.error("[ShardMarket] accessory analysis failed:", e);
     state.player.ownedAccessories  = new Set();
@@ -420,11 +450,43 @@ async function loadAccessoryAnalysis(rawProfile) {
   }
 }
 
+/* Build the attribute-maxing analysis for the selected profile. */
+async function loadAttributeAnalysis() {
+  try {
+    if (!state.attributeCatalog) {
+      const { data } = await api.fetchAttrDesc();
+      state.attributeCatalog = buildAttributeCatalog(data);
+    }
+    const stacks = state.player.attributeStacks;
+    if (!stacks) { state.player.attributeAnalysis = { rows: [], totalShardsNeeded: 0, totalCost: 0, maxedCount: 0, totalCount: 0 }; return; }
+
+    /* Price each attribute's source shard via the live bazaar.
+     * The shard granting attribute `code` is fusion-props[code].name → SHARD_<NAME>. */
+    const shardPriceFor = (code) => {
+      const propName = state.fusionProps?.[code]?.name;
+      if (!propName) return null;
+      const bazaarId = state.codeToBazaar?.[code]
+        || ("SHARD_" + propName.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, ""));
+      const prod = state.raw?.products?.[bazaarId];
+      return prod?.quick_status?.buyPrice || null;  // insta-buy the shard
+    };
+
+    state.player.attributeAnalysis = analyseAttributes(state.attributeCatalog, stacks, shardPriceFor);
+  } catch (e) {
+    console.error("[ShardMarket] attribute analysis failed:", e);
+    state.player.attributeAnalysis = { rows: [], totalShardsNeeded: 0, totalCost: 0, maxedCount: 0, totalCount: 0, error: e.message };
+  } finally {
+    renderPlayerPanel();
+    if (state.view === "attributes") renderActiveView();
+  }
+}
+
 function clearPlayer() {
   state.player = {
     username: "", uuid: null, profiles: [], selectedId: null,
     coinPurse: null, huntingLevel: null, huntingXp: null,
     ownedAccessories: null, accessoryAnalysis: null,
+    attributeStacks: null, attributeAnalysis: null,
     loading: false, error: null,
   };
   localStorage.removeItem(CONFIG.USERNAME_STORAGE);
@@ -954,17 +1016,25 @@ function setView(view) {
   });
 
   /* Toggle panes. */
-  $("#view-shards").hidden   = view !== "shards";
-  $("#view-missing").hidden  = view !== "missing";
-  $("#view-upgrades").hidden = view !== "upgrades";
+  $("#view-shards").hidden     = view !== "shards";
+  $("#view-missing").hidden    = view !== "missing";
+  $("#view-upgrades").hidden   = view !== "upgrades";
+  $("#view-attributes").hidden = view !== "attributes";
+
+  /* Accessory pages benefit from real AH prices — start a scan on first visit
+   * (uses cache on subsequent visits; never blocks the UI). */
+  if ((view === "missing" || view === "upgrades") && state.player.username && !state.lowestBins) {
+    loadLowestBinsIfNeeded(false);
+  }
 
   renderActiveView();
 }
 
 function renderActiveView() {
-  if (state.view === "missing")  renderMissingView();
-  if (state.view === "upgrades") renderUpgradesView();
-  if (state.view === "shards")   renderTable();
+  if (state.view === "missing")    renderMissingView();
+  if (state.view === "upgrades")   renderUpgradesView();
+  if (state.view === "attributes") renderAttributesView();
+  if (state.view === "shards")     renderTable();
 }
 
 /* Shared: a "you need to link an account" gate for the accessory pages. */
@@ -988,24 +1058,80 @@ function accessoryIsBazaar(id) {
   return !!state.raw?.products?.[id];
 }
 
-/* Live price hint for an accessory: bazaar insta-buy, else AH note. */
-function accessoryPriceHint(id) {
-  const prod = state.raw?.products?.[id];
-  if (prod?.quick_status?.buyPrice) {
-    return { kind: "bz", price: prod.quick_status.buyPrice };
+/* Resolve a real price for an accessory using the unified resolver:
+ *   bazaar items → insta-buy or buy-order (per state.bazaarMode)
+ *   everything else → lowest BIN (if AH scan has been loaded) */
+function accessoryPrice(id) {
+  return resolvePrice(id, {
+    bazaar: state.raw?.products,
+    bins: state.lowestBins,
+    bazaarMode: state.bazaarMode,
+  });
+}
+
+/* Kick off a full AH lowest-BIN scan (cached). Re-renders the active view as
+ * progress advances so the user sees prices populate. */
+async function loadLowestBinsIfNeeded(force = false) {
+  if (state.binsLoading) return;
+  if (state.lowestBins && !force) return;
+
+  /* Try cache first. */
+  if (!force) {
+    const cached = cache.read(CONFIG.CACHE_KEY_BINS, CONFIG.CACHE_TTL_BINS_MS);
+    if (cached) {
+      state.lowestBins = new Map(cached.data);
+      renderActiveView();
+      return;
+    }
   }
-  return { kind: "ah", price: null };
+
+  if (!state.accessoryCatalog) {
+    try {
+      const { data } = await api.fetchItems();
+      state.accessoryCatalog = buildAccessoryCatalog(data);
+    } catch (e) { console.error(e); return; }
+  }
+
+  state.binsLoading = true;
+  state.binsProgress = 0;
+  renderActiveView();
+
+  try {
+    const bins = await loadLowestBins(state.accessoryCatalog, {
+      onProgress: (done, total) => {
+        state.binsProgress = done / total;
+        /* Throttle re-render to every ~8 pages to avoid thrashing. */
+        if (done % 8 === 0) renderActiveView();
+      },
+    });
+    state.lowestBins = bins;
+    cache.write(CONFIG.CACHE_KEY_BINS, Array.from(bins.entries()));
+  } catch (e) {
+    console.error("[ShardMarket] BIN scan failed:", e);
+  } finally {
+    state.binsLoading = false;
+    renderActiveView();
+  }
 }
 
 /* Render one accessory action row (used by both pages). */
 function accessoryActionRow(item, mpLabel, mpValue) {
   const isBz = accessoryIsBazaar(item.id);
-  const hint = accessoryPriceHint(item.id);
   const cmd  = sourcingCommand(item, isBz);
+  const price = accessoryPrice(item.id);
 
-  const priceTxt = hint.kind === "bz"
-    ? `<span class="acc-price">~${fmtCoins(hint.price)} <span class="acc-price-src">bazaar</span></span>`
-    : `<span class="acc-price acc-price-ah">Auction House</span>`;
+  let priceTxt;
+  if (price.market === "bazaar") {
+    priceTxt = `<span class="acc-price">${fmtCoins(price.best)} <span class="acc-price-src">${price.label}</span></span>`;
+  } else if (price.market === "auction" && price.bin != null) {
+    priceTxt = `<span class="acc-price">${fmtCoins(price.bin)} <span class="acc-price-src">lowest BIN</span></span>`;
+  } else if (state.binsLoading) {
+    priceTxt = `<span class="acc-price acc-price-ah">Auction House · scanning…</span>`;
+  } else if (state.lowestBins) {
+    priceTxt = `<span class="acc-price acc-price-ah">Auction House</span>`;  // scanned but no live listing
+  } else {
+    priceTxt = `<span class="acc-price acc-price-ah">Auction House</span>`;
+  }
 
   const tierColor = RARITY_COLORS[item.tier] || RARITY_COLORS.UNKNOWN;
 
@@ -1077,6 +1203,58 @@ function mpHeaderHTML(analysis) {
     </div>`;
 }
 
+/* Shared sourcing-options toolbar for the accessory pages. */
+function accessoryToolbarHTML() {
+  const binsState = state.binsLoading
+    ? `<span class="ah-status">Scanning AH… ${Math.round(state.binsProgress * 100)}%</span>`
+    : state.lowestBins
+      ? `<span class="ah-status ah-status-ok">AH prices loaded (${state.lowestBins.size})</span>`
+      : `<button class="btn-secondary btn-small" id="load-bins-btn">Load AH prices</button>`;
+
+  return `
+    <div class="acc-toolbar">
+      <div class="acc-toolbar-group">
+        <span class="acc-toolbar-label">Bazaar price:</span>
+        <div class="seg" role="group">
+          <button class="seg-btn ${state.bazaarMode === "instaBuy" ? "active" : ""}" data-bzmode="instaBuy">Insta-buy</button>
+          <button class="seg-btn ${state.bazaarMode === "buyOrder" ? "active" : ""}" data-bzmode="buyOrder">Buy order</button>
+        </div>
+      </div>
+      <label class="toggle-chip">
+        <input type="checkbox" id="prefer-max-toggle" ${state.preferMax ? "checked" : ""}/>
+        <span>Prefer max tier</span>
+      </label>
+      <div class="acc-toolbar-group acc-toolbar-ah">${binsState}</div>
+    </div>`;
+}
+
+/* Wire the toolbar controls inside a freshly-rendered pane. */
+function bindAccessoryToolbar(container) {
+  container.querySelectorAll("[data-bzmode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.bazaarMode = btn.dataset.bzmode;
+      localStorage.setItem(CONFIG.BAZAAR_MODE_STORAGE, state.bazaarMode);
+      renderActiveView();
+    });
+  });
+  const maxToggle = container.querySelector("#prefer-max-toggle");
+  if (maxToggle) {
+    maxToggle.addEventListener("change", (e) => {
+      state.preferMax = e.target.checked;
+      localStorage.setItem(CONFIG.PREFER_MAX_STORAGE, state.preferMax ? "1" : "0");
+      /* Re-run analysis with the new preference (no re-decode needed). */
+      if (state.accessoryCatalog && state.player.ownedAccessories) {
+        state.player.accessoryAnalysis = analyseAccessories(
+          state.accessoryCatalog, state.player.ownedAccessories, { preferMax: state.preferMax }
+        );
+      }
+      renderActiveView();
+    });
+  }
+  const loadBtn = container.querySelector("#load-bins-btn");
+  if (loadBtn) loadBtn.addEventListener("click", () => loadLowestBinsIfNeeded(true));
+}
+
 /* ----- MISSING page ----- */
 function renderMissingView() {
   const pane = $("#view-missing");
@@ -1108,12 +1286,14 @@ function renderMissingView() {
       </div>
     </div>
     ${mpHeaderHTML(a)}
+    ${accessoryToolbarHTML()}
     <div class="acc-grid" id="missing-grid">
       ${missing.length
         ? missing.map((m) => accessoryActionRow(m.item, "MP", m.mp)).join("")
         : `<div class="acc-empty">🎉 You're not missing any tracked accessory families. Nice.</div>`}
     </div>`;
 
+  bindAccessoryToolbar(pane);
   bindCopyButtons($("#missing-grid"));
 }
 
@@ -1148,6 +1328,7 @@ function renderUpgradesView() {
       </div>
     </div>
     ${mpHeaderHTML(a)}
+    ${accessoryToolbarHTML()}
     <div class="acc-grid" id="upgrades-grid">
       ${upgrades.length
         ? upgrades.map((u) => `
@@ -1166,6 +1347,7 @@ function renderUpgradesView() {
         : `<div class="acc-empty">🎉 Every accessory family you own is already at max tier.</div>`}
     </div>`;
 
+  bindAccessoryToolbar(pane);
   bindCopyButtons($("#upgrades-grid"));
 }
 
@@ -1174,6 +1356,124 @@ function updateTabBadge(id, count) {
   if (!el) return;
   if (count > 0) { el.textContent = count; el.hidden = false; }
   else           { el.hidden = true; }
+}
+
+/* ----- ATTRIBUTES page -----
+ * Shows how many shards each attribute still needs to reach max level, plus
+ * the coin cost (live bazaar insta-buy of the source shard). */
+function renderAttributesView() {
+  const pane = $("#view-attributes");
+  const p = state.player;
+
+  if (!p.username || p.error) { pane.innerHTML = accessoryGateHTML("The attribute-maxing report"); return; }
+  if (p.attributeAnalysis == null) {
+    pane.innerHTML = accessoryLoadingHTML("Reading your attribute progress…");
+    return;
+  }
+
+  const a = p.attributeAnalysis;
+  if (a.error) { pane.innerHTML = `<div class="acc-gate"><p>Couldn't analyse attributes: ${escapeHtml(a.error)}</p></div>`; return; }
+  if (!a.totalCount) {
+    pane.innerHTML = `<div class="acc-gate"><div class="acc-gate-icon">🔮</div>
+      <h2>No attribute data</h2>
+      <p>This profile has no attribute progress recorded yet. Syphon some shards in-game first.</p></div>`;
+    updateTabBadge("badge-attributes", 0);
+    return;
+  }
+
+  const unmaxed = a.rows.filter((r) => !r.maxed);
+  updateTabBadge("badge-attributes", unmaxed.length);
+
+  const pct = a.totalCount > 0 ? Math.round((a.maxedCount / a.totalCount) * 100) : 0;
+
+  pane.innerHTML = `
+    <div class="acc-page-head">
+      <div>
+        <h2 class="acc-page-title">Attribute Maxing</h2>
+        <p class="acc-page-sub">
+          How many Attribute Shards you still need to take each attribute to
+          <strong>level 10</strong>, with live bazaar cost. You still need
+          <strong class="pos">${fmtInt(a.totalShardsNeeded)}</strong> shards
+          ${a.totalCost > 0 ? `(≈ <strong>${fmtCoins(a.totalCost)}</strong> coins)` : ""}
+          to max ${unmaxed.length} attribute${unmaxed.length === 1 ? "" : "s"}.
+        </p>
+      </div>
+    </div>
+
+    <div class="mp-header">
+      <div class="mp-header-stats">
+        <div class="mp-stat">
+          <div class="mp-stat-label">Maxed</div>
+          <div class="mp-stat-value pos">${a.maxedCount} / ${a.totalCount}</div>
+        </div>
+        <div class="mp-stat">
+          <div class="mp-stat-label">Shards needed</div>
+          <div class="mp-stat-value">${fmtInt(a.totalShardsNeeded)}</div>
+        </div>
+        <div class="mp-stat">
+          <div class="mp-stat-label">Est. cost</div>
+          <div class="mp-stat-value">${a.totalCost > 0 ? fmtCoins(a.totalCost) : "—"}</div>
+        </div>
+      </div>
+      <div class="mp-bar"><div class="mp-bar-fill" style="width:${pct}%"></div></div>
+    </div>
+
+    <div class="attr-grid">
+      ${a.rows.map(renderAttributeRow).join("")}
+    </div>`;
+
+  bindCopyButtons(pane);
+}
+
+function renderAttributeRow(r) {
+  const color = RARITY_COLORS[r.rarity] || RARITY_COLORS.UNKNOWN;
+  const progPct = Math.round((r.current / r.max) * 100);
+
+  if (r.maxed) {
+    return `
+      <article class="attr-card attr-card--maxed" style="--tier-color:${color}">
+        <div class="attr-card-head">
+          <span class="attr-name">${escapeHtml(r.title)}</span>
+          <span class="attr-maxed-badge">✓ MAX</span>
+        </div>
+        <div class="attr-progress"><div class="attr-progress-fill" style="width:100%;background:${color}"></div></div>
+        <div class="attr-foot"><span class="attr-count">${r.current}/${r.max}</span></div>
+      </article>`;
+  }
+
+  /* sourcing command for the shard that grants this attribute */
+  const propName = state.fusionProps?.[r.code]?.name;
+  const shardBazaarId = state.codeToBazaar?.[r.code];
+  const cmd = propName
+    ? `/bz ${propName} Shard`
+    : null;
+
+  return `
+    <article class="attr-card" style="--tier-color:${color}">
+      <div class="attr-card-head">
+        <span class="attr-name">${escapeHtml(r.title)}</span>
+        <span class="attr-rarity" style="color:${color}">${r.rarity.toLowerCase()}</span>
+      </div>
+      <div class="attr-progress"><div class="attr-progress-fill" style="width:${progPct}%;background:${color}"></div></div>
+      <div class="attr-foot">
+        <span class="attr-count">${r.current}/${r.max}</span>
+        <span class="attr-need">need <strong>${r.remaining}</strong> more${
+          r.remainingCost != null ? ` · ${fmtCoins(r.remainingCost)}` : ""
+        }</span>
+      </div>
+      ${cmd ? `
+        <div class="acc-card-cmd">
+          <code class="acc-cmd-text">${escapeHtml(cmd)}</code>
+          <button class="btn-copy" data-copy="${escapeHtml(cmd)}" title="Copy command">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Copy
+          </button>
+        </div>` : ""}
+    </article>`;
 }
 
 function renderTable() {

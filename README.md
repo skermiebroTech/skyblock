@@ -23,15 +23,18 @@ No backend. No build step. No tracking. Just three static files you can host on 
 
 ```
 shard-market/
-├── index.html              ← Markup & shell (3 pages: Shards / Missing / Upgrades)
+├── index.html              ← Markup & shell (4 pages: Shards / Missing / Upgrades / Attributes)
 ├── style.css               ← Obsidian + ember dashboard styling
-├── script.js               ← API client, caching, profit + fusion math, accessory pages
+├── script.js               ← API client, caching, profit + fusion math, page renderers
 ├── shards-data.js          ← Static lookups (rarity, colors, texture-pack registry, ID overrides)
 ├── nbt.js                  ← Minimal NBT parser (decodes the gzipped inventory blob)
+├── prices.js               ← Unified price resolver: bazaar + AH lowest-BIN scan
 ├── accessories.js          ← Accessory catalog, upgrade families, Magical Power math
+├── attributes.js           ← Attribute catalog + shards-to-max calculation
 ├── data/
 │   ├── fusion-properties.json   ← Per-shard metadata (179 shards, from SkyShards)
-│   └── fusion-data.json         ← Full fusion recipe graph (~2 MB, from SkyShards)
+│   ├── fusion-data.json         ← Full fusion recipe graph (~2 MB, from SkyShards)
+│   └── attribute-desc.json      ← Attribute id → rarity/title/effect (from SkyShards)
 └── README.md
 ```
 
@@ -41,9 +44,9 @@ No bundler, no `npm install`, no toolchain. Open `index.html` in any modern brow
 
 ---
 
-## The three pages
+## The four pages
 
-Linking your account (username + an API key in Settings) unlocks two extra pages alongside the shard market:
+Linking your account (username + an API key in Settings) unlocks three extra pages alongside the shard market:
 
 ### Shard Market
 Live bazaar profitability + the fusion calculator (see below).
@@ -53,14 +56,32 @@ Like SkyHelper's `/missing` command. Decodes your talisman bag straight from the
 Hypixel API, figures out which accessory families you own none of, and ranks them
 by the **Magical Power** they'd add. Each card has a one-click **Copy** button for the
 in-game sourcing command — `/ahs <item>` for Auction-House items, `/bz <item>` for
-anything bazaar-tradable (the tool checks the live bazaar to decide which).
+anything bazaar-tradable.
 
 ### Accessory Upgrades
 Shows accessories you own at a lower tier than their family maximum
 (e.g. *Scavenger Talisman → Scavenger Artifact*, +8 MP). Ranked by MP gained, again
 with copy-ready `/ahs` / `/bz` commands.
 
-Both pages show a live **Magical Power progress bar** (current / max / % complete).
+### Attributes
+How many **Attribute Shards** you still need to take each attribute to level 10,
+read from your profile's `attributes.stacks`. Shows current/max progress, the exact
+shard count remaining, and the live bazaar cost to finish — with a `/bz` command for
+the source shard. Totals across all attributes are shown up top.
+
+Both accessory pages show a live **Magical Power progress bar**.
+
+### Real prices
+
+- **Bazaar items** show either **insta-buy** (buy now from sell offers) or
+  **buy-order** (place an order — cheaper, slower). Toggle between them with the
+  *Bazaar price* switch on the accessory pages.
+- **Auction-House items** show the **lowest BIN**, computed by scanning the official
+  `/skyblock/auctions` endpoint (all ~42 pages, in parallel batches, cached 5 min)
+  and matching listings to items by name (reforge prefixes stripped). The scan
+  starts automatically the first time you open an accessory page.
+- **Prefer max tier** (on by default): targets the *family maximum* accessory. Turn
+  it off to target only the *next tier up* — cheaper, incremental upgrades.
 
 > **How the inventory is read:** Hypixel returns inventories as gzipped, base64-encoded
 > NBT. No third-party SkyBlock API (SkyCrypt, Coflnet, etc.) allows browser CORS, so

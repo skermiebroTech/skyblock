@@ -136,7 +136,8 @@ function buildAccessoryCatalog(itemsPayload) {
 /*     upgrades:   [ {owned, target, mpGain} ] sorted by mpGain desc        */
 /*   }                                                                       */
 /* ------------------------------------------------------------------------ */
-function analyseAccessories(catalog, ownedIds) {
+function analyseAccessories(catalog, ownedIds, opts = {}) {
+  const preferMax = opts.preferMax !== false;   // default: target family max
   const missing = [];
   const upgrades = [];
 
@@ -153,12 +154,12 @@ function analyseAccessories(catalog, ownedIds) {
     const ownedMembers = fam.members.filter((m) => ownedIds.has(m.id));
 
     if (ownedMembers.length === 0) {
-      /* Whole family missing — counts as missing the TOP item (that's the
-       * eventual goal; SkyHelper shows the base item, but ranking by the
-       * max-MP target is more useful for planning). */
+      /* Whole family missing. Target the family MAX when preferMax, else the
+       * cheapest entry point (the base/first tier). */
+      const target = preferMax ? highest : fam.members[0];
       missing.push({
-        item: highest,
-        mp: highest.mp,
+        item: target,
+        mp: target.mp,
         family: fam.base,
         reason: "family-missing",
       });
@@ -170,10 +171,13 @@ function analyseAccessories(catalog, ownedIds) {
     currentMP += bestOwned.mp;
 
     if (bestOwned.id !== highest.id) {
+      /* Upgrade target: family max when preferMax, else the next tier up. */
+      const ownedIdx = fam.members.findIndex((m) => m.id === bestOwned.id);
+      const target = preferMax ? highest : fam.members[ownedIdx + 1];
       upgrades.push({
         owned:  bestOwned,
-        target: highest,
-        mpGain: highest.mp - bestOwned.mp,
+        target,
+        mpGain: target.mp - bestOwned.mp,
         family: fam.base,
       });
     }

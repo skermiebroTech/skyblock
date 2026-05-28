@@ -1535,3 +1535,137 @@ input[type="search"]:focus,
   .mp-stat-value { font-size: 18px; }
   .view-tab { padding: 10px 12px; font-size: 13px; }
 }
+
+/* =========================================================================
+ * Accessory toolbar (bazaar mode / prefer-max / AH scan) + Attributes page
+ * ======================================================================= */
+
+/* ---------- Toolbar ---------- */
+.acc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+.acc-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.acc-toolbar-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.acc-toolbar-ah { margin-left: auto; }
+.ah-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.ah-status-ok { color: var(--pos); }
+
+/* Segmented control */
+.seg {
+  display: inline-flex;
+  background: var(--bg-elevated);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.seg-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.seg-btn:hover { color: var(--text-soft); }
+.seg-btn.active {
+  background: var(--ember);
+  color: #1a0f08;
+}
+
+/* ---------- Attributes grid ---------- */
+.attr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.attr-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-left: 3px solid var(--tier-color, var(--ember));
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.attr-card--maxed { opacity: 0.62; }
+.attr-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.attr-name {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.attr-rarity {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.attr-maxed-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--pos);
+  background: rgba(46, 224, 122, 0.12);
+  border: 1px solid rgba(46, 224, 122, 0.3);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.attr-progress {
+  height: 6px;
+  background: var(--bg-elevated);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.attr-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width .3s ease;
+}
+.attr-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+}
+.attr-count {
+  font-family: var(--font-mono);
+  color: var(--text-soft);
+  font-weight: 600;
+}
+.attr-need { color: var(--text-muted); }
+.attr-need strong { color: var(--ember-light); font-family: var(--font-mono); }
+.attr-card .acc-card-cmd { margin-top: 2px; padding: 6px 8px; }
+
+@media (max-width: 600px) {
+  .acc-toolbar-ah { margin-left: 0; width: 100%; }
+}

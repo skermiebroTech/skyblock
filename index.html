@@ -129,6 +129,10 @@
         Accessory Upgrades
         <span class="tab-badge" id="badge-upgrades" hidden></span>
       </button>
+      <button class="view-tab" id="tab-attributes" data-view="attributes" role="tab" aria-selected="false">
+        Attributes
+        <span class="tab-badge" id="badge-attributes" hidden></span>
+      </button>
     </nav>
 
     <!-- ============ VIEW: SHARDS ============ -->
@@ -259,6 +263,9 @@
     <!-- ============ VIEW: ACCESSORY UPGRADES ============ -->
     <div id="view-upgrades" class="view-pane" hidden></div>
 
+    <!-- ============ VIEW: ATTRIBUTES ============ -->
+    <div id="view-attributes" class="view-pane" hidden></div>
+
   </main>
 
   <footer class="site-footer">
@@ -276,7 +283,9 @@
   <!-- Scripts: data + helpers load before script.js which references them -->
   <script src="shards-data.js"></script>
   <script src="nbt.js"></script>
+  <script src="prices.js"></script>
   <script src="accessories.js"></script>
+  <script src="attributes.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
