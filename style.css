@@ -1,0 +1,820 @@
+/* =========================================================================
+ * style.css — Shard Market
+ *
+ * Aesthetic direction: refined obsidian + ember.
+ * Inspired by the volcanic Crimson Isle setting where most shards drop —
+ * deep obsidian blacks with ember-orange accents, grain texture, and
+ * Minecraft-style rarity colors used as data signal (not decoration).
+ *
+ * Typography pairs three distinctive Google Fonts:
+ *   - Unbounded     — display (headings, brand)
+ *   - Manrope       — body & UI
+ *   - JetBrains Mono — numbers, table data
+ * ======================================================================= */
+
+/* ---------- design tokens ---------- */
+:root {
+  /* surfaces */
+  --bg:            #07090f;
+  --bg-elevated:   #0e131f;
+  --surface:       #131826;
+  --surface-hi:    #1a2033;
+  --surface-line:  #232a40;
+
+  /* text */
+  --text:          #e8eaf2;
+  --text-soft:     #b4bbd0;
+  --text-muted:    #7a829c;
+  --text-faint:    #515a76;
+
+  /* accents */
+  --ember:         #ff6b35;      /* primary brand */
+  --ember-light:   #ffa400;      /* warm highlight */
+  --ember-glow:    rgba(255, 107, 53, 0.18);
+
+  /* signal */
+  --pos:           #2ee07a;      /* profit green */
+  --pos-dim:       #1b8950;
+  --neg:           #ff5673;      /* loss red */
+  --neg-dim:       #a32e44;
+  --info:          #5ab9ff;
+
+  /* radii / shadows */
+  --r-sm:  6px;
+  --r-md:  10px;
+  --r-lg:  16px;
+  --r-xl:  22px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md: 0 8px 24px rgba(0,0,0,0.45);
+  --shadow-ember: 0 0 40px var(--ember-glow);
+
+  /* type */
+  --font-display: "Unbounded", "Manrope", system-ui, sans-serif;
+  --font-body:    "Manrope", system-ui, -apple-system, sans-serif;
+  --font-mono:    "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+
+/* ---------- base reset ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--ember-light);
+  text-decoration: none;
+  transition: color .15s ease;
+}
+a:hover { color: var(--ember); }
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--surface);
+  padding: 0.08em 0.36em;
+  border-radius: 4px;
+  color: var(--ember-light);
+  border: 1px solid var(--surface-line);
+}
+
+/* ---------- atmospheric layers ---------- */
+/* Ember glow at top of page — gives the dashboard a warm "data center" feel */
+.ember-glow {
+  position: fixed;
+  inset: -200px 0 auto 0;
+  height: 600px;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 80% at 50% 20%,
+      rgba(255, 107, 53, 0.13) 0%,
+      rgba(255, 107, 53, 0.05) 30%,
+      transparent 70%),
+    radial-gradient(ellipse 80% 40% at 80% 10%,
+      rgba(255, 164, 0, 0.08) 0%,
+      transparent 60%);
+}
+
+/* Subtle film grain — kills the flat-digital feeling */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.35;
+  mix-blend-mode: overlay;
+  /* SVG noise turbulence, inlined as data URI so we don't add an HTTP request */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* ---------- layout shell ---------- */
+.site-header,
+.main,
+.site-footer {
+  position: relative;
+  z-index: 2;
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+
+/* ---------- header ---------- */
+.site-header {
+  padding-top: 32px;
+  padding-bottom: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-shard {
+  filter: drop-shadow(0 0 14px rgba(255, 107, 53, 0.45));
+  animation: shard-pulse 4s ease-in-out infinite;
+}
+
+@keyframes shard-pulse {
+  0%, 100% { filter: drop-shadow(0 0 14px rgba(255, 107, 53, 0.45)); }
+  50%      { filter: drop-shadow(0 0 22px rgba(255, 164, 0, 0.65)); }
+}
+
+.brand-title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(22px, 3vw, 30px);
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1;
+  background: linear-gradient(135deg, #ffeacc 0%, var(--ember) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.brand-tagline {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- buttons ---------- */
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-icon {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--ember-light) 0%, var(--ember) 100%);
+  color: #1a0f08;
+  border-color: rgba(255, 164, 0, 0.4);
+  box-shadow: 0 0 0 0 var(--ember-glow), var(--shadow-sm);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 24px var(--ember-glow), var(--shadow-md);
+}
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--surface-line);
+}
+.btn-secondary:hover {
+  background: var(--surface-hi);
+  border-color: var(--ember);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-soft);
+  border-color: var(--surface-line);
+}
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+  background: rgba(255,255,255,0.02);
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.btn-icon:hover { color: var(--text); }
+
+/* ---------- settings panel (drawer) ---------- */
+.settings-panel {
+  position: fixed;
+  top: 0; right: 0;
+  width: min(420px, 100vw);
+  height: 100vh;
+  background: var(--bg-elevated);
+  border-left: 1px solid var(--surface-line);
+  box-shadow: -16px 0 48px rgba(0,0,0,0.5);
+  transform: translateX(100%);
+  transition: transform .3s cubic-bezier(.22,.61,.36,1);
+  z-index: 50;
+  overflow-y: auto;
+}
+.settings-panel.open {
+  transform: translateX(0);
+}
+.settings-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--surface-line);
+}
+.settings-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+.settings-body { padding: 22px 24px; }
+
+.setting-group { margin-bottom: 28px; }
+
+.setting-label {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+.setting-help {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin: 0 0 12px;
+}
+
+input[type="password"],
+input[type="search"],
+.select-native {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+input[type="password"]:focus,
+input[type="search"]:focus,
+.select-native:focus {
+  outline: none;
+  border-color: var(--ember);
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.18);
+}
+.select-native {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237a829c' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+  padding-right: 38px;
+}
+
+.setting-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.settings-status {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--pos);
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+.settings-status.visible { opacity: 1; }
+
+/* ---------- stats grid ---------- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg-elevated) 100%);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-lg);
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s ease;
+}
+.stat-card:hover { border-color: rgba(255, 107, 53, 0.35); }
+
+/* Subtle top accent stripe — ember for first card, fades for the others */
+.stat-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.5), transparent);
+}
+
+.stat-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.stat-value-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stat-value-major {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: var(--ember-light);
+  line-height: 1.1;
+}
+.stat-value-minor {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.cache-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(90, 185, 255, 0.12);
+  color: var(--info);
+  border-radius: 4px;
+  border: 1px solid rgba(90, 185, 255, 0.3);
+}
+
+/* ---------- controls / filters ---------- */
+.controls {
+  display: grid;
+  grid-template-columns: 1.4fr auto auto;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-lg);
+}
+
+.search-wrap {
+  position: relative;
+}
+.search-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+#search-input {
+  padding-left: 40px;
+}
+
+.rarity-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rarity-pill {
+  --rarity-color: #999;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: transparent;
+  border: 1px solid var(--surface-line);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.rarity-pill .rarity-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rarity-color);
+  box-shadow: 0 0 6px var(--rarity-color);
+}
+.rarity-pill.active {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--rarity-color) 50%, var(--surface-line));
+  background: color-mix(in srgb, var(--rarity-color) 10%, transparent);
+}
+.rarity-pill:not(.active) .rarity-dot {
+  opacity: 0.35;
+  box-shadow: none;
+}
+.rarity-pill:hover {
+  border-color: var(--rarity-color);
+}
+
+.sort-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sort-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.sort-wrap .select-native {
+  width: auto;
+  min-width: 240px;
+}
+
+/* ---------- table ---------- */
+.table-section {
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shard-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+  min-width: 880px;
+}
+
+.shard-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-elevated);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+  padding: 14px 14px 14px 16px;
+  border-bottom: 1px solid var(--surface-line);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: color .15s ease;
+}
+.shard-table thead th:hover {
+  color: var(--text-soft);
+}
+.shard-table thead th.th-num { text-align: right; }
+.shard-table thead th.th-rank { text-align: center; width: 50px; padding-left: 12px; padding-right: 8px; }
+
+.shard-table thead th.sort-active {
+  color: var(--ember-light);
+}
+.shard-table thead th::after {
+  content: "";
+  display: inline-block;
+  margin-left: 6px;
+  width: 0;
+  height: 0;
+  vertical-align: middle;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.shard-table thead th.sort-asc::after {
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 5px solid currentColor;
+  opacity: 1;
+}
+.shard-table thead th.sort-desc::after {
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  opacity: 1;
+}
+
+.shard-table tbody tr {
+  --rarity-color: #444;
+  border-left: 3px solid transparent;
+  background: transparent;
+  transition: background .12s ease;
+  position: relative;
+}
+.shard-table tbody td {
+  padding: 13px 14px 13px 16px;
+  border-bottom: 1px solid rgba(35, 42, 64, 0.5);
+  vertical-align: middle;
+}
+
+/* Rarity accent on first cell — small but immediately readable */
+.shard-table tbody td:first-child {
+  border-left: 3px solid var(--rarity-color);
+  padding-left: 13px;
+  text-align: center;
+}
+.shard-table tbody tr:hover td {
+  background: rgba(255, 107, 53, 0.04);
+}
+.shard-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cell-rank {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.cell-shard .shard-name {
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cell-shard .shard-meta {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cell-shard .meta-rarity {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+}
+.cell-shard .meta-sep { color: var(--text-faint); }
+.cell-shard .meta-attr { color: var(--text-soft); }
+
+.badge-unknown {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(255, 164, 0, 0.15);
+  color: var(--ember-light);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 164, 0, 0.35);
+}
+
+.shard-table td.num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.shard-table td.num.pos { color: var(--pos); font-weight: 700; }
+.shard-table td.num.neg { color: var(--neg); font-weight: 700; }
+
+/* ---------- state rows (loading / error / empty) ---------- */
+.state-row {
+  padding: 0 !important;
+  border-left: 3px solid transparent !important;
+}
+.state-loading,
+.state-error,
+.state-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 64px 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+.state-error {
+  flex-direction: column;
+  color: var(--neg);
+}
+.state-error strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--neg);
+}
+.state-error span {
+  color: var(--text-soft);
+  font-weight: 500;
+  max-width: 480px;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--surface-line);
+  border-top-color: var(--ember);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  display: inline-block;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- legend / footer ---------- */
+.legend {
+  margin: 0;
+  padding: 16px 20px;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--surface-line);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: baseline;
+  line-height: 1.6;
+}
+.legend strong {
+  color: var(--text-soft);
+  font-weight: 700;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+}
+.legend-item b { color: var(--text); font-weight: 700; }
+
+.site-footer {
+  margin-top: 36px;
+  margin-bottom: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--surface-line);
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.site-footer p { margin: 0 0 6px; }
+.footer-disclaimer {
+  font-size: 12px;
+  color: var(--text-faint);
+  max-width: 640px;
+  margin: 0 auto !important;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 1100px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .controls {
+    grid-template-columns: 1fr;
+  }
+  .sort-wrap .select-native { width: 100%; }
+  .rarity-filters { justify-content: flex-start; }
+}
+
+@media (max-width: 640px) {
+  .site-header, .main, .site-footer { padding-left: 16px; padding-right: 16px; }
+  .site-header { padding-top: 20px; padding-bottom: 20px; flex-wrap: wrap; }
+  .header-actions { width: 100%; }
+  .btn-primary, .btn-ghost { flex: 1; justify-content: center; }
+  .btn-ghost span, .btn-primary span { display: inline; }
+  .stat-card { padding: 14px 16px; }
+  .stat-value { font-size: 24px; }
+  .stat-value-major { font-size: 18px; }
+  .legend { padding: 14px 16px; gap: 10px; font-size: 12px; }
+}
+
+@media (max-width: 440px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .brand-tagline { display: none; }
+}
+
+/* ---------- accessibility ---------- */
+:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-shard { animation: none; }
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* Custom scrollbar (Webkit only — gracefully ignored elsewhere) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb {
+  background: var(--surface-line);
+  border-radius: 10px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }

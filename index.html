@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0e1a" />
+  <meta name="description" content="Live Hypixel SkyBlock Attribute Shard market analyzer — profit margins, spreads, and trading volume from the official Bazaar API." />
+
+  <title>Shard Market · Hypixel SkyBlock Attribute Shard Analyzer</title>
+
+  <!-- Distinctive font pairing: Unbounded (display) + Manrope (body) + JetBrains Mono (numbers) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Inline SVG favicon: an ember shard -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ffb347'/%3E%3Cstop offset='1' stop-color='%23ff4d2e'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M16 2 L28 14 L20 30 L12 30 L4 14 Z' fill='url(%23g)' stroke='%23ffd9a8' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E" />
+</head>
+<body>
+
+  <!-- Decorative ember glow at the top -->
+  <div class="ember-glow" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="brand">
+      <svg class="brand-shard" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true">
+        <defs>
+          <linearGradient id="shard-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%"   stop-color="#ffb347"/>
+            <stop offset="100%" stop-color="#ff4d2e"/>
+          </linearGradient>
+        </defs>
+        <path d="M16 2 L28 14 L20 30 L12 30 L4 14 Z"
+              fill="url(#shard-grad)"
+              stroke="#ffd9a8" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M16 2 L20 14 L16 30 M12 30 L20 14 L28 14"
+              fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="0.8"/>
+      </svg>
+      <div class="brand-text">
+        <h1 class="brand-title">Shard Market</h1>
+        <p class="brand-tagline">Hypixel SkyBlock · attribute shard profitability</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-ghost" id="settings-toggle" aria-label="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Settings</span>
+      </button>
+      <button class="btn-primary" id="refresh-btn" aria-label="Refresh data">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/>
+          <polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        <span>Refresh</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Settings drawer (collapsed by default) -->
+  <aside id="settings-panel" class="settings-panel" aria-hidden="true">
+    <div class="settings-head">
+      <h3>Settings</h3>
+      <button class="btn-icon" id="close-settings" aria-label="Close settings">×</button>
+    </div>
+    <div class="settings-body">
+      <section class="setting-group">
+        <label class="setting-label" for="api-key-input">Hypixel API key (optional)</label>
+        <p class="setting-help">
+          The Bazaar endpoint is public and works without a key. A key is only useful if you later extend
+          the tool with authenticated calls. Stored locally in your browser — never sent anywhere except
+          to <code>api.hypixel.net</code>.
+        </p>
+        <input type="password" id="api-key-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
+        <div class="setting-actions">
+          <button class="btn-secondary" id="save-api-key">Save key</button>
+          <button class="btn-ghost" id="clear-api-key">Clear</button>
+        </div>
+      </section>
+
+      <section class="setting-group">
+        <label class="setting-label" for="tax-select">Bazaar tax rate</label>
+        <p class="setting-help">
+          Tax on sell-order payouts. Reduce by upgrading the Bazaar Flipper perk at the Community Center.
+        </p>
+        <select id="tax-select" class="select-native">
+          <option value="0.0125">1.250% (base)</option>
+          <option value="0.01125">1.125% (Bazaar Flipper I)</option>
+          <option value="0.01">1.000% (Bazaar Flipper II)</option>
+          <option value="0.0225">2.250% (Mayor Aura active)</option>
+        </select>
+      </section>
+
+      <p id="settings-status" class="settings-status"></p>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- Stats bar -->
+    <section class="stats-grid" aria-label="Market overview">
+      <div class="stat-card">
+        <div class="stat-label">Shards tracked</div>
+        <div class="stat-value" id="stat-total">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Best flip / unit</div>
+        <div class="stat-value stat-value-stacked" id="stat-top-profit">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Largest spread</div>
+        <div class="stat-value stat-value-stacked" id="stat-top-spread">—</div>
+      </div>
+      <div class="stat-card stat-card--updated">
+        <div class="stat-label">
+          Last updated
+          <span class="cache-badge" id="cache-badge" style="display:none">cached</span>
+        </div>
+        <div class="stat-value stat-value-stacked" id="stat-updated">
+          <span class="stat-value-major">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filter / search bar -->
+    <section class="controls" aria-label="Filters and search">
+      <div class="search-wrap">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="search" id="search-input" placeholder="Search shards, attributes, families…" autocomplete="off" />
+      </div>
+
+      <div id="rarity-filters" class="rarity-filters" role="group" aria-label="Filter by rarity"></div>
+
+      <div class="sort-wrap">
+        <label for="sort-select" class="sort-label">Sort by</label>
+        <select id="sort-select" class="select-native">
+          <option value="profitPerUnit:desc">Profit / unit (high → low)</option>
+          <option value="marginPercent:desc">Margin % (high → low)</option>
+          <option value="spread:desc">Spread (high → low)</option>
+          <option value="weeklyVolume:desc">Weekly volume (high → low)</option>
+          <option value="weeklyExpectedProfit:desc">Expected weekly profit</option>
+          <option value="buyPrice:desc">Buy price (high → low)</option>
+          <option value="buyPrice:asc">Buy price (low → high)</option>
+          <option value="name:asc">Name (A → Z)</option>
+          <option value="rarity:asc">Rarity</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Main table -->
+    <section class="table-section">
+      <div class="table-scroll">
+        <table id="shard-table" class="shard-table">
+          <thead>
+            <tr>
+              <th data-sort="rank" class="th-rank">#</th>
+              <th data-sort="name" data-default-dir="asc">Shard</th>
+              <th data-sort="buyPrice"      class="th-num" title="What you pay to insta-buy">Buy</th>
+              <th data-sort="sellPrice"     class="th-num" title="What you get from insta-sell">Sell</th>
+              <th data-sort="spread"        class="th-num" title="Buy − Sell, before tax">Spread</th>
+              <th data-sort="profitPerUnit" class="th-num sort-active sort-desc" title="Order-flip profit per unit, after bazaar tax">Profit / unit</th>
+              <th data-sort="marginPercent" class="th-num" title="Profit as a % of sell price">Margin</th>
+              <th data-sort="weeklyVolume"  class="th-num" title="Total units traded in the past 7 days">Vol / wk</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="8" class="state-row">
+              <div class="state-loading"><span class="spinner"></span>Loading bazaar data…</div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="legend">
+        <strong>How to read:</strong>
+        <span class="legend-item"><b>Buy</b> = insta-buy cost.</span>
+        <span class="legend-item"><b>Sell</b> = insta-sell revenue.</span>
+        <span class="legend-item"><b>Profit / unit</b> = realistic order-flip profit after tax: <code>Buy × (1 − tax) − Sell</code>.</span>
+        <span class="legend-item">Tap any column header to sort.</span>
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>
+      Data from the <a href="https://api.hypixel.net/" target="_blank" rel="noopener noreferrer">official Hypixel API</a>
+      · shard metadata from the <a href="https://wiki.hypixel.net/Attributes" target="_blank" rel="noopener noreferrer">Hypixel Wiki</a>.
+      Not affiliated with Hypixel or Mojang.
+    </p>
+    <p class="footer-disclaimer">
+      Prices update every ~60s and reflect bazaar-wide averages. Real fills depend on order book depth.
+      Always verify in-game before committing to large trades.
+    </p>
+  </footer>
+
+  <!-- Scripts: shards-data must load first because script.js references SHARDS_DB -->
+  <script src="shards-data.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
