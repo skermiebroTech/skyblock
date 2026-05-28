@@ -73,15 +73,19 @@ Both accessory pages show a live **Magical Power progress bar**.
 
 ### Real prices
 
-- **Bazaar items** show either **insta-buy** (buy now from sell offers) or
+- **Shards (bazaar)** show either **insta-buy** (buy now from sell offers) or
   **buy-order** (place an order — cheaper, slower). Toggle between them with the
-  *Bazaar price* switch on the accessory pages.
-- **Auction-House items** show the **lowest BIN**, computed by scanning the official
-  `/skyblock/auctions` endpoint (all ~42 pages, in parallel batches, cached 5 min)
-  and matching listings to items by name (reforge prefixes stripped). The scan
+  *Shard price* switch on the **Attributes** page; the total maxing cost updates live.
+- **Accessories (Auction House)** show the **lowest BIN**, computed by scanning the
+  official `/skyblock/auctions` endpoint (all ~42 pages, in parallel batches, cached
+  5 min) and matching listings to items by name (reforge prefixes stripped). The scan
   starts automatically the first time you open an accessory page.
 - **Prefer max tier** (on by default): targets the *family maximum* accessory. Turn
   it off to target only the *next tier up* — cheaper, incremental upgrades.
+
+> Accessories are Auction-House-only in SkyBlock, so there's no bazaar buy/sell choice
+> for them — that toggle lives on the Attributes page, where shards are bought from the
+> Bazaar.
 
 > **How the inventory is read:** Hypixel returns inventories as gzipped, base64-encoded
 > NBT. No third-party SkyBlock API (SkyCrypt, Coflnet, etc.) allows browser CORS, so

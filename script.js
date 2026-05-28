@@ -461,14 +461,18 @@ async function loadAttributeAnalysis() {
     if (!stacks) { state.player.attributeAnalysis = { rows: [], totalShardsNeeded: 0, totalCost: 0, maxedCount: 0, totalCount: 0 }; return; }
 
     /* Price each attribute's source shard via the live bazaar.
-     * The shard granting attribute `code` is fusion-props[code].name → SHARD_<NAME>. */
+     * The shard granting attribute `code` is fusion-props[code].name → SHARD_<NAME>.
+     * Respects the user's bazaar-price preference (insta-buy vs buy-order). */
     const shardPriceFor = (code) => {
       const propName = state.fusionProps?.[code]?.name;
       if (!propName) return null;
       const bazaarId = state.codeToBazaar?.[code]
         || ("SHARD_" + propName.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, ""));
-      const prod = state.raw?.products?.[bazaarId];
-      return prod?.quick_status?.buyPrice || null;  // insta-buy the shard
+      const qs = state.raw?.products?.[bazaarId]?.quick_status;
+      if (!qs) return null;
+      return state.bazaarMode === "buyOrder"
+        ? (qs.sellPrice || qs.buyPrice || null)   // place a buy order (cheaper)
+        : (qs.buyPrice || qs.sellPrice || null);  // insta-buy
     };
 
     state.player.attributeAnalysis = analyseAttributes(state.attributeCatalog, stacks, shardPriceFor);
@@ -1203,7 +1207,10 @@ function mpHeaderHTML(analysis) {
     </div>`;
 }
 
-/* Shared sourcing-options toolbar for the accessory pages. */
+/* Shared sourcing-options toolbar for the accessory pages.
+ * (No bazaar insta-buy/buy-order control here — accessories are Auction-House
+ * only, so that toggle lives on the Attributes page where shards are bought
+ * from the Bazaar.) */
 function accessoryToolbarHTML() {
   const binsState = state.binsLoading
     ? `<span class="ah-status">Scanning AH… ${Math.round(state.binsProgress * 100)}%</span>`
@@ -1213,13 +1220,6 @@ function accessoryToolbarHTML() {
 
   return `
     <div class="acc-toolbar">
-      <div class="acc-toolbar-group">
-        <span class="acc-toolbar-label">Bazaar price:</span>
-        <div class="seg" role="group">
-          <button class="seg-btn ${state.bazaarMode === "instaBuy" ? "active" : ""}" data-bzmode="instaBuy">Insta-buy</button>
-          <button class="seg-btn ${state.bazaarMode === "buyOrder" ? "active" : ""}" data-bzmode="buyOrder">Buy order</button>
-        </div>
-      </div>
       <label class="toggle-chip">
         <input type="checkbox" id="prefer-max-toggle" ${state.preferMax ? "checked" : ""}/>
         <span>Prefer max tier</span>
@@ -1228,15 +1228,8 @@ function accessoryToolbarHTML() {
     </div>`;
 }
 
-/* Wire the toolbar controls inside a freshly-rendered pane. */
+/* Wire the toolbar controls inside a freshly-rendered accessory pane. */
 function bindAccessoryToolbar(container) {
-  container.querySelectorAll("[data-bzmode]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.bazaarMode = btn.dataset.bzmode;
-      localStorage.setItem(CONFIG.BAZAAR_MODE_STORAGE, state.bazaarMode);
-      renderActiveView();
-    });
-  });
   const maxToggle = container.querySelector("#prefer-max-toggle");
   if (maxToggle) {
     maxToggle.addEventListener("change", (e) => {
@@ -1418,9 +1411,30 @@ function renderAttributesView() {
       <div class="mp-bar"><div class="mp-bar-fill" style="width:${pct}%"></div></div>
     </div>
 
+    <div class="acc-toolbar">
+      <div class="acc-toolbar-group">
+        <span class="acc-toolbar-label">Shard price:</span>
+        <div class="seg" role="group">
+          <button class="seg-btn ${state.bazaarMode === "instaBuy" ? "active" : ""}" data-bzmode="instaBuy">Insta-buy</button>
+          <button class="seg-btn ${state.bazaarMode === "buyOrder" ? "active" : ""}" data-bzmode="buyOrder">Buy order</button>
+        </div>
+      </div>
+    </div>
+
     <div class="attr-grid">
       ${a.rows.map(renderAttributeRow).join("")}
     </div>`;
+
+  /* Wire the bazaar-mode segmented control (re-prices shards, re-renders). */
+  pane.querySelectorAll("[data-bzmode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (state.bazaarMode === btn.dataset.bzmode) return;
+      state.bazaarMode = btn.dataset.bzmode;
+      localStorage.setItem(CONFIG.BAZAAR_MODE_STORAGE, state.bazaarMode);
+      /* Recompute shard costs under the new pricing, then re-render. */
+      loadAttributeAnalysis();
+    });
+  });
 
   bindCopyButtons(pane);
 }
