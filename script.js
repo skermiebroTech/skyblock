@@ -828,6 +828,32 @@ function escapeHtml(s) {
     .replace(/'/g, "&#39;");
 }
 
+function fusionTooltipText(r) {
+  if (!r?.bestFusion) return "No known fusion recipe";
+  const f = r.bestFusion;
+  const lines = [];
+  lines.push(f.inputs.map((i) => i.name).join(" + ") + ` → ×${f.outputQty} ${r.name}`);
+  lines.push(`Inputs: ${f.inputs.map((i) => `${i.name} (${fmtCoins(i.price)})`).join(" + ")}`);
+  lines.push(`Craft cost: ${fmtCoins(f.pairCost)} total · ${fmtCoins(f.costPerOutput)}/ea`);
+  lines.push(`Sell value: ${fmtCoins(r.buyPrice)} each after bazaar tax`);
+  if (f.huntingLocked) {
+    lines.push(`Locked: requires Hunting Lv ${f.requiredHuntingLevel}; linked profile is Lv ${state.player.huntingLevel}`);
+  } else {
+    lines.push(`Craft profit: ${fmtCoins(r.fusionProfitPerUnit)}/ea (${fmtPct(r.fusionMarginPercent)})`);
+    lines.push(`Requires Hunting Lv ${f.requiredHuntingLevel}`);
+  }
+  lines.push(`Bazaar flip: ${fmtCoins(r.profitPerUnit)}/ea (${fmtPct(r.marginPercent)})`);
+  lines.push(`Weekly volume: ${fmtInt(r.weeklyVolume)}`);
+  return lines.join("\n");
+}
+
+function fusionBadgeHTML(r, extraClass = "") {
+  if (!r?.hasFusion) return "";
+  const lockedClass = r.bestFusion?.huntingLocked ? " badge-fusion-locked" : "";
+  const classes = ["badge-fusion", extraClass, lockedClass].filter(Boolean).join(" ");
+  return `<span class="${classes}" title="${escapeHtml(fusionTooltipText(r))}" aria-label="Fusion recipe details">⚒</span>`;
+}
+
 /* Inline SVG placeholder shown when a texture URL fails to load. */
 const PLACEHOLDER_ICON =
   "data:image/svg+xml;utf8," + encodeURIComponent(
@@ -1058,6 +1084,7 @@ function renderBestFusionsPanel() {
     const huntReq = r.bestFusion.requiredHuntingLevel > 0
       ? `<span class="afford fusion-hunt-req" title="Requires Hunting Lv ${r.bestFusion.requiredHuntingLevel}">Hunting ${r.bestFusion.requiredHuntingLevel}+</span>`
       : "";
+    const craftTooltip = escapeHtml(fusionTooltipText(r));
 
     return `
     <article class="fusion-card" style="--rarity-color:${RARITY_COLORS[r.rarity]}">
@@ -1065,17 +1092,28 @@ function renderBestFusionsPanel() {
         <img class="fusion-icon" src="${iconUrl(r.id)}" alt="" loading="lazy"
              onerror="this.src='${PLACEHOLDER_ICON}'"/>
         <div class="fusion-card-titles">
-          <div class="fusion-card-name">${escapeHtml(r.name)}</div>
+          <div class="fusion-card-name">
+            ${escapeHtml(r.name)}
+            ${fusionBadgeHTML(r, "badge-fusion-card")}
+          </div>
           <div class="fusion-card-rarity" style="color:${RARITY_COLORS[r.rarity]}">
             ${r.rarity.toLowerCase()} ${huntReq} ${afford}
           </div>
         </div>
-        <div class="fusion-card-profit pos">
+        <div class="fusion-card-profit pos" title="${craftTooltip}">
           ${fmtCoins(r.fusionProfitPerUnit)}
           <span class="fusion-card-margin">${fmtPct(r.fusionMarginPercent)}</span>
         </div>
       </div>
-      <div class="fusion-recipe">
+      <div class="fusion-card-stats" aria-label="Shard market stats">
+        <div><span>Buy</span><strong>${fmtCoins(r.buyPrice)}</strong></div>
+        <div><span>Sell</span><strong>${fmtCoins(r.sellPrice)}</strong></div>
+        <div><span>Spread</span><strong>${fmtCoins(r.spread)}</strong></div>
+        <div><span>Bazaar flip</span><strong class="${r.profitPerUnit > 0 ? "pos" : r.profitPerUnit < 0 ? "neg" : "neu"}">${fmtCoins(r.profitPerUnit)}</strong></div>
+        <div><span>Margin</span><strong class="${r.marginPercent > 0 ? "pos" : r.marginPercent < 0 ? "neg" : "neu"}">${fmtPct(r.marginPercent)}</strong></div>
+        <div><span>Volume</span><strong>${fmtInt(r.weeklyVolume)}</strong></div>
+      </div>
+      <div class="fusion-recipe" title="${craftTooltip}">
         ${r.bestFusion.inputs.map((inp) => `
           <div class="fusion-input">
             <img class="fusion-input-icon" src="${iconUrl(inp.bazaarId)}" alt="" loading="lazy"
@@ -1815,7 +1853,7 @@ function renderTable() {
         <div class="shard-name">
           ${escapeHtml(r.name)}
           ${r.known ? "" : '<span class="badge-unknown" title="No metadata in our database — auto-detected from bazaar">new</span>'}
-          ${r.hasFusion ? '<span class="badge-fusion" title="Has at least one known fusion recipe">⚒</span>' : ""}
+          ${r.hasFusion ? fusionBadgeHTML(r) : ""}
         </div>
         <div class="shard-meta">
           <span class="meta-rarity" style="color:${RARITY_COLORS[r.rarity]}">${r.rarity.toLowerCase()}</span>

@@ -975,6 +975,39 @@ input[type="search"]:focus,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fusion-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.fusion-card-stats > div {
+  min-width: 0;
+  padding: 7px 8px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-sm);
+}
+.fusion-card-stats span {
+  display: block;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  margin-bottom: 2px;
+}
+.fusion-card-stats strong {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .fusion-card-rarity {
   font-size: 11px;
@@ -1152,6 +1185,7 @@ input[type="search"]:focus,
   justify-content: center;
   width: 18px;
   height: 18px;
+  flex: 0 0 18px;
   border-radius: 4px;
   font-size: 11px;
   background: rgba(255, 107, 53, 0.15);
@@ -1160,6 +1194,20 @@ input[type="search"]:focus,
   margin-left: 4px;
   vertical-align: middle;
   cursor: help;
+}
+.badge-fusion:hover,
+.badge-fusion:focus-visible {
+  background: rgba(255, 107, 53, 0.25);
+  border-color: rgba(255, 107, 53, 0.55);
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.12);
+}
+.badge-fusion-card {
+  margin-left: 0;
+}
+.badge-fusion-locked {
+  background: rgba(154, 164, 188, 0.12);
+  color: var(--text-muted);
+  border-color: rgba(154, 164, 188, 0.28);
 }
 .fusion-val { font-weight: 600; }
 .fusion-locked {
