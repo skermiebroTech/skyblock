@@ -8,7 +8,8 @@ A browser-based **Hypixel SkyBlock optimizer**. Reads the official Hypixel API s
 
 No backend. No build step. No tracking. Static files you can host on GitHub Pages.
 
-![Stack](https://img.shields.io/badge/stack-HTML%20%2B%20CSS%20%2B%20JS-blueviolet) ![No build](https://img.shields.io/badge/build-none-success) ![License](https://img.shields.io/badge/license-MIT-blue)
+![Stack](https://img.shields.io/badge/stack-HTML%20%2B%20CSS%20%2B%20JS-blueviolet) ![No build](https://img.shields.io/badge/build-none-success) ![License](https://img.shields.io/badge/license-MIT-blue) 
+[Hypixie](https://skermiebrotech.github.io/skyblock/)
 
 ---
 
