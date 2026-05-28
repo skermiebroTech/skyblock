@@ -1,8 +1,12 @@
-# Shard Market
+# Hypixie
 
-A live profitability analyzer for Hypixel SkyBlock **Attribute Shards**. Reads the public Hypixel Bazaar API straight from your browser, computes order-flip margins, and presents everything in a sortable / filterable dashboard.
+A browser-based **Hypixel SkyBlock optimizer**. Reads the official Hypixel API straight from your browser and helps you:
 
-No backend. No build step. No tracking. Just three static files you can host on GitHub Pages.
+- flip **Attribute Shards** on the Bazaar (live profit, spreads, fusion crafting)
+- plan **accessory Magical Power** — what's missing, what to upgrade, what to recombobulate
+- **max your attributes** — exactly how many shards each one needs and the coin cost
+
+No backend. No build step. No tracking. Static files you can host on GitHub Pages.
 
 ![Stack](https://img.shields.io/badge/stack-HTML%20%2B%20CSS%20%2B%20JS-blueviolet) ![No build](https://img.shields.io/badge/build-none-success) ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -10,12 +14,15 @@ No backend. No build step. No tracking. Just three static files you can host on 
 
 ## What it does
 
-- Fetches the [Hypixel Bazaar endpoint](https://api.hypixel.net/v2/skyblock/bazaar) every 60 seconds.
-- Filters down to every product whose ID starts with `SHARD_` or `ATTRIBUTE_SHARD` (so new shards added in future updates appear automatically).
-- Computes realistic flip economics: insta-buy cost, insta-sell revenue, gross spread, **net order-flip profit per unit (after the bazaar tax)**, and percentage margin.
-- Enriches each shard with rarity, family, and attribute name from a built-in metadata table sourced from the [Hypixel Wiki Attributes page](https://wiki.hypixel.net/Attributes). Unknown shards still appear — they just get auto-prettified names and a "new" badge.
-- Stores responses in `localStorage` with a 60 s TTL so quick reloads don't hammer the API.
-- Lets you filter by rarity, search by name / attribute / family, and sort by any column.
+- Fetches the [Hypixel Bazaar endpoint](https://api.hypixel.net/v2/skyblock/bazaar) every 60 seconds and computes realistic order-flip economics for every Attribute Shard.
+- Detects the best **fusion** craft-and-flip recipes.
+- Link your account (username + API key) to unlock accessory & attribute planning:
+  - **Missing accessories** ranked by Magical Power, with `/bz` & `/ahs` copy commands and live prices.
+  - **Accessory upgrades** (lower tier than family max) and **recombobulate** suggestions for maxed-tier items.
+  - **Attribute maxing** — shards remaining and live bazaar cost per attribute.
+- Every item links to the **Hypixel Wiki**; **soulbound** items are flagged (can't be bought on the AH).
+- Player panel shows coin purse, bank, SkyBlock level, Hunting/Combat levels, slayer XP, and fairy souls.
+- Stores responses in `localStorage` with short TTLs so quick reloads don't hammer the API.
 
 ---
 

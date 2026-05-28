@@ -159,6 +159,8 @@ async function decodeInventory(base64Data) {
     slotIndex: idx,
     count:     it?.Count ?? 0,
     skyblockId: it?.tag?.ExtraAttributes?.id || null,
+    /* rarity_upgrades=1 means the item has been recombobulated already. */
+    recombobulated: (it?.tag?.ExtraAttributes?.rarity_upgrades ?? 0) > 0,
     rawTag:    it?.tag || null,
   })).filter((x) => x.skyblockId);
 }

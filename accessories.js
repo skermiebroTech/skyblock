@@ -60,6 +60,31 @@ function accessoryMP(item) {
   return MP_BY_RARITY[item.tier] ?? 0;
 }
 
+/* Rarity progression for recombobulator (bumps exactly one tier). */
+const RARITY_ORDER = ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC"];
+
+/* The MP an accessory would have one rarity tier higher (after recombobulating).
+ * Returns { nextRarity, nextMP, mpGain } or null if already at top / no gain. */
+function recombGain(item) {
+  const idx = RARITY_ORDER.indexOf(item.tier);
+  if (idx < 0 || idx >= RARITY_ORDER.length - 1) return null;
+  const nextRarity = RARITY_ORDER[idx + 1];
+  const nextMP = MP_BY_RARITY[nextRarity] ?? item.mp;
+  const mpGain = nextMP - item.mp;
+  if (mpGain <= 0) return null;
+  return { nextRarity, nextMP, mpGain };
+}
+
+/* Build the Hypixel Wiki URL for an item by display name.
+ *   "Tarantula Ring"        → https://wiki.hypixel.net/Tarantula_Ring
+ *   "Anita's Talisman"      → https://wiki.hypixel.net/Anita's_Talisman
+ *   "Nature Elemental Shard"→ https://wiki.hypixel.net/Nature_Elemental_Shard */
+function wikiUrl(displayName) {
+  if (!displayName) return null;
+  const slug = displayName.trim().replace(/ /g, "_");
+  return `https://wiki.hypixel.net/${encodeURI(slug)}`;
+}
+
 /* Strip the upgrade suffix off an accessory name, returning its family base.
  * "Tarantula Ring" → "Tarantula";  "Bat Artifact" → "Bat".
  * Returns null when the name has no recognised suffix (standalone accessory). */
@@ -93,8 +118,10 @@ function buildAccessoryCatalog(itemsPayload) {
       name:       it.name,
       tier:       it.tier || "COMMON",
       mp:         accessoryMP(it),
-      soulbound:  !!it.soulbound,
-      canAuction: it.can_auction !== false,   // default true unless explicitly false
+      soulbound:  !!it.soulbound,                 // SOLO or COOP — can't be bought on AH
+      soulboundType: it.soulbound || null,        // "SOLO" | "COOP" | null
+      canAuction: it.can_auction !== false && !it.soulbound,
+      canRecomb:  it.can_recombobulate !== false, // default true unless explicitly false
       base:       accessoryFamilyBase(it.name),
     };
   }
@@ -127,22 +154,38 @@ function buildAccessoryCatalog(itemsPayload) {
 /* ------------------------------------------------------------------------ */
 /* Analyse what the player owns vs. the catalog.                            */
 /*                                                                          */
-/*   ownedIds: Set<string> of SkyBlock accessory ids in the player's bag    */
+/*   owned: Set<string> of ids, OR Map<string, {recombobulated:bool}>       */
 /*                                                                          */
 /* Returns:                                                                  */
 /*   {                                                                       */
 /*     currentMP, maxMP,                                                     */
-/*     missing:    [ {item, mp, reason} ]   sorted by mp desc               */
-/*     upgrades:   [ {owned, target, mpGain} ] sorted by mpGain desc        */
+/*     missing:    [ {item, mp, reason} ]        sorted by mp desc          */
+/*     upgrades:   [ {owned, target, mpGain} ]   sorted by mpGain desc      */
+/*     recombs:    [ {item, nextRarity, mpGain} ] maxed-tier, not recombed  */
 /*   }                                                                       */
 /* ------------------------------------------------------------------------ */
-function analyseAccessories(catalog, ownedIds, opts = {}) {
+function analyseAccessories(catalog, owned, opts = {}) {
   const preferMax = opts.preferMax !== false;   // default: target family max
+
+  /* Accept either a Set of ids or a Map of id → {recombobulated}. */
+  const ownedHas = (id) => (owned instanceof Map ? owned.has(id) : owned.has(id));
+  const isRecombed = (id) => (owned instanceof Map ? !!owned.get(id)?.recombobulated : false);
+
   const missing = [];
   const upgrades = [];
+  const recombs = [];
 
   let currentMP = 0;
   let maxMP = 0;
+
+  /* Helper: record a recomb suggestion for an owned, max-tier-in-family item. */
+  const considerRecomb = (item) => {
+    if (!item.canRecomb) return;
+    if (isRecombed(item.id)) return;          // already recombobulated
+    const g = recombGain(item);
+    if (!g) return;                            // already mythic / no gain
+    recombs.push({ item, nextRarity: g.nextRarity, mpGain: g.mpGain });
+  };
 
   /* Track which families the player has at least one member of, and the
    * highest tier they own within each. */
@@ -151,7 +194,7 @@ function analyseAccessories(catalog, ownedIds, opts = {}) {
     maxMP += highest.mp;
 
     /* Which members does the player own? */
-    const ownedMembers = fam.members.filter((m) => ownedIds.has(m.id));
+    const ownedMembers = fam.members.filter((m) => ownedHas(m.id));
 
     if (ownedMembers.length === 0) {
       /* Whole family missing. Target the family MAX when preferMax, else the
@@ -180,16 +223,20 @@ function analyseAccessories(catalog, ownedIds, opts = {}) {
         mpGain: target.mp - bestOwned.mp,
         family: fam.base,
       });
+    } else {
+      /* Already at the family's top item — recombobulating is the only way up. */
+      considerRecomb(bestOwned);
     }
   }
 
   /* Standalone accessories — own it or you don't. */
   for (const a of catalog.standalone) {
     maxMP += a.mp;
-    if (ownedIds.has(a.id)) {
+    if (ownedHas(a.id)) {
       currentMP += a.mp;
+      considerRecomb(a);   // owned standalone → can recombobulate for more MP
     } else if (a.mp > 0 && !a.soulbound) {
-      /* Skip soulbound (can't be traded for) and zero-MP items in the
+      /* Skip soulbound (can't be bought on AH) and zero-MP items in the
        * "missing" list — they're not actionable buy targets. */
       missing.push({
         item: a,
@@ -197,15 +244,14 @@ function analyseAccessories(catalog, ownedIds, opts = {}) {
         family: null,
         reason: "standalone-missing",
       });
-    } else if (ownedIds.has(a.id)) {
-      currentMP += a.mp;
     }
   }
 
   missing.sort((x, y) => y.mp - x.mp);
   upgrades.sort((x, y) => y.mpGain - x.mpGain);
+  recombs.sort((x, y) => y.mpGain - x.mpGain);
 
-  return { currentMP, maxMP, missing, upgrades };
+  return { currentMP, maxMP, missing, upgrades, recombs };
 }
 
 /* Build the in-game chat command for sourcing an accessory.
@@ -222,3 +268,5 @@ window.buildAccessoryCatalog = buildAccessoryCatalog;
 window.analyseAccessories    = analyseAccessories;
 window.sourcingCommand       = sourcingCommand;
 window.accessoryMP           = accessoryMP;
+window.wikiUrl               = wikiUrl;
+window.recombGain            = recombGain;

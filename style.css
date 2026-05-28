@@ -1669,3 +1669,65 @@ input[type="search"]:focus,
 @media (max-width: 600px) {
   .acc-toolbar-ah { margin-left: 0; width: 100%; }
 }
+
+/* =========================================================================
+ * Wiki links, soulbound badges, recombobulate cards, extra player stats
+ * ======================================================================= */
+
+/* Wiki link on item/attribute names */
+.wiki-link {
+  color: var(--text);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.wiki-link:hover { color: var(--ember-light); }
+.wiki-ext {
+  opacity: 0;
+  color: var(--ember-light);
+  transition: opacity .15s ease;
+  flex-shrink: 0;
+}
+.wiki-link:hover .wiki-ext { opacity: 1; }
+a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
+
+/* Soulbound badge */
+.sb-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 4px;
+  color: var(--info);
+  background: rgba(90, 185, 255, 0.12);
+  border: 1px solid rgba(90, 185, 255, 0.3);
+  vertical-align: middle;
+  cursor: help;
+}
+.acc-price-sb { color: var(--info); font-weight: 600; }
+.acc-sb-note {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.acc-card-cmd--sb { background: rgba(90,185,255,0.05); }
+
+/* Recombobulate cards + sub-section heads */
+.acc-page-head--sub { margin-top: 32px; }
+.acc-card--recomb .acc-upgrade-arrow { color: var(--ember-light); }
+.acc-recomb-note {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.acc-card--recomb .acc-cmd-text { color: var(--ember-light); }
+
+/* Wider, wrapping player stats row */
+.player-stats {
+  flex-wrap: wrap;
+  gap: 16px 22px;
+}

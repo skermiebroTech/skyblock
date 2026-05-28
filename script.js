@@ -114,6 +114,7 @@ const state = {
     coinPurse:     null,  // coins available in the selected profile
     huntingLevel:  null,  // current Hunting skill level
     huntingXp:     null,
+    extra:         {},    // bank, sbLevel, fairySouls, slayerXp, combatLevel
     ownedAccessories: null,  // Set<string> of owned accessory ids (null = not loaded)
     accessoryAnalysis: null, // {currentMP, maxMP, missing, upgrades}
     attributeStacks: null,   // raw {attrId: shards} from profile
@@ -318,14 +319,33 @@ function xpToLevel(xp) {
 /* Pull out the bits of a SkyBlock profile we care about for shard work. */
 function extractProfileStats(profile, uuid) {
   const member = profile?.members?.[uuid];
-  if (!member) return { coinPurse: null, huntingLevel: null, huntingXp: null, attributeStacks: null };
+  if (!member) return { coinPurse: null, huntingLevel: null, huntingXp: null, attributeStacks: null, extra: {} };
 
   const coinPurse  = member.currencies?.coin_purse ?? null;
-  const huntingXp  = member.player_data?.experience?.SKILL_HUNTING ?? null;
+  const exp = member.player_data?.experience || {};
+  const huntingXp  = exp.SKILL_HUNTING ?? null;
   const huntingLevel = huntingXp != null ? xpToLevel(huntingXp) : null;
   const attributeStacks = member.attributes?.stacks ?? null;
 
-  return { coinPurse, huntingLevel, huntingXp, attributeStacks };
+  /* Extra account stats for the player panel. */
+  const bank = profile?.banking?.balance ?? null;
+  const sbXp = member.leveling?.experience ?? null;
+  const sbLevel = sbXp != null ? Math.floor(sbXp / 100) : null;   // SB level = XP/100
+  const fairySouls = member.fairy_soul?.total_collected ?? null;
+
+  /* Total slayer XP across all bosses. */
+  let slayerXp = 0;
+  const bosses = member.slayer?.slayer_bosses || {};
+  for (const b of Object.values(bosses)) slayerXp += b?.xp || 0;
+
+  /* Combat skill level (handy alongside Hunting for shard grinding). */
+  const combatXp = exp.SKILL_COMBAT ?? null;
+  const combatLevel = combatXp != null ? xpToLevel(combatXp) : null;
+
+  return {
+    coinPurse, huntingLevel, huntingXp, attributeStacks,
+    extra: { bank, sbLevel, fairySouls, slayerXp, combatLevel },
+  };
 }
 
 /* Load (and cache) the player's profiles. Errors set state.player.error. */
@@ -369,7 +389,7 @@ async function loadPlayerProfiles(username) {
     state.player.profiles = [];
     state.player.selectedId = null;
     state.player.coinPurse = state.player.huntingLevel = state.player.huntingXp = null;
-    console.error("[ShardMarket] player load failed:", e);
+    console.error("[Hypixie] player load failed:", e);
   } finally {
     state.player.loading = false;
     renderPlayerPanel();
@@ -380,9 +400,9 @@ async function loadPlayerProfiles(username) {
 
 /* Extract all owned accessory ids from a profile member by decoding the
  * talisman bag (and inventory / ender chest as a fallback for accessories
- * carried outside the bag). Returns a Set<string>. */
+ * carried outside the bag). Returns a Map<id, {recombobulated}>. */
 async function extractOwnedAccessories(member, catalog) {
-  const owned = new Set();
+  const owned = new Map();
   if (!member?.inventory) return owned;
 
   const slices = [
@@ -396,14 +416,17 @@ async function extractOwnedAccessories(member, catalog) {
     try {
       const items = await decodeInventory(slice.data);
       for (const it of items) {
-        /* Normalise: bag ids sometimes carry a numeric suffix
-         * (e.g. CAMPFIRE_TALISMAN_29). Only keep ids the catalog knows. */
+        /* Only keep ids the catalog knows. Merge recomb status — if any copy
+         * is recombobulated, treat the accessory as recombobulated. */
         if (catalog.byId[it.skyblockId]) {
-          owned.add(it.skyblockId);
+          const prev = owned.get(it.skyblockId);
+          owned.set(it.skyblockId, {
+            recombobulated: (prev?.recombobulated || it.recombobulated) === true,
+          });
         }
       }
     } catch (e) {
-      console.warn("[ShardMarket] inventory decode failed for a slice:", e.message);
+      console.warn("[Hypixie] inventory decode failed for a slice:", e.message);
     }
   }
   return owned;
@@ -420,6 +443,7 @@ function selectProfile(profileId) {
   state.player.huntingLevel = stats.huntingLevel;
   state.player.huntingXp    = stats.huntingXp;
   state.player.attributeStacks = stats.attributeStacks;
+  state.player.extra        = stats.extra || {};
 
   /* Accessory analysis runs async (NBT decode). Reset, then fill in. */
   state.player.ownedAccessories  = null;
@@ -441,7 +465,7 @@ async function loadAccessoryAnalysis(rawProfile) {
     state.player.ownedAccessories  = owned;
     state.player.accessoryAnalysis = analyseAccessories(state.accessoryCatalog, owned, { preferMax: state.preferMax });
   } catch (e) {
-    console.error("[ShardMarket] accessory analysis failed:", e);
+    console.error("[Hypixie] accessory analysis failed:", e);
     state.player.ownedAccessories  = new Set();
     state.player.accessoryAnalysis = { currentMP: 0, maxMP: 0, missing: [], upgrades: [], error: e.message };
   } finally {
@@ -477,7 +501,7 @@ async function loadAttributeAnalysis() {
 
     state.player.attributeAnalysis = analyseAttributes(state.attributeCatalog, stacks, shardPriceFor);
   } catch (e) {
-    console.error("[ShardMarket] attribute analysis failed:", e);
+    console.error("[Hypixie] attribute analysis failed:", e);
     state.player.attributeAnalysis = { rows: [], totalShardsNeeded: 0, totalCost: 0, maxedCount: 0, totalCount: 0, error: e.message };
   } finally {
     renderPlayerPanel();
@@ -488,7 +512,7 @@ async function loadAttributeAnalysis() {
 function clearPlayer() {
   state.player = {
     username: "", uuid: null, profiles: [], selectedId: null,
-    coinPurse: null, huntingLevel: null, huntingXp: null,
+    coinPurse: null, huntingLevel: null, huntingXp: null, extra: {},
     ownedAccessories: null, accessoryAnalysis: null,
     attributeStacks: null, attributeAnalysis: null,
     loading: false, error: null,
@@ -865,6 +889,7 @@ function renderPlayerPanel() {
   const huntingClass = p.huntingLevel >= 15 ? "pos"
                      : p.huntingLevel >= 10 ? "neu"
                      : "neg";
+  const x = p.extra || {};
 
   wrap.innerHTML = `
     <div class="player-loaded">
@@ -892,10 +917,30 @@ function renderPlayerPanel() {
           <div class="player-stat-value">${p.coinPurse != null ? fmtCoins(p.coinPurse) : "—"}</div>
         </div>
         <div class="player-stat">
+          <div class="player-stat-label">Bank</div>
+          <div class="player-stat-value">${x.bank != null ? fmtCoins(x.bank) : "—"}</div>
+        </div>
+        <div class="player-stat">
+          <div class="player-stat-label">SB Level</div>
+          <div class="player-stat-value">${x.sbLevel != null ? x.sbLevel : "—"}</div>
+        </div>
+        <div class="player-stat">
           <div class="player-stat-label">Hunting</div>
           <div class="player-stat-value ${huntingClass}">
             ${p.huntingLevel != null ? `Lv ${p.huntingLevel}` : "—"}
           </div>
+        </div>
+        <div class="player-stat">
+          <div class="player-stat-label">Combat</div>
+          <div class="player-stat-value">${x.combatLevel != null ? `Lv ${x.combatLevel}` : "—"}</div>
+        </div>
+        <div class="player-stat">
+          <div class="player-stat-label">Slayer XP</div>
+          <div class="player-stat-value">${x.slayerXp ? fmtCoins(x.slayerXp) : "—"}</div>
+        </div>
+        <div class="player-stat">
+          <div class="player-stat-label">Fairy souls</div>
+          <div class="player-stat-value">${x.fairySouls != null ? x.fairySouls : "—"}</div>
         </div>
       </div>
     </div>`;
@@ -1111,11 +1156,25 @@ async function loadLowestBinsIfNeeded(force = false) {
     state.lowestBins = bins;
     cache.write(CONFIG.CACHE_KEY_BINS, Array.from(bins.entries()));
   } catch (e) {
-    console.error("[ShardMarket] BIN scan failed:", e);
+    console.error("[Hypixie] BIN scan failed:", e);
   } finally {
     state.binsLoading = false;
     renderActiveView();
   }
+}
+
+/* Inline wiki-link + optional soulbound badge for an item name. */
+function itemNameHTML(item) {
+  const url = wikiUrl(item.name);
+  const sb = item.soulbound
+    ? `<span class="sb-badge" title="Soulbound (${item.soulboundType || "SOLO"}) — can't be bought on the Auction House">
+         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+           <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+         </svg></span>`
+    : "";
+  return `
+    <a class="acc-card-name wiki-link" href="${url}" target="_blank" rel="noopener noreferrer"
+       title="Open on Hypixel Wiki">${escapeHtml(item.name)}<svg class="wiki-ext" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>${sb}`;
 }
 
 /* Render one accessory action row (used by both pages). */
@@ -1125,25 +1184,42 @@ function accessoryActionRow(item, mpLabel, mpValue) {
   const price = accessoryPrice(item.id);
 
   let priceTxt;
-  if (price.market === "bazaar") {
+  if (item.soulbound) {
+    priceTxt = `<span class="acc-price acc-price-sb">Soulbound · not on AH</span>`;
+  } else if (price.market === "bazaar") {
     priceTxt = `<span class="acc-price">${fmtCoins(price.best)} <span class="acc-price-src">${price.label}</span></span>`;
   } else if (price.market === "auction" && price.bin != null) {
     priceTxt = `<span class="acc-price">${fmtCoins(price.bin)} <span class="acc-price-src">lowest BIN</span></span>`;
   } else if (state.binsLoading) {
     priceTxt = `<span class="acc-price acc-price-ah">Auction House · scanning…</span>`;
-  } else if (state.lowestBins) {
-    priceTxt = `<span class="acc-price acc-price-ah">Auction House</span>`;  // scanned but no live listing
   } else {
     priceTxt = `<span class="acc-price acc-price-ah">Auction House</span>`;
   }
 
   const tierColor = RARITY_COLORS[item.tier] || RARITY_COLORS.UNKNOWN;
+  /* Soulbound items can't be bought — show a wiki link instead of a /ahs cmd. */
+  const cmdRow = item.soulbound
+    ? `<div class="acc-card-cmd acc-card-cmd--sb">
+         <span class="acc-sb-note">Soulbound — obtain in-game</span>
+         <a class="btn-copy" href="${wikiUrl(item.name)}" target="_blank" rel="noopener noreferrer">Wiki</a>
+       </div>`
+    : `<div class="acc-card-cmd">
+        <code class="acc-cmd-text">${escapeHtml(cmd)}</code>
+        <button class="btn-copy" data-copy="${escapeHtml(cmd)}" title="Copy command">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          Copy
+        </button>
+      </div>`;
 
   return `
     <article class="acc-card" style="--tier-color:${tierColor}">
       <div class="acc-card-main">
         <div class="acc-card-titles">
-          <div class="acc-card-name">${escapeHtml(item.name)}</div>
+          ${itemNameHTML(item)}
           <div class="acc-card-sub">
             <span class="acc-tier" style="color:${tierColor}">${item.tier.toLowerCase()}</span>
             <span class="meta-sep">·</span>
@@ -1155,17 +1231,7 @@ function accessoryActionRow(item, mpLabel, mpValue) {
           <span class="acc-mp-label">${mpLabel}</span>
         </div>
       </div>
-      <div class="acc-card-cmd">
-        <code class="acc-cmd-text">${escapeHtml(cmd)}</code>
-        <button class="btn-copy" data-copy="${escapeHtml(cmd)}" title="Copy command">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-          Copy
-        </button>
-      </div>
+      ${cmdRow}
     </article>`;
 }
 
@@ -1305,9 +1371,11 @@ function renderUpgradesView() {
   if (a.error) { pane.innerHTML = `<div class="acc-gate"><p>Couldn't analyse accessories: ${escapeHtml(a.error)}</p></div>`; return; }
 
   const upgrades = a.upgrades;
-  updateTabBadge("badge-upgrades", upgrades.length);
+  const recombs = a.recombs || [];
+  updateTabBadge("badge-upgrades", upgrades.length + recombs.length);
 
   const totalGain = upgrades.reduce((s, u) => s + u.mpGain, 0);
+  const recombGainTotal = recombs.reduce((s, r) => s + r.mpGain, 0);
 
   pane.innerHTML = `
     <div class="acc-page-head">
@@ -1338,10 +1406,56 @@ function renderUpgradesView() {
               ${accessoryActionRow(u.target, "MP gain", u.mpGain)}
             </article>`).join("")
         : `<div class="acc-empty">🎉 Every accessory family you own is already at max tier.</div>`}
-    </div>`;
+    </div>
+
+    ${recombs.length ? `
+      <div class="acc-page-head acc-page-head--sub">
+        <div>
+          <h2 class="acc-page-title">Recombobulate</h2>
+          <p class="acc-page-sub">
+            Already at max tier — apply a <a href="${wikiUrl("Recombobulator 3000")}" target="_blank" rel="noopener noreferrer">Recombobulator 3000</a>
+            to bump rarity one step and gain Magical Power.
+            Potential gain: <strong class="pos">+${fmtInt(recombGainTotal)} MP</strong> across ${recombs.length} items.
+          </p>
+        </div>
+      </div>
+      <div class="acc-grid" id="recombs-grid">
+        ${recombs.map((rc) => `
+          <article class="acc-card acc-card--recomb" style="--tier-color:${RARITY_COLORS[rc.nextRarity] || RARITY_COLORS.UNKNOWN}">
+            <div class="acc-upgrade-flow">
+              <span class="acc-have" style="color:${RARITY_COLORS[rc.item.tier]}">${rc.item.tier.toLowerCase()}</span>
+              <span class="acc-upgrade-arrow">⟳</span>
+              <span class="acc-want" style="color:${RARITY_COLORS[rc.nextRarity]}">${rc.nextRarity.toLowerCase()}</span>
+            </div>
+            <div class="acc-card-main">
+              <div class="acc-card-titles">
+                ${itemNameHTML(rc.item)}
+                <div class="acc-card-sub">
+                  <span class="acc-recomb-note">recombobulate for more MP</span>
+                </div>
+              </div>
+              <div class="acc-card-mp">
+                <span class="acc-mp-value">+${rc.mpGain}</span>
+                <span class="acc-mp-label">MP gain</span>
+              </div>
+            </div>
+            <div class="acc-card-cmd">
+              <code class="acc-cmd-text">/bz Recombobulator 3000</code>
+              <button class="btn-copy" data-copy="/bz Recombobulator 3000" title="Copy command">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                Copy
+              </button>
+            </div>
+          </article>`).join("")}
+      </div>
+    ` : ""}`;
 
   bindAccessoryToolbar(pane);
-  bindCopyButtons($("#upgrades-grid"));
+  bindCopyButtons(pane);
 }
 
 function updateTabBadge(id, count) {
@@ -1447,7 +1561,7 @@ function renderAttributeRow(r) {
     return `
       <article class="attr-card attr-card--maxed" style="--tier-color:${color}">
         <div class="attr-card-head">
-          <span class="attr-name">${escapeHtml(r.title)}</span>
+          <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
           <span class="attr-maxed-badge">✓ MAX</span>
         </div>
         <div class="attr-progress"><div class="attr-progress-fill" style="width:100%;background:${color}"></div></div>
@@ -1465,7 +1579,7 @@ function renderAttributeRow(r) {
   return `
     <article class="attr-card" style="--tier-color:${color}">
       <div class="attr-card-head">
-        <span class="attr-name">${escapeHtml(r.title)}</span>
+        <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
         <span class="attr-rarity" style="color:${color}">${r.rarity.toLowerCase()}</span>
       </div>
       <div class="attr-progress"><div class="attr-progress-fill" style="width:${progPct}%;background:${color}"></div></div>
@@ -1642,7 +1756,7 @@ async function loadData(forceRefresh = false) {
     $("#cache-badge").style.display = cached ? "inline-flex" : "none";
   } catch (e) {
     state.error = e.message;
-    console.error("[ShardMarket] load failed:", e);
+    console.error("[Hypixie] load failed:", e);
   } finally {
     state.loading = false;
     renderTable();
