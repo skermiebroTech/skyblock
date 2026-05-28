@@ -73,10 +73,11 @@ Shows accessories you own at a lower tier than their family maximum
 with copy-ready `/ahs` / `/bz` commands.
 
 ### Attributes
-How many **Attribute Shards** you still need to take each attribute to level 10,
-read from your profile's `attributes.stacks`. Shows current/max progress, the exact
+How many **Attribute Shards** you still need to take each usable attribute to level 10.
+The report includes attributes you have never syphoned as **missing** (`0/max`), filters out
+attributes above your profile's Hunting level, then shows current/max progress, the exact
 shard count remaining, and the live bazaar cost to finish — with a `/bz` command for
-the source shard. Totals across all attributes are shown up top.
+the source shard. Totals across all usable attributes are shown up top.
 
 Both accessory pages show a live **Magical Power progress bar**.
 

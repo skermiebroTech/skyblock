@@ -1828,6 +1828,10 @@ input[type="search"]:focus,
   gap: 8px;
 }
 .attr-card--maxed { opacity: 0.62; }
+.attr-card--missing {
+  background: linear-gradient(180deg, rgba(255, 181, 72, 0.06), var(--surface));
+  border-color: rgba(255, 181, 72, 0.24);
+}
 .attr-card-head {
   display: flex;
   align-items: baseline;
@@ -1844,6 +1848,16 @@ input[type="search"]:focus,
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
+}
+.attr-missing-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--ember-light);
+  background: rgba(255, 181, 72, 0.12);
+  border: 1px solid rgba(255, 181, 72, 0.34);
+  border-radius: 999px;
+  padding: 1px 8px;
 }
 .attr-maxed-badge {
   font-size: 10.5px;

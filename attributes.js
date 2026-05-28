@@ -57,30 +57,50 @@ function buildAttributeCatalog(descJson) {
 }
 
 /* Given the player's attributes.stacks and the catalog, compute the maxing
- * report. `shardPriceFor(code)` is an optional callback returning the unit
- * price of the shard that grants the attribute with that SkyShards code
- * (null if unknown / not on bazaar).
+ * report. Missing attributes are absent from stacks, so every catalog entry is
+ * considered and absent/currentless entries are shown as 0/max. `shardPriceFor(code)`
+ * is an optional callback returning the unit price of the shard that grants the
+ * attribute with that SkyShards code (null if unknown / not on bazaar).
+ * `opts.onlyUsable` plus `opts.canUseCode` can filter out attributes above the
+ * linked player's Hunting level.
  *
  * Returns:
  *   {
  *     rows: [ {attrId, title, rarity, current, max, remaining, maxed,
- *              shardUnitPrice, remainingCost} ]  sorted: unmaxed first by remaining desc
+ *              missing, usable, requiredHuntingLevel, shardUnitPrice,
+ *              remainingCost} ]  sorted: missing/unmaxed first
  *     totalShardsNeeded, totalCost, maxedCount, totalCount
  *   } */
-function analyseAttributes(catalog, stacks, shardPriceFor = null) {
+function analyseAttributes(catalog, stacks, shardPriceFor = null, opts = {}) {
+  const requirementForCode = opts.requirementForCode || (() => 0);
+  const canUseCode = opts.canUseCode || (() => true);
+  const onlyUsable = opts.onlyUsable === true;
+
   const rows = [];
   let totalShardsNeeded = 0;
   let totalCost = 0;
   let maxedCount = 0;
+  let hiddenLockedCount = 0;
 
-  for (const [attrId, current] of Object.entries(stacks || {})) {
-    const meta = catalog.byAttrId[attrId];
+  /* Iterate the whole catalog, not just profile stacks. Missing attributes are
+   * stored as absent keys in members[uuid].attributes.stacks, so a stack-only
+   * loop incorrectly hid every attribute the user had never syphoned. */
+  for (const meta of Object.values(catalog.byAttrId || {})) {
     if (!meta || meta.maxShards == null) continue;
 
+    const requiredHuntingLevel = requirementForCode(meta.code);
+    const usable = canUseCode(meta.code, requiredHuntingLevel);
+    if (onlyUsable && !usable) {
+      hiddenLockedCount++;
+      continue;
+    }
+
     const max = meta.maxShards;
+    const current = Number(stacks?.[meta.attrId] || 0);
     const capped = Math.min(current, max);
     const remaining = Math.max(0, max - capped);
     const maxed = remaining === 0;
+    const missing = capped === 0;
     if (maxed) maxedCount++;
 
     const shardUnitPrice = shardPriceFor ? shardPriceFor(meta.code) : null;
@@ -90,7 +110,7 @@ function analyseAttributes(catalog, stacks, shardPriceFor = null) {
     if (remainingCost != null) totalCost += remainingCost;
 
     rows.push({
-      attrId,
+      attrId: meta.attrId,
       title: meta.title,
       description: meta.description,
       rarity: meta.rarity,
@@ -99,14 +119,18 @@ function analyseAttributes(catalog, stacks, shardPriceFor = null) {
       max,
       remaining,
       maxed,
+      missing,
+      usable,
+      requiredHuntingLevel,
       shardUnitPrice,
       remainingCost,
     });
   }
 
-  /* Sort: unmaxed first, by remaining shards desc; maxed last alphabetically. */
+  /* Sort: missing/unmaxed first, by remaining shards desc; maxed last alphabetically. */
   rows.sort((a, b) => {
     if (a.maxed !== b.maxed) return a.maxed ? 1 : -1;
+    if (a.missing !== b.missing) return a.missing ? -1 : 1;
     if (!a.maxed) return b.remaining - a.remaining;
     return a.title.localeCompare(b.title);
   });
@@ -117,6 +141,7 @@ function analyseAttributes(catalog, stacks, shardPriceFor = null) {
     totalCost,
     maxedCount,
     totalCount: rows.length,
+    hiddenLockedCount,
   };
 }
 

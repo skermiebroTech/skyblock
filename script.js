@@ -485,8 +485,10 @@ async function loadAttributeAnalysis() {
       const { data } = await api.fetchAttrDesc();
       state.attributeCatalog = buildAttributeCatalog(data);
     }
-    const stacks = state.player.attributeStacks;
-    if (!stacks) { state.player.attributeAnalysis = { rows: [], totalShardsNeeded: 0, totalCost: 0, maxedCount: 0, totalCount: 0 }; return; }
+    /* Missing attributes do not appear in profile attributes.stacks at all.
+     * Treat a missing stacks object as an empty map so the report can still
+     * show every usable attribute as 0/max instead of rendering an empty page. */
+    const stacks = state.player.attributeStacks || {};
 
     /* Price each attribute's source shard via the live bazaar.
      * The shard granting attribute `code` is fusion-props[code].name → SHARD_<NAME>.
@@ -503,7 +505,11 @@ async function loadAttributeAnalysis() {
         : (qs.buyPrice || qs.sellPrice || null);  // insta-buy
     };
 
-    state.player.attributeAnalysis = analyseAttributes(state.attributeCatalog, stacks, shardPriceFor);
+    state.player.attributeAnalysis = analyseAttributes(state.attributeCatalog, stacks, shardPriceFor, {
+      onlyUsable: true,
+      requirementForCode: huntingRequirementForCode,
+      canUseCode: (code, requiredLevel) => playerCanUseFusion(requiredLevel),
+    });
   } catch (e) {
     console.error("[Hypixie] attribute analysis failed:", e);
     state.player.attributeAnalysis = { rows: [], totalShardsNeeded: 0, totalCost: 0, maxedCount: 0, totalCount: 0, error: e.message };
@@ -1691,20 +1697,28 @@ function renderAttributesView() {
   }
 
   const unmaxed = a.rows.filter((r) => !r.maxed);
+  const missing = a.rows.filter((r) => r.missing);
   updateTabBadge("badge-attributes", unmaxed.length);
 
   const pct = a.totalCount > 0 ? Math.round((a.maxedCount / a.totalCount) * 100) : 0;
+  const huntingNote = state.player.huntingLevel != null
+    ? ` Showing attributes usable at your Hunting level (${state.player.huntingLevel}).${
+        a.hiddenLockedCount ? ` ${a.hiddenLockedCount} higher-tier locked attribute${a.hiddenLockedCount === 1 ? " is" : "s are"} hidden.` : ""
+      }`
+    : "";
 
   pane.innerHTML = `
     <div class="acc-page-head">
       <div>
         <h2 class="acc-page-title">Attribute Maxing</h2>
         <p class="acc-page-sub">
-          How many Attribute Shards you still need to take each attribute to
-          <strong>level 10</strong>, with live bazaar cost. You still need
+          How many Attribute Shards you still need to take each usable attribute to
+          <strong>level 10</strong>, with live bazaar cost. Missing attributes are
+          included as <strong>0/max</strong>. You still need
           <strong class="pos">${fmtInt(a.totalShardsNeeded)}</strong> shards
           ${a.totalCost > 0 ? `(≈ <strong>${fmtCoins(a.totalCost)}</strong> coins)` : ""}
-          to max ${unmaxed.length} attribute${unmaxed.length === 1 ? "" : "s"}.
+          to max ${unmaxed.length} attribute${unmaxed.length === 1 ? "" : "s"};
+          <strong>${missing.length}</strong> are missing entirely.${huntingNote}
         </p>
       </div>
     </div>
@@ -1714,6 +1728,10 @@ function renderAttributesView() {
         <div class="mp-stat">
           <div class="mp-stat-label">Maxed</div>
           <div class="mp-stat-value pos">${a.maxedCount} / ${a.totalCount}</div>
+        </div>
+        <div class="mp-stat">
+          <div class="mp-stat-label">Missing</div>
+          <div class="mp-stat-value neg">${missing.length}</div>
         </div>
         <div class="mp-stat">
           <div class="mp-stat-label">Shards needed</div>
@@ -1778,15 +1796,20 @@ function renderAttributeRow(r) {
     ? `/bz ${propName} Shard`
     : null;
 
+  const statusBadge = r.missing
+    ? `<span class="attr-missing-badge">MISSING</span>`
+    : `<span class="attr-rarity" style="color:${color}">${r.rarity.toLowerCase()}</span>`;
+  const reqText = r.requiredHuntingLevel > 0 ? ` · Hunting ${r.requiredHuntingLevel}+` : "";
+
   return `
-    <article class="attr-card" style="--tier-color:${color}">
+    <article class="attr-card ${r.missing ? "attr-card--missing" : ""}" style="--tier-color:${color}">
       <div class="attr-card-head">
         <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
-        <span class="attr-rarity" style="color:${color}">${r.rarity.toLowerCase()}</span>
+        ${statusBadge}
       </div>
       <div class="attr-progress"><div class="attr-progress-fill" style="width:${progPct}%;background:${color}"></div></div>
       <div class="attr-foot">
-        <span class="attr-count">${r.current}/${r.max}</span>
+        <span class="attr-count">${r.current}/${r.max}${reqText}</span>
         <span class="attr-need">need <strong>${r.remaining}</strong> more${
           r.remainingCost != null ? ` · ${fmtCoins(r.remainingCost)}` : ""
         }</span>
