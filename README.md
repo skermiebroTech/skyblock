@@ -113,20 +113,21 @@ Current fusion gates use the shard rarity ladder: Common 0, Uncommon 10, Rare 20
 ## Setup (local)
 
 ```bash
-git clone https://github.com/<you>/shard-market.git
-cd shard-market
+# Mac/Linux
+xcode-select --install 2>/dev/null || true   # Mac only, if git is missing
+# Windows: install Git for Windows first: https://git-scm.com/download/win
 
-# Option A — just open the file
-open index.html        # macOS
-xdg-open index.html    # Linux
-start index.html       # Windows
+git clone https://github.com/skermiebroTech/skyblock.git
+cd skyblock
 
-# Option B — serve with any static server (recommended; some browsers restrict fetch on file://)
+# Serve with any static server (recommended; fetch() works normally over http://)
 python3 -m http.server 8000
 # then visit http://localhost:8000
 ```
 
-The site needs no API key to run. The Bazaar endpoint is a public, unauthenticated route. If you want to attach a key anyway (for future authenticated extensions), click **Settings → Hypixel API key**. The key is stored in your browser's `localStorage` only.
+No `npm install` is needed. If Python is not installed on the other PC, you can still open `index.html` directly, but a local server avoids browser `file://` fetch restrictions.
+
+The Shard Market and fusion flips need no API key. Profile-dependent pages (Missing Accessories, Upgrades, Attributes, and Hunting-level personalization) need your Hypixel API key in **Settings → Hypixel API key** on that browser; it is stored only in that browser's `localStorage`.
 
 ---
 
@@ -223,13 +224,15 @@ Beyond simple flipping, the tool computes **craft-and-flip** economics for every
 For each target shard, every known 2-input recipe is evaluated:
 
 ```
-inputCost      = price(inputA) + price(inputB)
+inputCost      = price(inputA) × fuseAmount(inputA) + price(inputB) × fuseAmount(inputB)
 costPerOutput  = inputCost / recipeOutputQty
 fusionProfit   = targetBuyPrice × (1 − tax)  −  costPerOutput
 fusionMargin   = fusionProfit / costPerOutput × 100
 ```
 
-Input pricing uses the cheaper of *buy order* (preferred — what you'd pay to source via order) or *insta-buy* (fallback if no buy orders exist). The cheapest pair across all output-qty buckets wins, and that becomes the row's **Fusion Δ** value.
+SkyShards recipes list the two input shard types, and each input slot consumes that shard's `fuse_amount` from `fusion-data.json` (for example, 5× a common input or 2× an uncommon input), so the UI shows both the per-shard price and the total cost for that input stack.
+
+Input pricing uses *buy order* cost (what you'd pay to source via order), with *insta-buy* as a fallback if no buy orders exist. The cheapest pair across all output-qty buckets wins, and that becomes the row's **Fusion Δ** value.
 
 ### Where the recipes come from
 

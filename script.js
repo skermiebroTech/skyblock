@@ -634,6 +634,11 @@ function priceOfInput(bazaarId) {
   return prod.quick_status?.buyPrice || null;
 }
 
+function fusionInputQty(code) {
+  const n = Number(state.fusionRecipes?.shards?.[code]?.fuse_amount);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
 /* Compute the cheapest fusion route for a single target shard.
  * Returns null when the shard has no recipes or no priceable inputs. */
 function computeBestFusion(targetBazaarId) {
@@ -663,14 +668,20 @@ function computeBestFusion(targetBazaarId) {
       );
       const huntingLocked = !playerCanUseFusion(requiredHuntingLevel);
 
-      const pairCost = aPrice + bPrice;
+      /* SkyShards recipes list the two shard types, but each input slot consumes
+       * that shard's own `fuse_amount` (e.g. 5 common, 2 uncommon, etc.).
+       * Counting only one of each input makes fusion flips look wildly profitable
+       * while being impossible to execute at the displayed cost. */
+      const aQty = fusionInputQty(aCode);
+      const bQty = fusionInputQty(bCode);
+      const pairCost = aPrice * aQty + bPrice * bQty;
       const costPerOutput = pairCost / qty;
 
       if (!best || costPerOutput < best.costPerOutput) {
         best = {
           inputs: [
-            { code: aCode, bazaarId: aId, name: state.shardsDb[aId]?.name || aId, price: aPrice },
-            { code: bCode, bazaarId: bId, name: state.shardsDb[bId]?.name || bId, price: bPrice },
+            { code: aCode, bazaarId: aId, name: state.shardsDb[aId]?.name || aId, price: aPrice, qty: aQty, total: aPrice * aQty },
+            { code: bCode, bazaarId: bId, name: state.shardsDb[bId]?.name || bId, price: bPrice, qty: bQty, total: bPrice * bQty },
           ],
           outputQty: qty,
           pairCost,
@@ -832,10 +843,10 @@ function fusionTooltipText(r) {
   if (!r?.bestFusion) return "No known fusion recipe";
   const f = r.bestFusion;
   const lines = [];
-  lines.push(f.inputs.map((i) => i.name).join(" + ") + ` → ×${f.outputQty} ${r.name}`);
-  lines.push(`Inputs: ${f.inputs.map((i) => `${i.name} (${fmtCoins(i.price)})`).join(" + ")}`);
-  lines.push(`Craft cost: ${fmtCoins(f.pairCost)} total · ${fmtCoins(f.costPerOutput)}/ea`);
-  lines.push(`Sell value: ${fmtCoins(r.buyPrice)} each after bazaar tax`);
+  lines.push(f.inputs.map((i) => `${i.qty || 1}× ${i.name}`).join(" + ") + ` → ×${f.outputQty} ${r.name}`);
+  lines.push(`Inputs: ${f.inputs.map((i) => `${i.qty || 1}× ${i.name} (${fmtCoins(i.price)}/ea = ${fmtCoins(i.total ?? i.price)})`).join(" + ")}`);
+  lines.push(`Craft cost: ${fmtCoins(f.pairCost)} total · ${fmtCoins(f.costPerOutput)}/output shard`);
+  lines.push(`Sell value: ${fmtCoins(r.buyPrice * (1 - state.tax))} each after bazaar tax`);
   if (f.huntingLocked) {
     lines.push(`Locked: requires Hunting Lv ${f.requiredHuntingLevel}; linked profile is Lv ${state.player.huntingLevel}`);
   } else {
@@ -1119,8 +1130,8 @@ function renderBestFusionsPanel() {
             <img class="fusion-input-icon" src="${iconUrl(inp.bazaarId)}" alt="" loading="lazy"
                  onerror="this.src='${PLACEHOLDER_ICON}'"/>
             <div class="fusion-input-meta">
-              <div class="fusion-input-name">${escapeHtml(inp.name)}</div>
-              <div class="fusion-input-price">${fmtCoins(inp.price)}</div>
+              <div class="fusion-input-name">${inp.qty || 1}× ${escapeHtml(inp.name)}</div>
+              <div class="fusion-input-price">${fmtCoins(inp.price)}/ea · ${fmtCoins(inp.total ?? inp.price)}</div>
             </div>
           </div>
         `).join(`<div class="fusion-plus">+</div>`)}
