@@ -40,8 +40,12 @@ const MP_OVERRIDES = {
   ABICASE:            0,   // MP scales with contacts; we don't model that
 };
 
-/* Suffix progression rank within an upgrade family. */
+/* Suffix progression rank within an upgrade family.
+ * Some accessory lines use a non-talisman starter name, e.g.
+ * Pesthunter Badge → Ring → Artifact → Relic. Treat Badge as the same
+ * base tier as Talisman so owning the Relic satisfies the whole family. */
 const ACCESSORY_SUFFIX_RANK = {
+  BADGE:     0,
   TALISMAN:  0,
   RING:      1,
   ARTIFACT:  2,

@@ -800,16 +800,25 @@ function applySort(rows) {
   const key = state.sortKey;
   return [...rows].sort((a, b) => {
     if (key === "attributeSkill") {
-      const aUnknown = !a.attribute || a.attribute === "—";
-      const bUnknown = !b.attribute || b.attribute === "—";
+      /* Group attribute shards by their skill/category first (Combat, Forest,
+       * Water), then put cheapest max-level cost first inside each skill. */
+      const aSkill = a.category || a.family || "—";
+      const bSkill = b.category || b.family || "—";
+      const aUnknown = aSkill === "—";
+      const bUnknown = bSkill === "—";
       if (aUnknown !== bUnknown) return aUnknown ? 1 : -1;
-      const attr = String(a.attribute || "").localeCompare(String(b.attribute || ""));
-      if (attr !== 0) return attr * dir;
+      const skill = String(aSkill).localeCompare(String(bSkill));
+      if (skill !== 0) return skill * dir;
       const ac = a.maxLevelCost, bc = b.maxLevelCost;
-      if (ac == null && bc == null) return a.name.localeCompare(b.name);
+      if (ac == null && bc == null) {
+        const attr = String(a.attribute || "").localeCompare(String(b.attribute || ""));
+        return attr || a.name.localeCompare(b.name);
+      }
       if (ac == null) return 1;
       if (bc == null) return -1;
-      return (ac - bc) || a.name.localeCompare(b.name);
+      return (ac - bc)
+        || String(a.attribute || "").localeCompare(String(b.attribute || ""))
+        || a.name.localeCompare(b.name);
     }
 
     const av = a[key], bv = b[key];

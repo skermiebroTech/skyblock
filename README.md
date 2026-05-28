@@ -58,8 +58,9 @@ Linking your account (username + an API key in Settings) unlocks two extra pages
 
 ### Shard Market
 Live bazaar profitability + the fusion calculator (see below). The sort menu includes
-**Cheapest to max level** and **Attribute / skill (cheapest max first)** so you can group
-shards by their attribute and put the cheapest maxing route at the top of each group.
+**Cheapest to max level**, **Skill / category (cheapest max first)**, **Skill / category (A → Z)**,
+and **Attribute (A → Z)** so you can group shards by Combat/Forest/Water or by attribute name
+and put the cheapest maxing route at the top of each skill group.
 
 ### Accessory Path
 Like SkyHelper's `/missing` command plus upgrades in one place. Decodes your talisman bag
