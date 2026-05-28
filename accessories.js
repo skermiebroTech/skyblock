@@ -13,7 +13,8 @@
  *
  * Data source: the official /v2/resources/skyblock/items endpoint (no key).
  * Upgrade families are derived from the shared base name + the canonical
- * suffix progression: Talisman → Ring → Artifact → Relic.
+ * suffix progression: Talisman/Badge → Ring → Artifact → Relic → Heirloom
+ * → Chronomicon.
  * ======================================================================= */
 
 "use strict";
@@ -41,15 +42,21 @@ const MP_OVERRIDES = {
 };
 
 /* Suffix progression rank within an upgrade family.
- * Some accessory lines use a non-talisman starter name, e.g.
- * Pesthunter Badge → Ring → Artifact → Relic. Treat Badge as the same
- * base tier as Talisman so owning the Relic satisfies the whole family. */
+ * Most lines are Talisman → Ring → Artifact → Relic, but live Hypixel
+ * accessories include extra nouns in real upgrade chains:
+ *   - Pesthunter Badge → Ring → Artifact → Relic
+ *   - Bingo/Freshly Baked ... → Relic → Heirloom
+ *   - Crux ... → Relic → Heirloom → Chronomicon
+ * Treat same-rank starter nouns as the same family tier so owning a max tier
+ * never leaves the starter rendered as a separate missing accessory. */
 const ACCESSORY_SUFFIX_RANK = {
-  BADGE:     0,
-  TALISMAN:  0,
-  RING:      1,
-  ARTIFACT:  2,
-  RELIC:     3,
+  BADGE:       0,
+  TALISMAN:    0,
+  RING:        1,
+  ARTIFACT:    2,
+  RELIC:       3,
+  HEIRLOOM:    4,
+  CHRONOMICON: 5,
 };
 
 const TIER_RANK = {
