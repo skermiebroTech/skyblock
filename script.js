@@ -68,6 +68,7 @@ const CONFIG = {
   /* Accessory page preferences. */
   BAZAAR_MODE_STORAGE: "shardmarket.bazaarMode",  // "instaBuy" | "buyOrder"
   PREFER_MAX_STORAGE:  "shardmarket.preferMax",   // "1" | "0"
+  ACC_SORT_STORAGE:    "shardmarket.accSortKey",  // "mp" | "costPerMp" | "price"
 
   /* Filter out dead markets where no shards traded in the past week. */
   MIN_WEEKLY_VOLUME: 1,
@@ -135,6 +136,7 @@ const state = {
    * cheaper next tier instead. */
   bazaarMode: localStorage.getItem(CONFIG.BAZAAR_MODE_STORAGE) || "instaBuy",
   preferMax:  localStorage.getItem(CONFIG.PREFER_MAX_STORAGE) !== "0",
+  accSortKey: localStorage.getItem(CONFIG.ACC_SORT_STORAGE) || "mp",
 
   /* Active page: "shards" | "missing" | "upgrades" | "attributes" */
   view: "shards",
@@ -1286,11 +1288,23 @@ function accessoryToolbarHTML() {
 
   return `
     <div class="acc-toolbar">
-      <label class="toggle-chip">
-        <input type="checkbox" id="prefer-max-toggle" ${state.preferMax ? "checked" : ""}/>
-        <span>Prefer max tier</span>
-      </label>
-      <div class="acc-toolbar-group acc-toolbar-ah">${binsState}</div>
+      <div class="acc-toolbar-left">
+        <label class="toggle-chip">
+          <input type="checkbox" id="prefer-max-toggle" ${state.preferMax ? "checked" : ""}/>
+          <span>Prefer max tier</span>
+        </label>
+      </div>
+      <div class="acc-toolbar-right">
+        <div class="sort-wrap acc-sort-wrap">
+          <label for="acc-sort-select" class="sort-label">Sort by</label>
+          <select id="acc-sort-select" class="select-native">
+            <option value="mp" ${state.accSortKey === "mp" ? "selected" : ""}>Magical Power gain</option>
+            <option value="costPerMp" ${state.accSortKey === "costPerMp" ? "selected" : ""}>Cost per MP (cheapest first)</option>
+            <option value="price" ${state.accSortKey === "price" ? "selected" : ""}>Price (cheapest first)</option>
+          </select>
+        </div>
+        <div class="acc-toolbar-group acc-toolbar-ah">${binsState}</div>
+      </div>
     </div>`;
 }
 
@@ -1310,6 +1324,16 @@ function bindAccessoryToolbar(container) {
       renderActiveView();
     });
   }
+
+  const sortSelect = container.querySelector("#acc-sort-select");
+  if (sortSelect) {
+    sortSelect.addEventListener("change", (e) => {
+      state.accSortKey = e.target.value;
+      localStorage.setItem(CONFIG.ACC_SORT_STORAGE, state.accSortKey);
+      renderActiveView();
+    });
+  }
+
   const loadBtn = container.querySelector("#load-bins-btn");
   if (loadBtn) loadBtn.addEventListener("click", () => loadLowestBinsIfNeeded(true));
 }
@@ -1328,8 +1352,29 @@ function renderMissingView() {
   const a = p.accessoryAnalysis;
   if (a.error) { pane.innerHTML = `<div class="acc-gate"><p>Couldn't analyse accessories: ${escapeHtml(a.error)}</p></div>`; return; }
 
-  const missing = a.missing;
+  let missing = [...a.missing];
   updateTabBadge("badge-missing", missing.length);
+
+  const getPrice = (item) => {
+    if (item.soulbound) return Infinity;
+    const pPrice = accessoryPrice(item.id)?.best;
+    return pPrice != null ? pPrice : Infinity;
+  };
+
+  if (state.accSortKey === "price") {
+    missing.sort((x, y) => getPrice(x.item) - getPrice(y.item));
+  } else if (state.accSortKey === "costPerMp") {
+    missing.sort((x, y) => {
+      const px = getPrice(x.item);
+      const py = getPrice(y.item);
+      const ratioX = px / x.mp;
+      const ratioY = py / y.mp;
+      if (ratioX !== ratioY) return ratioX - ratioY;
+      return y.mp - x.mp; // fallback to higher MP
+    });
+  } else {
+    missing.sort((x, y) => y.mp - x.mp);
+  }
 
   const totalMissingMP = missing.reduce((s, m) => s + m.mp, 0);
 
@@ -1370,8 +1415,50 @@ function renderUpgradesView() {
   const a = p.accessoryAnalysis;
   if (a.error) { pane.innerHTML = `<div class="acc-gate"><p>Couldn't analyse accessories: ${escapeHtml(a.error)}</p></div>`; return; }
 
-  const upgrades = a.upgrades;
-  const recombs = a.recombs || [];
+  let upgrades = [...a.upgrades];
+  let recombs = [...(a.recombs || [])];
+
+  const getPrice = (item) => {
+    if (item.soulbound) return Infinity;
+    const pPrice = accessoryPrice(item.id)?.best;
+    return pPrice != null ? pPrice : Infinity;
+  };
+
+  const getRecombobulatorPrice = () => {
+    const prod = state.raw?.products?.["RECOMBOBULATOR_3000"];
+    if (prod?.quick_status) {
+      return state.bazaarMode === "buyOrder"
+        ? (prod.quick_status.sellPrice || prod.quick_status.buyPrice)
+        : (prod.quick_status.buyPrice || prod.quick_status.sellPrice);
+    }
+    return 6000000;
+  };
+
+  const recombPrice = getRecombobulatorPrice();
+
+  if (state.accSortKey === "price") {
+    upgrades.sort((x, y) => getPrice(x.target) - getPrice(y.target));
+    recombs.sort((x, y) => x.item.name.localeCompare(y.item.name));
+  } else if (state.accSortKey === "costPerMp") {
+    upgrades.sort((x, y) => {
+      const px = getPrice(x.target);
+      const py = getPrice(y.target);
+      const ratioX = px / x.mpGain;
+      const ratioY = py / y.mpGain;
+      if (ratioX !== ratioY) return ratioX - ratioY;
+      return y.mpGain - x.mpGain;
+    });
+    recombs.sort((x, y) => {
+      const ratioX = recombPrice / x.mpGain;
+      const ratioY = recombPrice / y.mpGain;
+      if (ratioX !== ratioY) return ratioX - ratioY;
+      return y.mpGain - x.mpGain;
+    });
+  } else {
+    upgrades.sort((x, y) => y.mpGain - x.mpGain);
+    recombs.sort((x, y) => y.mpGain - x.mpGain);
+  }
+
   updateTabBadge("badge-upgrades", upgrades.length + recombs.length);
 
   const totalGain = upgrades.reduce((s, u) => s + u.mpGain, 0);
@@ -1824,6 +1911,20 @@ function bindUI() {
   $("#fusion-profitable-only")?.addEventListener("change", (e) => {
     state.profitableFusionsOnly = e.target.checked;
     renderTable();
+  });
+
+  /* Fusion help panel toggle */
+  $("#fusion-help-toggle")?.addEventListener("click", () => {
+    const btn = $("#fusion-help-toggle");
+    const pnl = $("#fusion-help-panel");
+    const isHidden = pnl.hasAttribute("hidden");
+    if (isHidden) {
+      pnl.removeAttribute("hidden");
+      btn.classList.add("active");
+    } else {
+      pnl.setAttribute("hidden", "");
+      btn.classList.remove("active");
+    }
   });
 
   /* Refresh */

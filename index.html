@@ -173,7 +173,40 @@
             vs. instant-buy price of the output, after tax.
           </p>
         </div>
+        <div class="fusion-help-toggle-wrap">
+          <button class="btn-ghost btn-small" id="fusion-help-toggle" aria-label="How does Attribute Fusion work?">
+            <span>How to Combine</span>
+            <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+        </div>
       </div>
+
+      <!-- Collapsible Attribute Fusion rules guide -->
+      <div id="fusion-help-panel" class="fusion-help-panel" hidden>
+        <div class="fusion-help-grid">
+          <div class="fusion-help-card">
+            <h4><span class="emoji">⚒</span> Shard Upgrades (Tier I to X)</h4>
+            <p>Combine two shards of the <strong>exact same attribute and tier</strong> to get one shard of the next tier up (e.g., <code>Tier I + Tier I ➔ Tier II</code>).</p>
+            <p>To reach a maxed <strong>Tier X</strong> attribute, you need 512 Tier I shards in total! The number of shards needed to max out an attribute depends on its base rarity.</p>
+          </div>
+          <div class="fusion-help-card">
+            <h4><span class="emoji">⚔</span> Applying to Gear (Syphoning)</h4>
+            <p>Take an Attribute Shard to the <strong>Fusion Machine</strong> (Cathedral at Crimson Isle) or use <code>/fusion</code> to syphon its attribute onto any compatible armor/weapon.</p>
+            <p>If the gear already has that attribute, syphoning a higher-tier shard will instantly upgrade the gear's attribute level to the shard's level.</p>
+          </div>
+          <div class="fusion-help-card">
+            <h4><span class="emoji">🛡</span> Gear Fusion Rules</h4>
+            <p>You can also fuse <strong>two items of the same gear type</strong> (e.g., Crimson Helmet + Crimson Helmet) to combine their attributes:</p>
+            <ul>
+              <li>If they have the same attribute, it upgrades by 1 level (up to max level 10).</li>
+              <li>If they have different attributes, the output gear will keep both attributes.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <div id="best-fusions" class="fusion-grid">
         <div class="fusion-empty">Loading recipes…</div>
       </div>
