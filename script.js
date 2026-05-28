@@ -25,13 +25,17 @@
 const CONFIG = {
   API_BASE: "https://api.hypixel.net/v2",
   BAZAAR_ENDPOINT: "/skyblock/bazaar",
+  PROFILES_ENDPOINT: "/skyblock/profiles",
+
+  /* CORS-friendly Mojang proxy for username → UUID resolution. */
+  USERNAME_LOOKUP_URL: "https://api.ashcon.app/mojang/v2/user/",
 
   /* Static SkyShards datasets (bundled in /data/). */
   FUSION_PROPS_URL: "data/fusion-properties.json",
   FUSION_DATA_URL:  "data/fusion-data.json",
 
-  /* Public bazaar endpoint needs no key. The key is read from localStorage
-   * and only attached when present — useful for authenticated extensions. */
+  /* Public bazaar endpoint needs no key. The key IS required for profile
+   * lookups — surfaced to the user with a clear error. */
   API_KEY_STORAGE: "shardmarket.apiKey",
 
   /* Bazaar tax (sell-order tax) — default 1.25% base. Configurable in UI. */
@@ -42,15 +46,18 @@ const CONFIG = {
   TEXTURE_STORAGE: "shardmarket.texturePack",
   DEFAULT_TEXTURE: "skyshards",
 
-  /* Cache TTLs.
-   * Bazaar updates every ~60s; SkyShards JSON is bundled with the site so
-   * we cache it aggressively (1 day) to avoid re-downloading 2 MB on
-   * every page load. */
+  /* Player profile preferences. */
+  USERNAME_STORAGE:    "shardmarket.username",
+  PROFILE_ID_STORAGE:  "shardmarket.profileId",
+
+  /* Cache TTLs. */
   CACHE_TTL_BAZAAR_MS:  60_000,
   CACHE_TTL_STATIC_MS:  86_400_000,
+  CACHE_TTL_PROFILE_MS: 300_000,        // 5 min — profiles change slowly
   CACHE_KEY_BAZAAR:        "shardmarket.cache.bazaar",
   CACHE_KEY_FUSION_PROPS:  "shardmarket.cache.fusionProps.v1",
   CACHE_KEY_FUSION_DATA:   "shardmarket.cache.fusionData.v1",
+  CACHE_KEY_PROFILE_PREFIX: "shardmarket.cache.profile.",  // + uuid
 
   /* Filter out dead markets where no shards traded in the past week. */
   MIN_WEEKLY_VOLUME: 1,
@@ -87,6 +94,19 @@ const state = {
   /* Settings */
   tax:         getNumberFromStorage(CONFIG.TAX_STORAGE, CONFIG.DEFAULT_TAX),
   texturePack: localStorage.getItem(CONFIG.TEXTURE_STORAGE) || CONFIG.DEFAULT_TEXTURE,
+
+  /* Player profile (optional — enriches calculations) */
+  player: {
+    username:      localStorage.getItem(CONFIG.USERNAME_STORAGE) || "",
+    uuid:          null,
+    profiles:      [],    // [{profile_id, cute_name, selected, game_mode}]
+    selectedId:    localStorage.getItem(CONFIG.PROFILE_ID_STORAGE) || null,
+    coinPurse:     null,  // coins available in the selected profile
+    huntingLevel:  null,  // current Hunting skill level
+    huntingXp:     null,
+    loading:       false,
+    error:         null,
+  },
 };
 
 function getNumberFromStorage(key, fallback) {
@@ -198,7 +218,145 @@ const api = {
     cacheKey: CONFIG.CACHE_KEY_FUSION_DATA,
     cacheTtl: CONFIG.CACHE_TTL_STATIC_MS,
   }),
+
+  /* Resolve a Minecraft username → UUID via ashcon (CORS-friendly Mojang proxy). */
+  async resolveUsername(username) {
+    const url = CONFIG.USERNAME_LOOKUP_URL + encodeURIComponent(username);
+    let resp;
+    try {
+      resp = await fetch(url);
+    } catch (e) {
+      throw new Error(`Network error resolving username: ${e.message}`);
+    }
+    if (resp.status === 404) throw new Error(`User "${username}" not found.`);
+    if (!resp.ok)            throw new Error(`Username lookup failed (${resp.status}).`);
+    const data = await resp.json();
+    return { uuid: data.uuid.replace(/-/g, ""), username: data.username };
+  },
+
+  /* Fetch SkyBlock profiles for a UUID. Requires an API key. */
+  fetchProfiles(uuid) {
+    return apiFetch(`${CONFIG.PROFILES_ENDPOINT}?uuid=${uuid}`, {
+      cacheKey: CONFIG.CACHE_KEY_PROFILE_PREFIX + uuid,
+      cacheTtl: CONFIG.CACHE_TTL_PROFILE_MS,
+    });
+  },
 };
+
+/* =========================================================================
+ * 4b. PLAYER PROFILE
+ *
+ * Skill XP → level conversion uses the standard SkyBlock skill curve from
+ * the wiki. We only need Hunting for shard syphoning eligibility, but the
+ * table is included so we can extend to other skills cheaply later.
+ *
+ * Cumulative XP required to reach each level (index = level).
+ * Source: https://wiki.hypixel.net/Skills (regular skills, 0 → 60)
+ * ======================================================================= */
+const SKILL_XP_TABLE = [
+  0, 50, 175, 375, 675, 1175, 1925, 2925, 4425, 6425, 9925, 14925, 22425, 32425,
+  47425, 67425, 97425, 147425, 222425, 322425, 522425, 822425, 1222425, 1722425,
+  2322425, 3022425, 3822425, 4722425, 5722425, 6822425, 8022425, 9322425,
+  10722425, 12222425, 13822425, 15522425, 17322425, 19222425, 21222425, 23322425,
+  25522425, 27822425, 30222425, 32722425, 35322425, 38072425, 40972425, 44072425,
+  47472425, 51172425, 55172425, 59472425, 64072425, 68972425, 74172425, 79672425,
+  85472425, 91572425, 97972425, 104672425, 111672425,
+];
+
+function xpToLevel(xp) {
+  if (xp == null || !Number.isFinite(xp) || xp <= 0) return 0;
+  for (let i = SKILL_XP_TABLE.length - 1; i >= 0; i--) {
+    if (xp >= SKILL_XP_TABLE[i]) return i;
+  }
+  return 0;
+}
+
+/* Pull out the bits of a SkyBlock profile we care about for shard work. */
+function extractProfileStats(profile, uuid) {
+  const member = profile?.members?.[uuid];
+  if (!member) return { coinPurse: null, huntingLevel: null, huntingXp: null };
+
+  const coinPurse  = member.currencies?.coin_purse ?? null;
+  const huntingXp  = member.player_data?.experience?.SKILL_HUNTING ?? null;
+  const huntingLevel = huntingXp != null ? xpToLevel(huntingXp) : null;
+
+  return { coinPurse, huntingLevel, huntingXp };
+}
+
+/* Load (and cache) the player's profiles. Errors set state.player.error. */
+async function loadPlayerProfiles(username) {
+  state.player.loading = true;
+  state.player.error = null;
+  renderPlayerPanel();
+
+  try {
+    if (!localStorage.getItem(CONFIG.API_KEY_STORAGE)) {
+      throw new Error("An API key is required for profile lookups. Add one in Settings.");
+    }
+
+    const { uuid, username: canonical } = await api.resolveUsername(username);
+    state.player.uuid = uuid;
+    state.player.username = canonical;
+    localStorage.setItem(CONFIG.USERNAME_STORAGE, canonical);
+
+    const { data } = await api.fetchProfiles(uuid);
+    const profiles = (data.profiles || []).map((p) => ({
+      profile_id: p.profile_id,
+      cute_name:  p.cute_name,
+      selected:   !!p.selected,
+      game_mode:  p.game_mode || null,
+      _raw:       p,
+    }));
+    if (!profiles.length) throw new Error(`${canonical} has no SkyBlock profiles.`);
+
+    state.player.profiles = profiles;
+
+    /* Pick the previously-saved profile if still present, else the game's "selected" one. */
+    const savedId = localStorage.getItem(CONFIG.PROFILE_ID_STORAGE);
+    const pick =
+      profiles.find((p) => p.profile_id === savedId)
+      || profiles.find((p) => p.selected)
+      || profiles[0];
+
+    selectProfile(pick.profile_id);
+  } catch (e) {
+    state.player.error = e.message;
+    state.player.profiles = [];
+    state.player.selectedId = null;
+    state.player.coinPurse = state.player.huntingLevel = state.player.huntingXp = null;
+    console.error("[ShardMarket] player load failed:", e);
+  } finally {
+    state.player.loading = false;
+    renderPlayerPanel();
+    renderTable();   // re-render so affordability shading updates
+    renderBestFusionsPanel();
+  }
+}
+
+function selectProfile(profileId) {
+  const prof = state.player.profiles.find((p) => p.profile_id === profileId);
+  if (!prof) return;
+  state.player.selectedId = profileId;
+  localStorage.setItem(CONFIG.PROFILE_ID_STORAGE, profileId);
+
+  const stats = extractProfileStats(prof._raw, state.player.uuid);
+  state.player.coinPurse    = stats.coinPurse;
+  state.player.huntingLevel = stats.huntingLevel;
+  state.player.huntingXp    = stats.huntingXp;
+}
+
+function clearPlayer() {
+  state.player = {
+    username: "", uuid: null, profiles: [], selectedId: null,
+    coinPurse: null, huntingLevel: null, huntingXp: null,
+    loading: false, error: null,
+  };
+  localStorage.removeItem(CONFIG.USERNAME_STORAGE);
+  localStorage.removeItem(CONFIG.PROFILE_ID_STORAGE);
+  renderPlayerPanel();
+  renderTable();
+  renderBestFusionsPanel();
+}
 
 /* =========================================================================
  * 5. PROFITABILITY MATH — bazaar flipping
@@ -505,6 +663,116 @@ function renderStats(visibleRows) {
     : `<span class="stat-value-major">—</span>`;
 }
 
+/* Player panel — username form + profile picker + summary stats. */
+function renderPlayerPanel() {
+  const wrap = $("#player-panel");
+  if (!wrap) return;
+
+  const p = state.player;
+
+  /* Initial empty state — just the input. */
+  if (!p.username && !p.loading && !p.error) {
+    wrap.innerHTML = `
+      <form id="player-form" class="player-form" autocomplete="off">
+        <label class="player-label" for="player-input">
+          Link your account <span class="player-label-aux">(optional)</span>
+        </label>
+        <div class="player-input-row">
+          <input type="text" id="player-input" placeholder="Minecraft username"
+                 spellcheck="false" autocapitalize="off" autocorrect="off" />
+          <button type="submit" class="btn-primary">Link</button>
+        </div>
+        <p class="player-hint">
+          Adds your coin purse, Hunting level, and an "affordable" flag on
+          fusion recipes. Requires a Hypixel API key in Settings.
+        </p>
+      </form>`;
+    $("#player-form").addEventListener("submit", onPlayerFormSubmit);
+    return;
+  }
+
+  if (p.loading) {
+    wrap.innerHTML = `
+      <div class="player-loading">
+        <span class="spinner"></span> Looking up <strong>${escapeHtml(p.username || "player")}</strong>…
+      </div>`;
+    return;
+  }
+
+  if (p.error) {
+    wrap.innerHTML = `
+      <div class="player-error">
+        <div class="player-error-msg">${escapeHtml(p.error)}</div>
+        <form id="player-form" class="player-form" autocomplete="off">
+          <div class="player-input-row">
+            <input type="text" id="player-input" value="${escapeHtml(p.username)}"
+                   placeholder="Minecraft username" spellcheck="false"
+                   autocapitalize="off" autocorrect="off" />
+            <button type="submit" class="btn-primary">Retry</button>
+            <button type="button" class="btn-ghost" id="player-clear">Clear</button>
+          </div>
+        </form>
+      </div>`;
+    $("#player-form").addEventListener("submit", onPlayerFormSubmit);
+    $("#player-clear").addEventListener("click", clearPlayer);
+    return;
+  }
+
+  /* Loaded state */
+  const huntingClass = p.huntingLevel >= 15 ? "pos"
+                     : p.huntingLevel >= 10 ? "neu"
+                     : "neg";
+
+  wrap.innerHTML = `
+    <div class="player-loaded">
+      <div class="player-identity">
+        <img class="player-head"
+             src="https://mc-heads.net/avatar/${encodeURIComponent(p.uuid)}/40"
+             alt="" loading="lazy"
+             onerror="this.style.visibility='hidden'"/>
+        <div class="player-identity-text">
+          <div class="player-name">${escapeHtml(p.username)}</div>
+          <select id="profile-select" class="profile-select" aria-label="SkyBlock profile">
+            ${p.profiles.map((pr) => `
+              <option value="${pr.profile_id}" ${pr.profile_id === p.selectedId ? "selected" : ""}>
+                ${escapeHtml(pr.cute_name)}${pr.game_mode ? ` (${pr.game_mode})` : ""}${pr.selected ? " ★" : ""}
+              </option>
+            `).join("")}
+          </select>
+        </div>
+        <button type="button" class="btn-ghost btn-small" id="player-clear" title="Unlink">×</button>
+      </div>
+
+      <div class="player-stats">
+        <div class="player-stat">
+          <div class="player-stat-label">Coin purse</div>
+          <div class="player-stat-value">${p.coinPurse != null ? fmtCoins(p.coinPurse) : "—"}</div>
+        </div>
+        <div class="player-stat">
+          <div class="player-stat-label">Hunting</div>
+          <div class="player-stat-value ${huntingClass}">
+            ${p.huntingLevel != null ? `Lv ${p.huntingLevel}` : "—"}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  $("#player-clear").addEventListener("click", clearPlayer);
+  $("#profile-select").addEventListener("change", (e) => {
+    selectProfile(e.target.value);
+    renderPlayerPanel();
+    renderTable();
+    renderBestFusionsPanel();
+  });
+}
+
+function onPlayerFormSubmit(e) {
+  e.preventDefault();
+  const name = $("#player-input")?.value.trim();
+  if (!name) return;
+  loadPlayerProfiles(name);
+}
+
 function renderRarityFilters() {
   const wrap = $("#rarity-filters");
   if (wrap.children.length) return;
@@ -546,7 +814,15 @@ function renderBestFusionsPanel() {
     return;
   }
 
-  wrap.innerHTML = ranked.map((r) => `
+  wrap.innerHTML = ranked.map((r) => {
+    /* Affordability: can the player craft at least one with their coin purse? */
+    const purse = state.player.coinPurse;
+    const affordable = purse != null && r.bestFusion.pairCost <= purse;
+    const afford = purse == null ? "" : affordable
+      ? `<span class="afford afford-yes" title="Within your coin purse">✓ affordable</span>`
+      : `<span class="afford afford-no" title="Need ${fmtCoins(r.bestFusion.pairCost - purse)} more">need ${fmtCoins(r.bestFusion.pairCost - purse)}</span>`;
+
+    return `
     <article class="fusion-card" style="--rarity-color:${RARITY_COLORS[r.rarity]}">
       <div class="fusion-card-head">
         <img class="fusion-icon" src="${iconUrl(r.id)}" alt="" loading="lazy"
@@ -554,7 +830,7 @@ function renderBestFusionsPanel() {
         <div class="fusion-card-titles">
           <div class="fusion-card-name">${escapeHtml(r.name)}</div>
           <div class="fusion-card-rarity" style="color:${RARITY_COLORS[r.rarity]}">
-            ${r.rarity.toLowerCase()}
+            ${r.rarity.toLowerCase()} ${afford}
           </div>
         </div>
         <div class="fusion-card-profit pos">
@@ -581,7 +857,8 @@ function renderBestFusionsPanel() {
         </div>
       </div>
     </article>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function renderTable() {
@@ -868,9 +1145,15 @@ function flashStatus(msg) {
 
 function init() {
   renderRarityFilters();
+  renderPlayerPanel();
   bindUI();
   startTimeAgoTicker();
   loadData(false);
+
+  /* If the user previously linked an account and has an API key, auto-load. */
+  if (state.player.username && localStorage.getItem(CONFIG.API_KEY_STORAGE)) {
+    loadPlayerProfiles(state.player.username);
+  }
 
   /* Auto-refresh every minute. Hits cache silently if data is fresh. */
   setInterval(() => loadData(false), CONFIG.CACHE_TTL_BAZAAR_MS);

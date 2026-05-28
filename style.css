@@ -1082,3 +1082,189 @@ input[type="search"]:focus,
 }
 .fusion-val { font-weight: 600; }
 .num-muted { color: var(--text-faint); }
+
+/* =========================================================================
+ * Player panel — username form + profile picker + linked-player summary
+ * ======================================================================= */
+.player-panel {
+  margin: 0 0 22px;
+}
+.player-form {
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+}
+.player-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin-bottom: 8px;
+}
+.player-label-aux {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+.player-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.player-input-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  outline: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.player-input-row input[type="text"]:focus {
+  border-color: var(--ember);
+  background: var(--surface-hi);
+}
+.player-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.player-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-lg);
+  padding: 14px 18px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+.player-error {
+  background: var(--surface);
+  border: 1px solid var(--neg-dim);
+  border-left: 3px solid var(--neg);
+  border-radius: var(--r-lg);
+  padding: 14px 18px;
+}
+.player-error-msg {
+  color: var(--neg);
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+/* Loaded state */
+.player-loaded {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background:
+    linear-gradient(135deg, rgba(255,107,53,0.05), transparent 50%),
+    var(--surface);
+  border: 1px solid var(--surface-line);
+  border-left: 3px solid var(--ember);
+  border-radius: var(--r-lg);
+  padding: 12px 16px;
+  flex-wrap: wrap;
+}
+.player-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 240px;
+}
+.player-head {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  image-rendering: pixelated;
+  background: var(--bg-elevated);
+}
+.player-identity-text {
+  flex: 1;
+  min-width: 0;
+}
+.player-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.profile-select {
+  margin-top: 4px;
+  background: var(--bg-elevated);
+  color: var(--text-soft);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-sm);
+  padding: 3px 8px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  cursor: pointer;
+}
+.profile-select:focus { outline: 1px solid var(--ember); }
+.btn-small { padding: 4px 10px; font-size: 12px; line-height: 1; }
+
+.player-stats {
+  display: flex;
+  gap: 22px;
+}
+.player-stat {
+  text-align: right;
+}
+.player-stat-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.player-stat-value {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 2px;
+}
+.player-stat-value.pos { color: var(--pos); }
+.player-stat-value.neg { color: var(--neg); }
+.player-stat-value.neu { color: var(--ember-light); }
+
+/* Affordability pills on fusion cards */
+.afford {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  vertical-align: middle;
+}
+.afford-yes {
+  background: rgba(46, 224, 122, 0.12);
+  color: var(--pos);
+  border: 1px solid rgba(46, 224, 122, 0.3);
+}
+.afford-no {
+  background: rgba(255, 86, 115, 0.10);
+  color: var(--neg);
+  border: 1px solid rgba(255, 86, 115, 0.3);
+}
+
+@media (max-width: 600px) {
+  .player-stats { width: 100%; justify-content: space-between; }
+  .player-stat { text-align: left; }
+}
