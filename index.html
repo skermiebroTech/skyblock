@@ -116,6 +116,24 @@
     <!-- Player profile panel -->
     <section id="player-panel" class="player-panel" aria-label="Linked player"></section>
 
+    <!-- Page navigation tabs -->
+    <nav class="view-tabs" role="tablist" aria-label="Pages">
+      <button class="view-tab active" id="tab-shards" data-view="shards" role="tab" aria-selected="true">
+        Shard Market
+      </button>
+      <button class="view-tab" id="tab-missing" data-view="missing" role="tab" aria-selected="false">
+        Missing Accessories
+        <span class="tab-badge" id="badge-missing" hidden></span>
+      </button>
+      <button class="view-tab" id="tab-upgrades" data-view="upgrades" role="tab" aria-selected="false">
+        Accessory Upgrades
+        <span class="tab-badge" id="badge-upgrades" hidden></span>
+      </button>
+    </nav>
+
+    <!-- ============ VIEW: SHARDS ============ -->
+    <div id="view-shards" class="view-pane">
+
     <!-- Stats bar -->
     <section class="stats-grid" aria-label="Market overview">
       <div class="stat-card">
@@ -233,6 +251,14 @@
         <span class="legend-item">Hover the value for the exact recipe.</span>
       </p>
     </section>
+    </div><!-- /view-shards -->
+
+    <!-- ============ VIEW: MISSING ACCESSORIES ============ -->
+    <div id="view-missing" class="view-pane" hidden></div>
+
+    <!-- ============ VIEW: ACCESSORY UPGRADES ============ -->
+    <div id="view-upgrades" class="view-pane" hidden></div>
+
   </main>
 
   <footer class="site-footer">
@@ -247,8 +273,10 @@
     </p>
   </footer>
 
-  <!-- Scripts: shards-data must load first because script.js references SHARDS_DB -->
+  <!-- Scripts: data + helpers load before script.js which references them -->
   <script src="shards-data.js"></script>
+  <script src="nbt.js"></script>
+  <script src="accessories.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

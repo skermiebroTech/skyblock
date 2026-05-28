@@ -1268,3 +1268,270 @@ input[type="search"]:focus,
   .player-stats { width: 100%; justify-content: space-between; }
   .player-stat { text-align: left; }
 }
+
+/* =========================================================================
+ * View tabs + accessory pages (Missing / Upgrades)
+ * ======================================================================= */
+
+/* ---------- View tabs ---------- */
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 24px;
+  border-bottom: 1px solid var(--surface-line);
+  flex-wrap: wrap;
+}
+.view-tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 18px;
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -1px;
+}
+.view-tab:hover { color: var(--text-soft); }
+.view-tab.active {
+  color: var(--ember);
+  border-bottom-color: var(--ember);
+}
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-hi);
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.view-tab.active .tab-badge {
+  background: var(--ember);
+  color: #1a0f08;
+}
+.view-pane[hidden] { display: none; }
+
+/* ---------- Accessory page head ---------- */
+.acc-page-head { margin-bottom: 18px; }
+.acc-page-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+.acc-page-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 760px;
+  line-height: 1.6;
+}
+
+/* ---------- MP progress header ---------- */
+.mp-header {
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-lg);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+.mp-header-stats {
+  display: flex;
+  gap: 36px;
+  margin-bottom: 14px;
+}
+.mp-stat-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.mp-stat-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 3px;
+}
+.mp-stat-value.pos { color: var(--pos); }
+.mp-bar {
+  height: 8px;
+  background: var(--bg-elevated);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--surface-line);
+}
+.mp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ember-light), var(--ember));
+  border-radius: 999px;
+  transition: width .4s ease;
+}
+
+/* ---------- Accessory grid + cards ---------- */
+.acc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+.acc-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-left: 3px solid var(--tier-color, var(--ember));
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.acc-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.acc-card-name {
+  font-weight: 700;
+  font-size: 14.5px;
+  color: var(--text);
+  line-height: 1.25;
+}
+.acc-card-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.acc-tier { text-transform: capitalize; font-weight: 600; }
+.acc-price { font-family: var(--font-mono); color: var(--text-soft); }
+.acc-price-src { color: var(--text-faint); font-size: 10.5px; }
+.acc-price-ah { color: var(--info); font-weight: 600; }
+.acc-card-mp {
+  text-align: right;
+  flex-shrink: 0;
+}
+.acc-mp-value {
+  display: block;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--pos);
+  line-height: 1;
+}
+.acc-mp-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+/* command + copy row */
+.acc-card-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-md);
+  padding: 8px 10px;
+}
+.acc-cmd-text {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--ember-light);
+  background: none;
+  border: none;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn-copy {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface-hi);
+  border: 1px solid var(--surface-line);
+  color: var(--text-soft);
+  border-radius: var(--r-sm);
+  padding: 5px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.btn-copy:hover {
+  border-color: var(--ember);
+  color: var(--text);
+}
+.btn-copy.copied {
+  background: var(--pos-dim);
+  border-color: var(--pos);
+  color: #fff;
+}
+
+/* Upgrade card variant */
+.acc-card--upgrade { gap: 10px; }
+.acc-upgrade-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+.acc-upgrade-arrow { color: var(--ember); font-weight: 700; }
+.acc-card--upgrade .acc-card-main { margin-top: 2px; }
+
+/* Gate / loading / empty states */
+.acc-gate, .acc-loading, .acc-empty {
+  background: var(--surface);
+  border: 1px dashed var(--surface-line);
+  border-radius: var(--r-lg);
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.acc-gate-icon { font-size: 36px; margin-bottom: 8px; }
+.acc-gate h2 {
+  font-family: var(--font-display);
+  color: var(--text);
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.acc-gate p { max-width: 440px; margin: 0 auto; font-size: 13px; line-height: 1.6; }
+.acc-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-soft);
+}
+.acc-empty { grid-column: 1 / -1; }
+
+@media (max-width: 600px) {
+  .mp-header-stats { gap: 20px; }
+  .mp-stat-value { font-size: 18px; }
+  .view-tab { padding: 10px 12px; font-size: 13px; }
+}

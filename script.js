@@ -26,6 +26,7 @@ const CONFIG = {
   API_BASE: "https://api.hypixel.net/v2",
   BAZAAR_ENDPOINT: "/skyblock/bazaar",
   PROFILES_ENDPOINT: "/skyblock/profiles",
+  ITEMS_ENDPOINT: "/resources/skyblock/items",
 
   /* CORS-friendly Mojang proxy for username → UUID resolution. */
   USERNAME_LOOKUP_URL: "https://api.ashcon.app/mojang/v2/user/",
@@ -57,6 +58,7 @@ const CONFIG = {
   CACHE_KEY_BAZAAR:        "shardmarket.cache.bazaar",
   CACHE_KEY_FUSION_PROPS:  "shardmarket.cache.fusionProps.v1",
   CACHE_KEY_FUSION_DATA:   "shardmarket.cache.fusionData.v1",
+  CACHE_KEY_ITEMS:         "shardmarket.cache.items.v1",
   CACHE_KEY_PROFILE_PREFIX: "shardmarket.cache.profile.",  // + uuid
 
   /* Filter out dead markets where no shards traded in the past week. */
@@ -104,9 +106,17 @@ const state = {
     coinPurse:     null,  // coins available in the selected profile
     huntingLevel:  null,  // current Hunting skill level
     huntingXp:     null,
+    ownedAccessories: null,  // Set<string> of owned accessory ids (null = not loaded)
+    accessoryAnalysis: null, // {currentMP, maxMP, missing, upgrades}
     loading:       false,
     error:         null,
   },
+
+  /* Item catalog (accessories) — loaded once from the resources endpoint. */
+  accessoryCatalog: null,
+
+  /* Active page: "shards" | "missing" | "upgrades" */
+  view: "shards",
 };
 
 function getNumberFromStorage(key, fallback) {
@@ -241,6 +251,14 @@ const api = {
       cacheTtl: CONFIG.CACHE_TTL_PROFILE_MS,
     });
   },
+
+  /* Fetch the full SkyBlock item catalog (public, no key). Cached 1 day. */
+  fetchItems() {
+    return apiFetch(CONFIG.ITEMS_ENDPOINT, {
+      cacheKey: CONFIG.CACHE_KEY_ITEMS,
+      cacheTtl: CONFIG.CACHE_TTL_STATIC_MS,
+    });
+  },
 };
 
 /* =========================================================================
@@ -333,6 +351,37 @@ async function loadPlayerProfiles(username) {
   }
 }
 
+/* Extract all owned accessory ids from a profile member by decoding the
+ * talisman bag (and inventory / ender chest as a fallback for accessories
+ * carried outside the bag). Returns a Set<string>. */
+async function extractOwnedAccessories(member, catalog) {
+  const owned = new Set();
+  if (!member?.inventory) return owned;
+
+  const slices = [
+    member.inventory.bag_contents?.talisman_bag,
+    member.inventory.inv_contents,
+    member.inventory.ender_chest_contents,
+  ];
+
+  for (const slice of slices) {
+    if (!slice?.data) continue;
+    try {
+      const items = await decodeInventory(slice.data);
+      for (const it of items) {
+        /* Normalise: bag ids sometimes carry a numeric suffix
+         * (e.g. CAMPFIRE_TALISMAN_29). Only keep ids the catalog knows. */
+        if (catalog.byId[it.skyblockId]) {
+          owned.add(it.skyblockId);
+        }
+      }
+    } catch (e) {
+      console.warn("[ShardMarket] inventory decode failed for a slice:", e.message);
+    }
+  }
+  return owned;
+}
+
 function selectProfile(profileId) {
   const prof = state.player.profiles.find((p) => p.profile_id === profileId);
   if (!prof) return;
@@ -343,12 +392,39 @@ function selectProfile(profileId) {
   state.player.coinPurse    = stats.coinPurse;
   state.player.huntingLevel = stats.huntingLevel;
   state.player.huntingXp    = stats.huntingXp;
+
+  /* Accessory analysis runs async (NBT decode). Reset, then fill in. */
+  state.player.ownedAccessories  = null;
+  state.player.accessoryAnalysis = null;
+  loadAccessoryAnalysis(prof._raw);
+}
+
+/* Decode inventories + analyse accessories for the selected profile. */
+async function loadAccessoryAnalysis(rawProfile) {
+  try {
+    if (!state.accessoryCatalog) {
+      const { data } = await api.fetchItems();
+      state.accessoryCatalog = buildAccessoryCatalog(data);
+    }
+    const member = rawProfile?.members?.[state.player.uuid];
+    const owned = await extractOwnedAccessories(member, state.accessoryCatalog);
+    state.player.ownedAccessories  = owned;
+    state.player.accessoryAnalysis = analyseAccessories(state.accessoryCatalog, owned);
+  } catch (e) {
+    console.error("[ShardMarket] accessory analysis failed:", e);
+    state.player.ownedAccessories  = new Set();
+    state.player.accessoryAnalysis = { currentMP: 0, maxMP: 0, missing: [], upgrades: [], error: e.message };
+  } finally {
+    renderPlayerPanel();
+    if (state.view === "missing" || state.view === "upgrades") renderActiveView();
+  }
 }
 
 function clearPlayer() {
   state.player = {
     username: "", uuid: null, profiles: [], selectedId: null,
     coinPurse: null, huntingLevel: null, huntingXp: null,
+    ownedAccessories: null, accessoryAnalysis: null,
     loading: false, error: null,
   };
   localStorage.removeItem(CONFIG.USERNAME_STORAGE);
@@ -356,6 +432,7 @@ function clearPlayer() {
   renderPlayerPanel();
   renderTable();
   renderBestFusionsPanel();
+  if (state.view !== "shards") renderActiveView();
 }
 
 /* =========================================================================
@@ -861,6 +938,244 @@ function renderBestFusionsPanel() {
   }).join("");
 }
 
+/* =========================================================================
+ * VIEW SWITCHING + ACCESSORY PAGES
+ * ======================================================================= */
+
+/* Switch the active page and re-render it. */
+function setView(view) {
+  state.view = view;
+
+  /* Toggle tab active states. */
+  $$(".view-tab").forEach((t) => {
+    const on = t.dataset.view === view;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+
+  /* Toggle panes. */
+  $("#view-shards").hidden   = view !== "shards";
+  $("#view-missing").hidden  = view !== "missing";
+  $("#view-upgrades").hidden = view !== "upgrades";
+
+  renderActiveView();
+}
+
+function renderActiveView() {
+  if (state.view === "missing")  renderMissingView();
+  if (state.view === "upgrades") renderUpgradesView();
+  if (state.view === "shards")   renderTable();
+}
+
+/* Shared: a "you need to link an account" gate for the accessory pages. */
+function accessoryGateHTML(actionLabel) {
+  return `
+    <div class="acc-gate">
+      <div class="acc-gate-icon">🔗</div>
+      <h2>Link your account first</h2>
+      <p>${actionLabel} needs your profile data. Enter your Minecraft username
+         in the panel above, and make sure a Hypixel API key is set in Settings.</p>
+    </div>`;
+}
+
+/* Shared loading state for accessory pages. */
+function accessoryLoadingHTML(label) {
+  return `<div class="acc-loading"><span class="spinner"></span> ${label}</div>`;
+}
+
+/* Is an accessory bazaar-tradable? (present as a product in the live bazaar) */
+function accessoryIsBazaar(id) {
+  return !!state.raw?.products?.[id];
+}
+
+/* Live price hint for an accessory: bazaar insta-buy, else AH note. */
+function accessoryPriceHint(id) {
+  const prod = state.raw?.products?.[id];
+  if (prod?.quick_status?.buyPrice) {
+    return { kind: "bz", price: prod.quick_status.buyPrice };
+  }
+  return { kind: "ah", price: null };
+}
+
+/* Render one accessory action row (used by both pages). */
+function accessoryActionRow(item, mpLabel, mpValue) {
+  const isBz = accessoryIsBazaar(item.id);
+  const hint = accessoryPriceHint(item.id);
+  const cmd  = sourcingCommand(item, isBz);
+
+  const priceTxt = hint.kind === "bz"
+    ? `<span class="acc-price">~${fmtCoins(hint.price)} <span class="acc-price-src">bazaar</span></span>`
+    : `<span class="acc-price acc-price-ah">Auction House</span>`;
+
+  const tierColor = RARITY_COLORS[item.tier] || RARITY_COLORS.UNKNOWN;
+
+  return `
+    <article class="acc-card" style="--tier-color:${tierColor}">
+      <div class="acc-card-main">
+        <div class="acc-card-titles">
+          <div class="acc-card-name">${escapeHtml(item.name)}</div>
+          <div class="acc-card-sub">
+            <span class="acc-tier" style="color:${tierColor}">${item.tier.toLowerCase()}</span>
+            <span class="meta-sep">·</span>
+            ${priceTxt}
+          </div>
+        </div>
+        <div class="acc-card-mp">
+          <span class="acc-mp-value">${mpValue >= 0 ? "+" : ""}${mpValue}</span>
+          <span class="acc-mp-label">${mpLabel}</span>
+        </div>
+      </div>
+      <div class="acc-card-cmd">
+        <code class="acc-cmd-text">${escapeHtml(cmd)}</code>
+        <button class="btn-copy" data-copy="${escapeHtml(cmd)}" title="Copy command">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          Copy
+        </button>
+      </div>
+    </article>`;
+}
+
+/* Wire copy buttons inside a container (delegated). */
+function bindCopyButtons(container) {
+  container.addEventListener("click", (e) => {
+    const btn = e.target.closest(".btn-copy");
+    if (!btn) return;
+    const text = btn.dataset.copy;
+    navigator.clipboard?.writeText(text).then(() => {
+      const orig = btn.innerHTML;
+      btn.classList.add("copied");
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.innerHTML = orig; btn.classList.remove("copied"); }, 1200);
+    }).catch(() => {});
+  });
+}
+
+/* MP progress header shared by both accessory pages. */
+function mpHeaderHTML(analysis) {
+  const pct = analysis.maxMP > 0 ? Math.round((analysis.currentMP / analysis.maxMP) * 100) : 0;
+  return `
+    <div class="mp-header">
+      <div class="mp-header-stats">
+        <div class="mp-stat">
+          <div class="mp-stat-label">Current MP</div>
+          <div class="mp-stat-value pos">${fmtInt(analysis.currentMP)}</div>
+        </div>
+        <div class="mp-stat">
+          <div class="mp-stat-label">Max possible</div>
+          <div class="mp-stat-value">${fmtInt(analysis.maxMP)}</div>
+        </div>
+        <div class="mp-stat">
+          <div class="mp-stat-label">Completion</div>
+          <div class="mp-stat-value">${pct}%</div>
+        </div>
+      </div>
+      <div class="mp-bar"><div class="mp-bar-fill" style="width:${pct}%"></div></div>
+    </div>`;
+}
+
+/* ----- MISSING page ----- */
+function renderMissingView() {
+  const pane = $("#view-missing");
+  const p = state.player;
+
+  if (!p.username || p.error) { pane.innerHTML = accessoryGateHTML("The missing-accessories report"); return; }
+  if (p.accessoryAnalysis == null) {
+    pane.innerHTML = accessoryLoadingHTML("Decoding your accessory bag…");
+    return;
+  }
+
+  const a = p.accessoryAnalysis;
+  if (a.error) { pane.innerHTML = `<div class="acc-gate"><p>Couldn't analyse accessories: ${escapeHtml(a.error)}</p></div>`; return; }
+
+  const missing = a.missing;
+  updateTabBadge("badge-missing", missing.length);
+
+  const totalMissingMP = missing.reduce((s, m) => s + m.mp, 0);
+
+  pane.innerHTML = `
+    <div class="acc-page-head">
+      <div>
+        <h2 class="acc-page-title">Missing Accessories</h2>
+        <p class="acc-page-sub">
+          Accessory families you own none of, ranked by the Magical Power they'd add.
+          Use <code>/bz</code> for bazaar items and <code>/ahs</code> for Auction House items.
+          Potential gain: <strong class="pos">+${fmtInt(totalMissingMP)} MP</strong> across ${missing.length} items.
+        </p>
+      </div>
+    </div>
+    ${mpHeaderHTML(a)}
+    <div class="acc-grid" id="missing-grid">
+      ${missing.length
+        ? missing.map((m) => accessoryActionRow(m.item, "MP", m.mp)).join("")
+        : `<div class="acc-empty">🎉 You're not missing any tracked accessory families. Nice.</div>`}
+    </div>`;
+
+  bindCopyButtons($("#missing-grid"));
+}
+
+/* ----- UPGRADES page ----- */
+function renderUpgradesView() {
+  const pane = $("#view-upgrades");
+  const p = state.player;
+
+  if (!p.username || p.error) { pane.innerHTML = accessoryGateHTML("The accessory-upgrades report"); return; }
+  if (p.accessoryAnalysis == null) {
+    pane.innerHTML = accessoryLoadingHTML("Decoding your accessory bag…");
+    return;
+  }
+
+  const a = p.accessoryAnalysis;
+  if (a.error) { pane.innerHTML = `<div class="acc-gate"><p>Couldn't analyse accessories: ${escapeHtml(a.error)}</p></div>`; return; }
+
+  const upgrades = a.upgrades;
+  updateTabBadge("badge-upgrades", upgrades.length);
+
+  const totalGain = upgrades.reduce((s, u) => s + u.mpGain, 0);
+
+  pane.innerHTML = `
+    <div class="acc-page-head">
+      <div>
+        <h2 class="acc-page-title">Accessory Upgrades</h2>
+        <p class="acc-page-sub">
+          Accessories you own at a lower tier than the family maximum.
+          Buy the upgraded version to gain Magical Power.
+          Potential gain: <strong class="pos">+${fmtInt(totalGain)} MP</strong> across ${upgrades.length} upgrades.
+        </p>
+      </div>
+    </div>
+    ${mpHeaderHTML(a)}
+    <div class="acc-grid" id="upgrades-grid">
+      ${upgrades.length
+        ? upgrades.map((u) => `
+            <article class="acc-card acc-card--upgrade" style="--tier-color:${RARITY_COLORS[u.target.tier] || RARITY_COLORS.UNKNOWN}">
+              <div class="acc-upgrade-flow">
+                <span class="acc-have" style="color:${RARITY_COLORS[u.owned.tier]}">
+                  ${escapeHtml(u.owned.name)}
+                </span>
+                <span class="acc-upgrade-arrow">→</span>
+                <span class="acc-want" style="color:${RARITY_COLORS[u.target.tier]}">
+                  ${escapeHtml(u.target.name)}
+                </span>
+              </div>
+              ${accessoryActionRow(u.target, "MP gain", u.mpGain)}
+            </article>`).join("")
+        : `<div class="acc-empty">🎉 Every accessory family you own is already at max tier.</div>`}
+    </div>`;
+
+  bindCopyButtons($("#upgrades-grid"));
+}
+
+function updateTabBadge(id, count) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (count > 0) { el.textContent = count; el.hidden = false; }
+  else           { el.hidden = true; }
+}
+
 function renderTable() {
   const tbody = $("#shard-table tbody");
   const filtered = applyFilters(state.rows);
@@ -1034,6 +1349,11 @@ function populateTexturePackSelect() {
 }
 
 function bindUI() {
+  /* View tabs */
+  $$(".view-tab").forEach((tab) => {
+    tab.addEventListener("click", () => setView(tab.dataset.view));
+  });
+
   /* Search */
   const searchInput = $("#search-input");
   let searchTimer;
