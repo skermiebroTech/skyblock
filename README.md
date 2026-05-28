@@ -20,6 +20,7 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
   - **Missing accessories** ranked by Magical Power, with `/bz` & `/ahs` copy commands and live prices.
   - **Accessory upgrades** (lower tier than family max) and **recombobulate** suggestions for maxed-tier items.
   - **Attribute maxing** — shards remaining and live bazaar cost per attribute.
+  - **Personalized craft flips** — your Hunting level is pulled from the profile API and fusion opportunities above your level are locked out of profit rankings.
 - Every item links to the **Hypixel Wiki**; **soulbound** items are flagged (can't be bought on the AH).
 - Player panel shows coin purse, bank, SkyBlock level, Hunting/Combat levels, slayer XP, and fairy souls.
 - Stores responses in `localStorage` with short TTLs so quick reloads don't hammer the API.
@@ -77,6 +78,12 @@ shard count remaining, and the live bazaar cost to finish — with a `/bz` comma
 the source shard. Totals across all attributes are shown up top.
 
 Both accessory pages show a live **Magical Power progress bar**.
+
+### Hunting-level craft flips
+
+When you link a profile, the app reads `members[uuid].player_data.experience.SKILL_HUNTING` from the Hypixel Profiles API and converts XP to a Hunting level with the standard skill XP table. Fusion craft flips are then personalized: recipes above your Hunting level are shown as locked and excluded from the Best Fusions/profitable-fusion rankings, so the top craft flips are ones your profile can actually perform.
+
+Current fusion gates use the shard rarity ladder: Common 0, Uncommon 10, Rare 20, Epic 30, Legendary 40. If Hypixel changes fusion requirements, update `FUSION_HUNTING_REQUIREMENT_BY_RARITY` in `script.js`.
 
 ### Real prices
 

@@ -1162,6 +1162,11 @@ input[type="search"]:focus,
   cursor: help;
 }
 .fusion-val { font-weight: 600; }
+.fusion-locked {
+  color: var(--text-faint);
+  cursor: help;
+  white-space: nowrap;
+}
 .num-muted { color: var(--text-faint); }
 
 /* =========================================================================
@@ -1343,6 +1348,11 @@ input[type="search"]:focus,
   background: rgba(255, 86, 115, 0.10);
   color: var(--neg);
   border: 1px solid rgba(255, 86, 115, 0.3);
+}
+.fusion-hunt-req {
+  background: rgba(91, 176, 255, 0.12);
+  color: #8fc7ff;
+  border: 1px solid rgba(91, 176, 255, 0.30);
 }
 
 @media (max-width: 600px) {

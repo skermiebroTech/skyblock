@@ -395,7 +395,8 @@ async function loadPlayerProfiles(username) {
   } finally {
     state.player.loading = false;
     renderPlayerPanel();
-    renderTable();   // re-render so affordability shading updates
+    rebuildRows();   // re-evaluate Hunting-gated fusion eligibility
+    renderTable();
     renderBestFusionsPanel();
   }
 }
@@ -453,6 +454,7 @@ function selectProfile(profileId) {
   state.player.attributeAnalysis = null;
   loadAccessoryAnalysis(prof._raw);
   loadAttributeAnalysis();
+  rebuildRows();
 }
 
 /* Decode inventories + analyse accessories for the selected profile. */
@@ -521,6 +523,7 @@ function clearPlayer() {
   };
   localStorage.removeItem(CONFIG.USERNAME_STORAGE);
   localStorage.removeItem(CONFIG.PROFILE_ID_STORAGE);
+  rebuildRows();
   renderPlayerPanel();
   renderTable();
   renderBestFusionsPanel();
@@ -574,6 +577,29 @@ function computeMetrics(qs, tax) {
 function projectedWeeklyProfit(m) {
   const throughput = Math.min(m.sellWeek, m.buyWeek) * 0.5;
   return m.profitPerUnit * throughput;
+}
+
+/* Hunting skill gates shard fusion. Before a player links their account we
+ * keep every recipe visible; once linked, craft-flip rankings only count
+ * recipes they can actually run at their current Hunting level. */
+const FUSION_HUNTING_REQUIREMENT_BY_RARITY = {
+  COMMON: 0,
+  UNCOMMON: 10,
+  RARE: 20,
+  EPIC: 30,
+  LEGENDARY: 40,
+  UNKNOWN: 0,
+};
+
+function huntingRequirementForCode(code) {
+  if (!code) return 0;
+  const rarity = RARITY_FROM_CODE[code[0]] || "UNKNOWN";
+  return FUSION_HUNTING_REQUIREMENT_BY_RARITY[rarity] ?? 0;
+}
+
+function playerCanUseFusion(reqLevel) {
+  const level = state.player?.huntingLevel;
+  return level == null || level >= reqLevel;
 }
 
 /* =========================================================================
@@ -630,6 +656,13 @@ function computeBestFusion(targetBazaarId) {
       const bPrice = priceOfInput(bId);
       if (aPrice == null || bPrice == null) continue;
 
+      const requiredHuntingLevel = Math.max(
+        huntingRequirementForCode(code),
+        huntingRequirementForCode(aCode),
+        huntingRequirementForCode(bCode)
+      );
+      const huntingLocked = !playerCanUseFusion(requiredHuntingLevel);
+
       const pairCost = aPrice + bPrice;
       const costPerOutput = pairCost / qty;
 
@@ -642,6 +675,8 @@ function computeBestFusion(targetBazaarId) {
           outputQty: qty,
           pairCost,
           costPerOutput,
+          requiredHuntingLevel,
+          huntingLocked,
         };
       }
     }
@@ -674,6 +709,10 @@ function getShardMeta(id) {
 }
 
 /* Build enriched rows from the raw bazaar payload. */
+function rebuildRows() {
+  if (state.raw) state.rows = buildRows(state.raw);
+}
+
 function buildRows(bazaarPayload) {
   if (!bazaarPayload?.products) return [];
   const tax = state.tax;
@@ -693,10 +732,15 @@ function buildRows(bazaarPayload) {
     let fusionProfitPerUnit = null;
     let fusionMarginPercent = null;
     if (bestFusion) {
-      fusionProfitPerUnit = metrics.buyPrice * (1 - tax) - bestFusion.costPerOutput;
-      fusionMarginPercent = bestFusion.costPerOutput > 0
-        ? (fusionProfitPerUnit / bestFusion.costPerOutput) * 100
-        : 0;
+      if (bestFusion.huntingLocked) {
+        fusionProfitPerUnit = null;
+        fusionMarginPercent = null;
+      } else {
+        fusionProfitPerUnit = metrics.buyPrice * (1 - tax) - bestFusion.costPerOutput;
+        fusionMarginPercent = bestFusion.costPerOutput > 0
+          ? (fusionProfitPerUnit / bestFusion.costPerOutput) * 100
+          : 0;
+      }
     }
 
     /* Investment to syphon to max level. */
@@ -852,8 +896,8 @@ function renderPlayerPanel() {
           <button type="submit" class="btn-primary">Link</button>
         </div>
         <p class="player-hint">
-          Adds your coin purse, Hunting level, and an "affordable" flag on
-          fusion recipes. Requires a Hypixel API key in Settings.
+          Adds your coin purse, Hunting level, and personalized craft-flip filters.
+          Requires a Hypixel API key in Settings.
         </p>
       </form>`;
     $("#player-form").addEventListener("submit", onPlayerFormSubmit);
@@ -1011,6 +1055,9 @@ function renderBestFusionsPanel() {
     const afford = purse == null ? "" : affordable
       ? `<span class="afford afford-yes" title="Within your coin purse">✓ affordable</span>`
       : `<span class="afford afford-no" title="Need ${fmtCoins(r.bestFusion.pairCost - purse)} more">need ${fmtCoins(r.bestFusion.pairCost - purse)}</span>`;
+    const huntReq = r.bestFusion.requiredHuntingLevel > 0
+      ? `<span class="afford fusion-hunt-req" title="Requires Hunting Lv ${r.bestFusion.requiredHuntingLevel}">Hunting ${r.bestFusion.requiredHuntingLevel}+</span>`
+      : "";
 
     return `
     <article class="fusion-card" style="--rarity-color:${RARITY_COLORS[r.rarity]}">
@@ -1020,7 +1067,7 @@ function renderBestFusionsPanel() {
         <div class="fusion-card-titles">
           <div class="fusion-card-name">${escapeHtml(r.name)}</div>
           <div class="fusion-card-rarity" style="color:${RARITY_COLORS[r.rarity]}">
-            ${r.rarity.toLowerCase()} ${afford}
+            ${r.rarity.toLowerCase()} ${huntReq} ${afford}
           </div>
         </div>
         <div class="fusion-card-profit pos">
@@ -1748,10 +1795,13 @@ function renderTable() {
       : r.fusionProfitPerUnit > 0 ? "pos" : "neg";
 
     const fusionCell = r.bestFusion
-      ? `<span class="fusion-val ${fusionClass}" title="${escapeHtml(
+      ? r.bestFusion.huntingLocked
+        ? `<span class="fusion-val fusion-locked" title="Requires Hunting Lv ${r.bestFusion.requiredHuntingLevel}; your linked profile is Lv ${state.player.huntingLevel}">🔒 Lv ${r.bestFusion.requiredHuntingLevel}</span>`
+        : `<span class="fusion-val ${fusionClass}" title="${escapeHtml(
             r.bestFusion.inputs.map(i => i.name).join("  +  ")
             + `  →  ×${r.bestFusion.outputQty} ${r.name}\n`
             + `Input cost: ${fmtCoins(r.bestFusion.costPerOutput)}/ea`
+            + `\nRequires Hunting Lv ${r.bestFusion.requiredHuntingLevel}`
           )}">${fmtCoins(r.fusionProfitPerUnit)}</span>`
       : `<span class="num-muted">—</span>`;
 
