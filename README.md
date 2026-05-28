@@ -69,6 +69,12 @@ recombobulates into a single ranked path forward, and shows one-click **Copy** b
 the in-game sourcing command — `/ahs <item>` for Auction-House items, `/bz <item>` for
 anything bazaar-tradable. Sort by MP gain, item price, or cost per MP.
 
+Accessory family logic combines live Hypixel item data with maintained chain/alias rules
+mirrored from SkyCrypt / SkyHelper-Networth / NEU-style data, so non-obvious lines like
+Personal Compactors, Campfire badges, Wedding Rings, Cat → Lynx → Cheetah, Scarf Studies,
+and Shady Ring → Seal of the Family are treated as one upgrade path instead of separate
+missing accessories.
+
 ### Attributes
 How many **Attribute Shards** you still need to take each usable attribute to level 10.
 The report includes attributes you have never syphoned as **missing** (`0/max`), filters out
