@@ -18,8 +18,7 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
 - Fetches the [Hypixel Bazaar endpoint](https://api.hypixel.net/v2/skyblock/bazaar) every 60 seconds and computes realistic order-flip economics for every Attribute Shard.
 - Detects the best **fusion** craft-and-flip recipes.
 - Link your account (username + API key) to unlock accessory & attribute planning:
-  - **Missing accessories** ranked by Magical Power, with `/bz` & `/ahs` copy commands and live prices.
-  - **Accessory upgrades** (lower tier than family max) and **recombobulate** suggestions for maxed-tier items.
+  - **Accessory Path** combines missing accessories, family upgrades, and recombobulates into one ranked checklist with `/bz` & `/ahs` copy commands and live prices.
   - **Attribute maxing** — shards remaining and live bazaar cost per attribute.
   - **Personalized craft flips** — your Hunting level is pulled from the profile API and fusion opportunities above your level are locked out of profit rankings.
 - Every item links to the **Hypixel Wiki**; **soulbound** items are flagged (can't be bought on the AH).
@@ -32,7 +31,7 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
 
 ```
 shard-market/
-├── index.html              ← Markup & shell (4 pages: Shards / Missing / Upgrades / Attributes)
+├── index.html              ← Markup & shell (3 pages: Shards / Accessory Path / Attributes)
 ├── style.css               ← Obsidian + ember dashboard styling
 ├── script.js               ← API client, caching, profit + fusion math, page renderers
 ├── shards-data.js          ← Static lookups (rarity, colors, texture-pack registry, ID overrides)
@@ -53,24 +52,21 @@ No bundler, no `npm install`, no toolchain. Open `index.html` in any modern brow
 
 ---
 
-## The four pages
+## The three pages
 
-Linking your account (username + an API key in Settings) unlocks three extra pages alongside the shard market:
+Linking your account (username + an API key in Settings) unlocks two extra pages alongside the shard market:
 
 ### Shard Market
-Live bazaar profitability + the fusion calculator (see below).
+Live bazaar profitability + the fusion calculator (see below). The sort menu includes
+**Cheapest to max level** and **Attribute / skill (cheapest max first)** so you can group
+shards by their attribute and put the cheapest maxing route at the top of each group.
 
-### Missing Accessories
-Like SkyHelper's `/missing` command. Decodes your talisman bag straight from the
-Hypixel API, figures out which accessory families you own none of, and ranks them
-by the **Magical Power** they'd add. Each card has a one-click **Copy** button for the
-in-game sourcing command — `/ahs <item>` for Auction-House items, `/bz <item>` for
-anything bazaar-tradable.
-
-### Accessory Upgrades
-Shows accessories you own at a lower tier than their family maximum
-(e.g. *Scavenger Talisman → Scavenger Artifact*, +8 MP). Ranked by MP gained, again
-with copy-ready `/ahs` / `/bz` commands.
+### Accessory Path
+Like SkyHelper's `/missing` command plus upgrades in one place. Decodes your talisman bag
+straight from the Hypixel API, combines missing families, lower-tier family upgrades, and
+recombobulates into a single ranked path forward, and shows one-click **Copy** buttons for
+the in-game sourcing command — `/ahs <item>` for Auction-House items, `/bz <item>` for
+anything bazaar-tradable. Sort by MP gain, item price, or cost per MP.
 
 ### Attributes
 How many **Attribute Shards** you still need to take each usable attribute to level 10.
@@ -79,7 +75,7 @@ attributes above your profile's Hunting level, then shows current/max progress, 
 shard count remaining, and the live bazaar cost to finish — with a `/bz` command for
 the source shard. Totals across all usable attributes are shown up top.
 
-Both accessory pages show a live **Magical Power progress bar**.
+The Accessory Path page shows a live **Magical Power progress bar**.
 
 ### Hunting-level craft flips
 

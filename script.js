@@ -760,9 +760,9 @@ function buildRows(bazaarPayload) {
       }
     }
 
-    /* Investment to syphon to max level. */
+    /* Investment to syphon to max level using visible insta-buy shard cost. */
     const maxShards = SHARDS_MAX_LEVEL_BY_RARITY[meta.rarity];
-    const maxLevelCost = maxShards ? maxShards * metrics.sellPrice : null;
+    const maxLevelCost = maxShards ? maxShards * metrics.buyPrice : null;
 
     rows.push({
       id,
@@ -799,6 +799,19 @@ function applySort(rows) {
   const dir = state.sortDir === "asc" ? 1 : -1;
   const key = state.sortKey;
   return [...rows].sort((a, b) => {
+    if (key === "attributeSkill") {
+      const aUnknown = !a.attribute || a.attribute === "—";
+      const bUnknown = !b.attribute || b.attribute === "—";
+      if (aUnknown !== bUnknown) return aUnknown ? 1 : -1;
+      const attr = String(a.attribute || "").localeCompare(String(b.attribute || ""));
+      if (attr !== 0) return attr * dir;
+      const ac = a.maxLevelCost, bc = b.maxLevelCost;
+      if (ac == null && bc == null) return a.name.localeCompare(b.name);
+      if (ac == null) return 1;
+      if (bc == null) return -1;
+      return (ac - bc) || a.name.localeCompare(b.name);
+    }
+
     const av = a[key], bv = b[key];
     if (av == null && bv == null) return 0;
     if (av == null) return 1;
@@ -1459,12 +1472,119 @@ function bindAccessoryToolbar(container) {
   if (loadBtn) loadBtn.addEventListener("click", () => loadLowestBinsIfNeeded(true));
 }
 
-/* ----- MISSING page ----- */
+/* ----- ACCESSORY PATH page ----- */
+function getAccessoryItemPrice(item) {
+  if (!item || item.soulbound) return Infinity;
+  const pPrice = accessoryPrice(item.id)?.best;
+  return pPrice != null ? pPrice : Infinity;
+}
+
+function getRecombobulatorPrice() {
+  const prod = state.raw?.products?.["RECOMBOBULATOR_3000"];
+  if (prod?.quick_status) {
+    return state.bazaarMode === "buyOrder"
+      ? (prod.quick_status.sellPrice || prod.quick_status.buyPrice)
+      : (prod.quick_status.buyPrice || prod.quick_status.sellPrice);
+  }
+  return 6000000;
+}
+
+function accessoryPathActions(analysis) {
+  const recombPrice = getRecombobulatorPrice();
+  return [
+    ...analysis.missing.map((m) => ({
+      type: "missing",
+      item: m.item,
+      mpGain: m.mp,
+      price: getAccessoryItemPrice(m.item),
+      label: "Get missing",
+      flowHTML: `<span class="acc-path-start">Missing family</span><span class="acc-upgrade-arrow">→</span><span class="acc-want" style="color:${RARITY_COLORS[m.item.tier] || RARITY_COLORS.UNKNOWN}">${escapeHtml(m.item.name)}</span>`,
+      cardHTML: () => accessoryActionRow(m.item, "MP gain", m.mp),
+    })),
+    ...analysis.upgrades.map((u) => ({
+      type: "upgrade",
+      item: u.target,
+      mpGain: u.mpGain,
+      price: getAccessoryItemPrice(u.target),
+      label: "Upgrade",
+      flowHTML: `<span class="acc-have" style="color:${RARITY_COLORS[u.owned.tier]}">${escapeHtml(u.owned.name)}</span><span class="acc-upgrade-arrow">→</span><span class="acc-want" style="color:${RARITY_COLORS[u.target.tier]}">${escapeHtml(u.target.name)}</span>`,
+      cardHTML: () => accessoryActionRow(u.target, "MP gain", u.mpGain),
+    })),
+    ...(analysis.recombs || []).map((rc) => ({
+      type: "recomb",
+      item: rc.item,
+      mpGain: rc.mpGain,
+      price: recombPrice,
+      label: "Recombobulate",
+      flowHTML: `<span class="acc-have" style="color:${RARITY_COLORS[rc.item.tier]}">${escapeHtml(rc.item.name)}</span><span class="acc-upgrade-arrow">⟳</span><span class="acc-want" style="color:${RARITY_COLORS[rc.nextRarity]}">${rc.nextRarity.toLowerCase()}</span>`,
+      cardHTML: () => recombActionRow(rc, recombPrice),
+    })),
+  ];
+}
+
+function sortAccessoryPathActions(actions) {
+  const sorted = [...actions];
+  if (state.accSortKey === "price") {
+    sorted.sort((x, y) => x.price - y.price || y.mpGain - x.mpGain);
+  } else if (state.accSortKey === "costPerMp") {
+    sorted.sort((x, y) => (x.price / x.mpGain) - (y.price / y.mpGain) || y.mpGain - x.mpGain);
+  } else {
+    sorted.sort((x, y) => y.mpGain - x.mpGain || x.price - y.price);
+  }
+  return sorted;
+}
+
+function recombActionRow(rc, recombPrice) {
+  const color = RARITY_COLORS[rc.nextRarity] || RARITY_COLORS.UNKNOWN;
+  const priceTxt = `<span class="acc-price">${fmtCoins(recombPrice)} <span class="acc-price-src">bazaar</span></span>`;
+  return `
+    <article class="acc-card" style="--tier-color:${color}">
+      <div class="acc-card-main">
+        <div class="acc-card-titles">
+          ${itemNameHTML(rc.item)}
+          <div class="acc-card-sub">
+            <span class="acc-recomb-note">recombobulate to ${rc.nextRarity.toLowerCase()}</span>
+            <span class="meta-sep">·</span>
+            ${priceTxt}
+          </div>
+        </div>
+        <div class="acc-card-mp">
+          <span class="acc-mp-value">+${rc.mpGain}</span>
+          <span class="acc-mp-label">MP gain</span>
+        </div>
+      </div>
+      <div class="acc-card-cmd">
+        <code class="acc-cmd-text">/bz Recombobulator 3000</code>
+        <button class="btn-copy" data-copy="/bz Recombobulator 3000" title="Copy command">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          Copy
+        </button>
+      </div>
+    </article>`;
+}
+
+function accessoryPathCard(action, index) {
+  return `
+    <article class="acc-card acc-card--path acc-card--${action.type}" style="--tier-color:${RARITY_COLORS[action.item?.tier] || RARITY_COLORS.UNKNOWN}">
+      <div class="acc-path-step">
+        <span class="acc-path-num">${index + 1}</span>
+        <span class="acc-path-kind">${action.label}</span>
+        <span class="acc-path-ratio">${Number.isFinite(action.price) ? `${fmtCoins(action.price / action.mpGain)}/MP` : "price unknown"}</span>
+      </div>
+      <div class="acc-upgrade-flow">${action.flowHTML}</div>
+      ${action.cardHTML()}
+    </article>`;
+}
+
 function renderMissingView() {
   const pane = $("#view-missing");
   const p = state.player;
 
-  if (!p.username || p.error) { pane.innerHTML = accessoryGateHTML("The missing-accessories report"); return; }
+  if (!p.username || p.error) { pane.innerHTML = accessoryGateHTML("The accessory path report"); return; }
   if (p.accessoryAnalysis == null) {
     pane.innerHTML = accessoryLoadingHTML("Decoding your accessory bag…");
     return;
@@ -1473,197 +1593,49 @@ function renderMissingView() {
   const a = p.accessoryAnalysis;
   if (a.error) { pane.innerHTML = `<div class="acc-gate"><p>Couldn't analyse accessories: ${escapeHtml(a.error)}</p></div>`; return; }
 
-  let missing = [...a.missing];
-  updateTabBadge("badge-missing", missing.length);
+  const missingCount = a.missing.length;
+  const upgradeCount = a.upgrades.length;
+  const recombCount = (a.recombs || []).length;
+  const actions = sortAccessoryPathActions(accessoryPathActions(a));
+  updateTabBadge("badge-missing", actions.length);
+  updateTabBadge("badge-upgrades", 0);
 
-  const getPrice = (item) => {
-    if (item.soulbound) return Infinity;
-    const pPrice = accessoryPrice(item.id)?.best;
-    return pPrice != null ? pPrice : Infinity;
-  };
-
-  if (state.accSortKey === "price") {
-    missing.sort((x, y) => getPrice(x.item) - getPrice(y.item));
-  } else if (state.accSortKey === "costPerMp") {
-    missing.sort((x, y) => {
-      const px = getPrice(x.item);
-      const py = getPrice(y.item);
-      const ratioX = px / x.mp;
-      const ratioY = py / y.mp;
-      if (ratioX !== ratioY) return ratioX - ratioY;
-      return y.mp - x.mp; // fallback to higher MP
-    });
-  } else {
-    missing.sort((x, y) => y.mp - x.mp);
-  }
-
-  const totalMissingMP = missing.reduce((s, m) => s + m.mp, 0);
+  const totalGain = actions.reduce((s, x) => s + x.mpGain, 0);
+  const pricedActions = actions.filter((x) => Number.isFinite(x.price));
+  const totalKnownCost = pricedActions.reduce((s, x) => s + x.price, 0);
 
   pane.innerHTML = `
     <div class="acc-page-head">
       <div>
-        <h2 class="acc-page-title">Missing Accessories</h2>
+        <h2 class="acc-page-title">Accessory Path Forward</h2>
         <p class="acc-page-sub">
-          Accessory families you own none of, ranked by the Magical Power they'd add.
-          Use <code>/bz</code> for bazaar items and <code>/ahs</code> for Auction House items.
-          Potential gain: <strong class="pos">+${fmtInt(totalMissingMP)} MP</strong> across ${missing.length} items.
+          One combined checklist of missing accessories, family upgrades, and recombobulates.
+          Sort by MP, cheapest item, or cost per MP to decide what to do next.
+          Potential gain: <strong class="pos">+${fmtInt(totalGain)} MP</strong> across ${actions.length} steps${
+            pricedActions.length ? `; known listed cost ≈ <strong>${fmtCoins(totalKnownCost)}</strong>.` : "."
+          }
         </p>
       </div>
     </div>
     ${mpHeaderHTML(a)}
+    <div class="acc-path-summary">
+      <div><strong>${missingCount}</strong><span>missing</span></div>
+      <div><strong>${upgradeCount}</strong><span>upgrades</span></div>
+      <div><strong>${recombCount}</strong><span>recombs</span></div>
+    </div>
     ${accessoryToolbarHTML()}
-    <div class="acc-grid" id="missing-grid">
-      ${missing.length
-        ? missing.map((m) => accessoryActionRow(m.item, "MP", m.mp)).join("")
-        : `<div class="acc-empty">🎉 You're not missing any tracked accessory families. Nice.</div>`}
+    <div class="acc-grid" id="accessory-path-grid">
+      ${actions.length
+        ? actions.map(accessoryPathCard).join("")
+        : `<div class="acc-empty">🎉 No tracked accessory steps left. Nice.</div>`}
     </div>`;
 
   bindAccessoryToolbar(pane);
-  bindCopyButtons($("#missing-grid"));
+  bindCopyButtons($("#accessory-path-grid"));
 }
 
-/* ----- UPGRADES page ----- */
 function renderUpgradesView() {
-  const pane = $("#view-upgrades");
-  const p = state.player;
-
-  if (!p.username || p.error) { pane.innerHTML = accessoryGateHTML("The accessory-upgrades report"); return; }
-  if (p.accessoryAnalysis == null) {
-    pane.innerHTML = accessoryLoadingHTML("Decoding your accessory bag…");
-    return;
-  }
-
-  const a = p.accessoryAnalysis;
-  if (a.error) { pane.innerHTML = `<div class="acc-gate"><p>Couldn't analyse accessories: ${escapeHtml(a.error)}</p></div>`; return; }
-
-  let upgrades = [...a.upgrades];
-  let recombs = [...(a.recombs || [])];
-
-  const getPrice = (item) => {
-    if (item.soulbound) return Infinity;
-    const pPrice = accessoryPrice(item.id)?.best;
-    return pPrice != null ? pPrice : Infinity;
-  };
-
-  const getRecombobulatorPrice = () => {
-    const prod = state.raw?.products?.["RECOMBOBULATOR_3000"];
-    if (prod?.quick_status) {
-      return state.bazaarMode === "buyOrder"
-        ? (prod.quick_status.sellPrice || prod.quick_status.buyPrice)
-        : (prod.quick_status.buyPrice || prod.quick_status.sellPrice);
-    }
-    return 6000000;
-  };
-
-  const recombPrice = getRecombobulatorPrice();
-
-  if (state.accSortKey === "price") {
-    upgrades.sort((x, y) => getPrice(x.target) - getPrice(y.target));
-    recombs.sort((x, y) => x.item.name.localeCompare(y.item.name));
-  } else if (state.accSortKey === "costPerMp") {
-    upgrades.sort((x, y) => {
-      const px = getPrice(x.target);
-      const py = getPrice(y.target);
-      const ratioX = px / x.mpGain;
-      const ratioY = py / y.mpGain;
-      if (ratioX !== ratioY) return ratioX - ratioY;
-      return y.mpGain - x.mpGain;
-    });
-    recombs.sort((x, y) => {
-      const ratioX = recombPrice / x.mpGain;
-      const ratioY = recombPrice / y.mpGain;
-      if (ratioX !== ratioY) return ratioX - ratioY;
-      return y.mpGain - x.mpGain;
-    });
-  } else {
-    upgrades.sort((x, y) => y.mpGain - x.mpGain);
-    recombs.sort((x, y) => y.mpGain - x.mpGain);
-  }
-
-  updateTabBadge("badge-upgrades", upgrades.length + recombs.length);
-
-  const totalGain = upgrades.reduce((s, u) => s + u.mpGain, 0);
-  const recombGainTotal = recombs.reduce((s, r) => s + r.mpGain, 0);
-
-  pane.innerHTML = `
-    <div class="acc-page-head">
-      <div>
-        <h2 class="acc-page-title">Accessory Upgrades</h2>
-        <p class="acc-page-sub">
-          Accessories you own at a lower tier than the family maximum.
-          Buy the upgraded version to gain Magical Power.
-          Potential gain: <strong class="pos">+${fmtInt(totalGain)} MP</strong> across ${upgrades.length} upgrades.
-        </p>
-      </div>
-    </div>
-    ${mpHeaderHTML(a)}
-    ${accessoryToolbarHTML()}
-    <div class="acc-grid" id="upgrades-grid">
-      ${upgrades.length
-        ? upgrades.map((u) => `
-            <article class="acc-card acc-card--upgrade" style="--tier-color:${RARITY_COLORS[u.target.tier] || RARITY_COLORS.UNKNOWN}">
-              <div class="acc-upgrade-flow">
-                <span class="acc-have" style="color:${RARITY_COLORS[u.owned.tier]}">
-                  ${escapeHtml(u.owned.name)}
-                </span>
-                <span class="acc-upgrade-arrow">→</span>
-                <span class="acc-want" style="color:${RARITY_COLORS[u.target.tier]}">
-                  ${escapeHtml(u.target.name)}
-                </span>
-              </div>
-              ${accessoryActionRow(u.target, "MP gain", u.mpGain)}
-            </article>`).join("")
-        : `<div class="acc-empty">🎉 Every accessory family you own is already at max tier.</div>`}
-    </div>
-
-    ${recombs.length ? `
-      <div class="acc-page-head acc-page-head--sub">
-        <div>
-          <h2 class="acc-page-title">Recombobulate</h2>
-          <p class="acc-page-sub">
-            Already at max tier — apply a <a href="${wikiUrl("Recombobulator 3000")}" target="_blank" rel="noopener noreferrer">Recombobulator 3000</a>
-            to bump rarity one step and gain Magical Power.
-            Potential gain: <strong class="pos">+${fmtInt(recombGainTotal)} MP</strong> across ${recombs.length} items.
-          </p>
-        </div>
-      </div>
-      <div class="acc-grid" id="recombs-grid">
-        ${recombs.map((rc) => `
-          <article class="acc-card acc-card--recomb" style="--tier-color:${RARITY_COLORS[rc.nextRarity] || RARITY_COLORS.UNKNOWN}">
-            <div class="acc-upgrade-flow">
-              <span class="acc-have" style="color:${RARITY_COLORS[rc.item.tier]}">${rc.item.tier.toLowerCase()}</span>
-              <span class="acc-upgrade-arrow">⟳</span>
-              <span class="acc-want" style="color:${RARITY_COLORS[rc.nextRarity]}">${rc.nextRarity.toLowerCase()}</span>
-            </div>
-            <div class="acc-card-main">
-              <div class="acc-card-titles">
-                ${itemNameHTML(rc.item)}
-                <div class="acc-card-sub">
-                  <span class="acc-recomb-note">recombobulate for more MP</span>
-                </div>
-              </div>
-              <div class="acc-card-mp">
-                <span class="acc-mp-value">+${rc.mpGain}</span>
-                <span class="acc-mp-label">MP gain</span>
-              </div>
-            </div>
-            <div class="acc-card-cmd">
-              <code class="acc-cmd-text">/bz Recombobulator 3000</code>
-              <button class="btn-copy" data-copy="/bz Recombobulator 3000" title="Copy command">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                </svg>
-                Copy
-              </button>
-            </div>
-          </article>`).join("")}
-      </div>
-    ` : ""}`;
-
-  bindAccessoryToolbar(pane);
-  bindCopyButtons(pane);
+  renderMissingView();
 }
 
 function updateTabBadge(id, count) {
