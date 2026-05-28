@@ -614,9 +614,9 @@ function playerCanUseFusion(reqLevel) {
  *
  *   Each pair [A, B] in the fusion machine produces `outputQty` of target.
  *
- * Cost basis per input:  sellPrice  (place a buy order — cheapest sourcing)
+ * Cost basis per input:  buyPrice  (insta-buy from sell offers — visible /bz cost)
  *
- * Cost per output unit = (price(A) + price(B)) / outputQty
+ * Cost per output unit = (price(A) × fuseAmount(A) + price(B) × fuseAmount(B)) / outputQty
  *
  * Best recipe = the pair across all output-qty buckets that minimises cost
  * per output unit. We then compare to the target's market value to derive
@@ -626,12 +626,12 @@ function priceOfInput(bazaarId) {
   if (!bazaarId || !state.raw?.products) return null;
   const prod = state.raw.products[bazaarId];
   if (!prod) return null;
-  /* Use sellPrice (buy-order cost) as the realistic sourcing price.
-   * If sellPrice is 0 (no buy orders at all) fall back to buyPrice (insta-buy)
-   * so the recipe stays evaluable. */
-  const sp = prod.quick_status?.sellPrice;
-  if (sp && sp > 0) return sp;
-  return prod.quick_status?.buyPrice || null;
+  /* Use buyPrice (insta-buy from sell offers) for fusion inputs because this
+   * matches the visible in-game /bz cost. Thin markets can have tiny sellPrice
+   * values from stale buy orders (e.g. Heron), which made recipes look fake-cheap. */
+  const bp = prod.quick_status?.buyPrice;
+  if (bp && bp > 0) return bp;
+  return prod.quick_status?.sellPrice || null;
 }
 
 function fusionInputQty(code) {

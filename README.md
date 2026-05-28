@@ -232,7 +232,7 @@ fusionMargin   = fusionProfit / costPerOutput × 100
 
 SkyShards recipes list the two input shard types, and each input slot consumes that shard's `fuse_amount` from `fusion-data.json` (for example, 5× a common input or 2× an uncommon input), so the UI shows both the per-shard price and the total cost for that input stack.
 
-Input pricing uses *buy order* cost (what you'd pay to source via order), with *insta-buy* as a fallback if no buy orders exist. The cheapest pair across all output-qty buckets wins, and that becomes the row's **Fusion Δ** value.
+Input pricing uses *insta-buy* cost (the visible `/bz` cost to buy from sell offers), with *buy-order* as a fallback if no sell offers exist. This avoids fake-cheap fusion routes on thin markets where `sellPrice` can be tiny because only stale buy orders exist. The cheapest pair across all output-qty buckets wins, and that becomes the row's **Fusion Δ** value.
 
 ### Where the recipes come from
 
