@@ -654,6 +654,52 @@ input[type="search"]:focus,
 .cell-shard .meta-sep { color: var(--text-faint); }
 .cell-shard .meta-attr { color: var(--text-soft); }
 
+.table-recipe {
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 520px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-soft);
+}
+.table-recipe-label {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 107, 53, 0.28);
+  background: rgba(255, 107, 53, 0.10);
+  color: var(--ember-light);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.table-recipe-inputs {
+  color: var(--text);
+  font-weight: 650;
+}
+.table-recipe-plus,
+.table-recipe-arrow,
+.table-recipe-output {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.table-recipe-cost {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.table-recipe-profit,
+.table-recipe-lock {
+  font-family: var(--font-mono);
+  font-weight: 800;
+}
+.table-recipe-profit.pos { color: var(--pos); }
+.table-recipe-profit.neg { color: var(--neg); }
+.table-recipe-profit.neu,
+.table-recipe-lock { color: var(--text-faint); }
+
 .badge-unknown {
   display: inline-block;
   padding: 2px 6px;

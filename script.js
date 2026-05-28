@@ -865,6 +865,25 @@ function fusionBadgeHTML(r, extraClass = "") {
   return `<span class="${classes}" title="${escapeHtml(fusionTooltipText(r))}" aria-label="Fusion recipe details">⚒</span>`;
 }
 
+function fusionRecipeInlineHTML(r) {
+  if (!r?.bestFusion) return "";
+  const f = r.bestFusion;
+  const lock = f.huntingLocked
+    ? `<span class="table-recipe-lock">🔒 Hunting ${f.requiredHuntingLevel}+</span>`
+    : `<span class="table-recipe-profit ${r.fusionProfitPerUnit > 0 ? "pos" : r.fusionProfitPerUnit < 0 ? "neg" : "neu"}">${fmtCoins(r.fusionProfitPerUnit)}/ea</span>`;
+  return `
+    <div class="table-recipe" title="${escapeHtml(fusionTooltipText(r))}">
+      <span class="table-recipe-label">Recipe</span>
+      <span class="table-recipe-inputs">
+        ${f.inputs.map((i) => `${i.qty || 1}× ${escapeHtml(i.name)}`).join(` <span class="table-recipe-plus">+</span> `)}
+      </span>
+      <span class="table-recipe-arrow">→</span>
+      <span class="table-recipe-output">×${f.outputQty}</span>
+      <span class="table-recipe-cost">cost ${fmtCoins(f.costPerOutput)}/ea</span>
+      ${lock}
+    </div>`;
+}
+
 /* Inline SVG placeholder shown when a texture URL fails to load. */
 const PLACEHOLDER_ICON =
   "data:image/svg+xml;utf8," + encodeURIComponent(
@@ -1872,6 +1891,7 @@ function renderTable() {
           <span class="meta-family">${escapeHtml(r.family)}</span>
           ${r.attribute !== "—" ? `<span class="meta-sep">·</span><span class="meta-attr">${escapeHtml(r.attribute)}</span>` : ""}
         </div>
+        ${fusionRecipeInlineHTML(r)}
       </td>
       <td class="num">${fmtCoins(r.buyPrice)}</td>
       <td class="num">${fmtCoins(r.sellPrice)}</td>
