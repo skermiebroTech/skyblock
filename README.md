@@ -23,14 +23,19 @@ No backend. No build step. No tracking. Just three static files you can host on 
 
 ```
 shard-market/
-├── index.html         ← Markup & shell
-├── style.css          ← Obsidian + ember dashboard styling
-├── script.js          ← API client, caching, profit math, render pipeline
-├── shards-data.js     ← Curated shard metadata (rarity, family, attribute)
+├── index.html              ← Markup & shell
+├── style.css               ← Obsidian + ember dashboard styling
+├── script.js               ← API client, caching, profit + fusion math, render pipeline
+├── shards-data.js          ← Static lookups (rarity, colors, texture-pack registry, ID overrides)
+├── data/
+│   ├── fusion-properties.json   ← Per-shard metadata (179 shards, from SkyShards)
+│   └── fusion-data.json         ← Full fusion recipe graph (~2 MB, from SkyShards)
 └── README.md
 ```
 
-That's it. No bundler, no `npm install`, no toolchain. Open `index.html` in any modern browser and it works.
+The two JSON files under `data/` come from the open-source [SkyShards](https://github.com/Campionnn/SkyShards) project (MIT) and bundle the community-maintained fusion recipes + per-shard metadata. They're loaded once and cached in `localStorage` for 24 h.
+
+No bundler, no `npm install`, no toolchain. Open `index.html` in any modern browser and it works.
 
 ---
 
@@ -134,46 +139,88 @@ A 1 M-coin margin on a shard that trades 5 units / week is far less useful than 
 
 - **Order-book depth.** The reported `buyPrice` / `sellPrice` are weighted averages of the top 2 % only — fills outside that band move the price. Treat the figures as theoretical.
 - **Competition / undercut wars.** The model assumes you can always place an order one tick inside the spread. For high-margin shards, every other flipper is doing the same — fill times can be slow.
-- **Fusion crafting profit.** The data model in `shards-data.js` includes a `FUSION_RECIPES` table that's intentionally empty in this release. Wiki recipes are easy to add — see *Extending* below.
+- **Fusion machine timing.** The fusion calculator assumes you can craft and immediately flip; in practice each fusion takes wall-clock time at the Fusion Machine.
+
+---
+
+## Fusion calculator
+
+Beyond simple flipping, the tool computes **craft-and-flip** economics for every shard that has a known recipe.
+
+### The math
+
+For each target shard, every known 2-input recipe is evaluated:
+
+```
+inputCost      = price(inputA) + price(inputB)
+costPerOutput  = inputCost / recipeOutputQty
+fusionProfit   = targetBuyPrice × (1 − tax)  −  costPerOutput
+fusionMargin   = fusionProfit / costPerOutput × 100
+```
+
+Input pricing uses the cheaper of *buy order* (preferred — what you'd pay to source via order) or *insta-buy* (fallback if no buy orders exist). The cheapest pair across all output-qty buckets wins, and that becomes the row's **Fusion Δ** value.
+
+### Where the recipes come from
+
+Recipes and metadata are bundled from the [SkyShards](https://github.com/Campionnn/SkyShards) project (MIT licensed) as two JSON files under `data/`. SkyShards short-codes (`C1`, `U7`, `L42`...) map to bazaar product IDs via display name, with [a few manual overrides](shards-data.js) for spelling mismatches (e.g. SkyShards "Loch Emperor" → bazaar `SHARD_SEA_EMPEROR`).
+
+### Best Fusions panel
+
+The dashboard's top **Best Fusions** panel shows the six highest-profit recipes right now, with input prices, output quantity, and per-unit margin so you can decide what to craft this session.
+
+### Toggles
+
+- **Has fusion recipe** — hides shards that can only be syphoned, not fused.
+- **Profitable fusion only** — hides recipes with negative profit (most are at any given moment).
+
+---
+
+## Texture packs
+
+Each row and fusion card shows a shard icon. The pack is configurable in **Settings → Shard texture pack**:
+
+- **SkyShards (default)** — pulled from the SkyShards GitHub repo. Always in sync with new shards because it uses the same code-naming.
+- **Hypixel Wiki** — attempts to resolve official wiki textures. Coverage is partial.
+- **None** — text-only mode for slow connections.
+
+Adding a new pack is one entry in the `TEXTURE_PACKS` object in `shards-data.js` — just write a `resolve(bazaarId, ctx)` function that returns a URL.
 
 ---
 
 ## Extending
 
-### Adding a new shard's metadata
+### Updating bundled fusion data
 
-Open `shards-data.js` and add an entry to `SHARDS_DB`:
+The shard metadata + recipe graph come from the SkyShards project. To pull updates:
 
-```js
-SHARD_NEWSHARD: {
-  name: "New Shard",
-  attribute: "Some Attribute Name",
-  rarity: "EPIC",
-  family: "Combat",
-  huntLevel: 15,   // optional
-},
+```bash
+curl -o data/fusion-properties.json https://raw.githubusercontent.com/Campionnn/SkyShards/master/public/fusion-properties.json
+curl -o data/fusion-data.json       https://raw.githubusercontent.com/Campionnn/SkyShards/master/public/fusion-data.json
 ```
 
-That's it. The tool already picks up everything in the bazaar response — the table just gets a prettier name and a rarity-coloured badge for that entry.
+After updating, bump the cache key suffixes in `script.js` (`CACHE_KEY_FUSION_PROPS` / `CACHE_KEY_FUSION_DATA`) so returning visitors discard the old `localStorage` blob.
 
-### Adding a fusion recipe
+### Handling new bazaar shards
+
+The site auto-discovers any product whose ID starts with `SHARD_`. If a new shard ships and its name doesn't match SkyShards (i.e. the auto-derived ID is wrong), add a one-line override to `SKYSHARDS_TO_BAZAAR_OVERRIDES` in `shards-data.js`.
+
+### Adding a texture pack
 
 In `shards-data.js`:
 
 ```js
-const FUSION_RECIPES = {
-  SHARD_ENT: [
-    { id: "SHARD_GROVE",  qty: 2 },
-    { id: "SHARD_BAMBOO", qty: 1 },
-  ],
+TEXTURE_PACKS.myPack = {
+  label: "My pack",
+  resolve(bazaarId, ctx) {
+    const code = ctx.bazaarToCode[bazaarId];
+    return code ? `https://example.com/icons/${code}.png` : null;
+  },
 };
 ```
 
-A future UI extension can use these to compare "buy the shard" vs "fuse it from components".
-
 ### Changing the cache TTL
 
-In `script.js`, edit `CONFIG.CACHE_TTL_MS`. The Hypixel Bazaar publishes new snapshots every ~60 s, so values much below that just hammer their servers for no fresh data.
+In `script.js`, edit `CONFIG.CACHE_TTL_BAZAAR_MS`. The Hypixel Bazaar publishes new snapshots every ~60 s, so values much below that just hammer their servers for no fresh data.
 
 ---
 

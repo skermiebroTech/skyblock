@@ -86,6 +86,15 @@
       </section>
 
       <section class="setting-group">
+        <label class="setting-label" for="texture-select">Shard texture pack</label>
+        <p class="setting-help">
+          Icons for shards. SkyShards is the default; "Hypixel Wiki" tries the
+          official wiki textures; "None" hides icons entirely.
+        </p>
+        <select id="texture-select" class="select-native"></select>
+      </section>
+
+      <section class="setting-group">
         <label class="setting-label" for="tax-select">Bazaar tax rate</label>
         <p class="setting-help">
           Tax on sell-order payouts. Reduce by upgrading the Bazaar Flipper perk at the Community Center.
@@ -129,6 +138,22 @@
       </div>
     </section>
 
+    <!-- Best Fusions panel -->
+    <section class="fusion-section" aria-label="Best fusion opportunities">
+      <div class="fusion-section-head">
+        <div>
+          <h2 class="fusion-title">Best Fusions</h2>
+          <p class="fusion-subtitle">
+            Top profitable craft-and-flip recipes — cheapest input pair (via buy order)
+            vs. instant-buy price of the output, after tax.
+          </p>
+        </div>
+      </div>
+      <div id="best-fusions" class="fusion-grid">
+        <div class="fusion-empty">Loading recipes…</div>
+      </div>
+    </section>
+
     <!-- Filter / search bar -->
     <section class="controls" aria-label="Filters and search">
       <div class="search-wrap">
@@ -141,14 +166,27 @@
 
       <div id="rarity-filters" class="rarity-filters" role="group" aria-label="Filter by rarity"></div>
 
+      <div class="toggle-group" role="group" aria-label="Fusion filters">
+        <label class="toggle-chip">
+          <input type="checkbox" id="fusion-only" />
+          <span>Has fusion recipe</span>
+        </label>
+        <label class="toggle-chip">
+          <input type="checkbox" id="fusion-profitable-only" />
+          <span>Profitable fusion only</span>
+        </label>
+      </div>
+
       <div class="sort-wrap">
         <label for="sort-select" class="sort-label">Sort by</label>
         <select id="sort-select" class="select-native">
           <option value="profitPerUnit:desc">Profit / unit (high → low)</option>
+          <option value="fusionProfitPerUnit:desc">Fusion profit / unit (high → low)</option>
           <option value="marginPercent:desc">Margin % (high → low)</option>
           <option value="spread:desc">Spread (high → low)</option>
           <option value="weeklyVolume:desc">Weekly volume (high → low)</option>
           <option value="weeklyExpectedProfit:desc">Expected weekly profit</option>
+          <option value="maxLevelCost:asc">Cheapest to max level</option>
           <option value="buyPrice:desc">Buy price (high → low)</option>
           <option value="buyPrice:asc">Buy price (low → high)</option>
           <option value="name:asc">Name (A → Z)</option>
@@ -164,17 +202,19 @@
           <thead>
             <tr>
               <th data-sort="rank" class="th-rank">#</th>
+              <th class="th-icon" aria-label="Icon"></th>
               <th data-sort="name" data-default-dir="asc">Shard</th>
               <th data-sort="buyPrice"      class="th-num" title="What you pay to insta-buy">Buy</th>
               <th data-sort="sellPrice"     class="th-num" title="What you get from insta-sell">Sell</th>
               <th data-sort="spread"        class="th-num" title="Buy − Sell, before tax">Spread</th>
               <th data-sort="profitPerUnit" class="th-num sort-active sort-desc" title="Order-flip profit per unit, after bazaar tax">Profit / unit</th>
               <th data-sort="marginPercent" class="th-num" title="Profit as a % of sell price">Margin</th>
+              <th data-sort="fusionProfitPerUnit" class="th-num" title="Profit from crafting via cheapest fusion route, after tax">Fusion Δ</th>
               <th data-sort="weeklyVolume"  class="th-num" title="Total units traded in the past 7 days">Vol / wk</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td colspan="8" class="state-row">
+            <tr><td colspan="10" class="state-row">
               <div class="state-loading"><span class="spinner"></span>Loading bazaar data…</div>
             </td></tr>
           </tbody>
@@ -185,8 +225,9 @@
         <strong>How to read:</strong>
         <span class="legend-item"><b>Buy</b> = insta-buy cost.</span>
         <span class="legend-item"><b>Sell</b> = insta-sell revenue.</span>
-        <span class="legend-item"><b>Profit / unit</b> = realistic order-flip profit after tax: <code>Buy × (1 − tax) − Sell</code>.</span>
-        <span class="legend-item">Tap any column header to sort.</span>
+        <span class="legend-item"><b>Profit / unit</b> = order flip after tax: <code>Buy × (1 − tax) − Sell</code>.</span>
+        <span class="legend-item"><b>Fusion Δ</b> = craft via cheapest 2-input recipe, then insta-sell, after tax.</span>
+        <span class="legend-item">Hover the value for the exact recipe.</span>
       </p>
     </section>
   </main>

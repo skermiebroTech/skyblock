@@ -1,6 +1,6 @@
 /* =========================================================================
  * script.js — Shard Market
- * Hypixel SkyBlock Attribute Shard profitability analyzer.
+ * Hypixel SkyBlock Attribute Shard profitability + fusion analyzer.
  *
  * No build step. No backend. Pure browser JavaScript, designed for hosting
  * on GitHub Pages.
@@ -9,11 +9,12 @@
  *   1. Config & constants
  *   2. State container
  *   3. Cache (localStorage with TTL)
- *   4. API client (Bazaar + Items)
- *   5. Profitability math
- *   6. Pipeline: raw → enriched → filtered → sorted
- *   7. Rendering / DOM
- *   8. Event handlers & boot
+ *   4. API + static-data clients
+ *   5. Profitability math (flip)
+ *   6. Fusion math (craft-vs-buy)
+ *   7. Pipeline: raw → enriched → filtered → sorted
+ *   8. Rendering / DOM
+ *   9. Event handlers & boot
  * ======================================================================= */
 
 "use strict";
@@ -24,26 +25,34 @@
 const CONFIG = {
   API_BASE: "https://api.hypixel.net/v2",
   BAZAAR_ENDPOINT: "/skyblock/bazaar",
-  ITEMS_ENDPOINT: "/resources/skyblock/items",
 
-  // Public endpoints (bazaar, resources/items) don't require a key.
-  // The key is read from localStorage and only attached when present —
-  // useful only if you later add authenticated calls.
+  /* Static SkyShards datasets (bundled in /data/). */
+  FUSION_PROPS_URL: "data/fusion-properties.json",
+  FUSION_DATA_URL:  "data/fusion-data.json",
+
+  /* Public bazaar endpoint needs no key. The key is read from localStorage
+   * and only attached when present — useful for authenticated extensions. */
   API_KEY_STORAGE: "shardmarket.apiKey",
 
-  // Bazaar tax (sell-order tax) — default 1.25% base. Configurable in UI to
-  // 1.125% (Bazaar Flipper L1) or 1% (Bazaar Flipper L2).
-  TAX_STORAGE: "shardmarket.tax",
-  DEFAULT_TAX: 0.0125,
+  /* Bazaar tax (sell-order tax) — default 1.25% base. Configurable in UI. */
+  TAX_STORAGE:  "shardmarket.tax",
+  DEFAULT_TAX:  0.0125,
 
-  // Cache TTL for bazaar data — Hypixel updates bazaar every 60s, so we
-  // never need to re-fetch more often than that.
-  CACHE_TTL_MS: 60_000,
-  CACHE_KEY_BAZAAR: "shardmarket.cache.bazaar",
-  CACHE_KEY_ITEMS: "shardmarket.cache.items",
+  /* Texture pack preference. */
+  TEXTURE_STORAGE: "shardmarket.texturePack",
+  DEFAULT_TEXTURE: "skyshards",
 
-  // Filtering: only show shards with at least this much weekly volume on
-  // both sides. Filters out dead markets that show distorted prices.
+  /* Cache TTLs.
+   * Bazaar updates every ~60s; SkyShards JSON is bundled with the site so
+   * we cache it aggressively (1 day) to avoid re-downloading 2 MB on
+   * every page load. */
+  CACHE_TTL_BAZAAR_MS:  60_000,
+  CACHE_TTL_STATIC_MS:  86_400_000,
+  CACHE_KEY_BAZAAR:        "shardmarket.cache.bazaar",
+  CACHE_KEY_FUSION_PROPS:  "shardmarket.cache.fusionProps.v1",
+  CACHE_KEY_FUSION_DATA:   "shardmarket.cache.fusionData.v1",
+
+  /* Filter out dead markets where no shards traded in the past week. */
   MIN_WEEKLY_VOLUME: 1,
 };
 
@@ -52,21 +61,32 @@ const CONFIG = {
  *    Single source of truth, mutated by API/UI code, read by renderers.
  * ======================================================================= */
 const state = {
-  raw: null,             // raw bazaar response
-  lastUpdated: null,     // timestamp from bazaar (ms)
-  fetchedAt: null,       // when we received the data (ms)
-  rows: [],              // enriched + computed shard rows
-  loading: false,
-  error: null,
+  /* Raw data */
+  raw:            null,   // raw bazaar response
+  fusionProps:    null,   // SkyShards properties (per-shard metadata)
+  fusionRecipes:  null,   // SkyShards recipe graph
+  shardsDb:       {},     // derived: bazaarId → {name, rarity, ...}
+  codeToBazaar:   {},     // SkyShards code → bazaarId
+  bazaarToCode:   {},     // bazaarId → SkyShards code
 
-  // Filters & sorting
+  /* Computed */
+  lastUpdated: null,      // bazaar lastUpdated (ms)
+  fetchedAt:   null,      // when we received bazaar (ms)
+  rows:        [],        // enriched shard rows
+  loading:     false,
+  error:       null,
+
+  /* Filters & sorting */
   search: "",
   selectedRarities: new Set(["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "UNKNOWN"]),
   sortKey: "profitPerUnit",
-  sortDir: "desc",       // "asc" | "desc"
+  sortDir: "desc",
+  fusionOnly: false,
+  profitableFusionsOnly: false,
 
-  // Settings
-  tax: getNumberFromStorage(CONFIG.TAX_STORAGE, CONFIG.DEFAULT_TAX),
+  /* Settings */
+  tax:         getNumberFromStorage(CONFIG.TAX_STORAGE, CONFIG.DEFAULT_TAX),
+  texturePack: localStorage.getItem(CONFIG.TEXTURE_STORAGE) || CONFIG.DEFAULT_TEXTURE,
 };
 
 function getNumberFromStorage(key, fallback) {
@@ -82,12 +102,12 @@ function getNumberFromStorage(key, fallback) {
  * 3. CACHE — localStorage with TTL
  * ======================================================================= */
 const cache = {
-  read(key) {
+  read(key, ttlMs) {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) return null;
       const { ts, data } = JSON.parse(raw);
-      if (Date.now() - ts > CONFIG.CACHE_TTL_MS) return null;
+      if (Date.now() - ts > ttlMs) return null;
       return { ts, data };
     } catch {
       return null;
@@ -97,7 +117,9 @@ const cache = {
     try {
       localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
     } catch {
-      /* quota exceeded — silently ignore, not critical */
+      /* quota exceeded — silently ignore. Static datasets are ~2 MB; some
+       * browsers' localStorage caps at 5 MB so this can legitimately fail
+       * if the user has other state. Not critical — we just refetch. */
     }
   },
   clear(key) {
@@ -106,17 +128,14 @@ const cache = {
 };
 
 /* =========================================================================
- * 4. API CLIENT
- *    Wraps fetch with: optional key header, JSON parsing, error normalization.
+ * 4. CLIENTS
  * ======================================================================= */
-async function apiFetch(path, { useCache = true, cacheKey = null } = {}) {
-  // 1. Check cache
+async function apiFetch(path, { useCache = true, cacheKey = null, cacheTtl = 60_000 } = {}) {
   if (useCache && cacheKey) {
-    const cached = cache.read(cacheKey);
+    const cached = cache.read(cacheKey, cacheTtl);
     if (cached) return { data: cached.data, cached: true, cachedAt: cached.ts };
   }
 
-  // 2. Build request
   const headers = {};
   const apiKey = localStorage.getItem(CONFIG.API_KEY_STORAGE);
   if (apiKey) headers["API-Key"] = apiKey;
@@ -129,7 +148,6 @@ async function apiFetch(path, { useCache = true, cacheKey = null } = {}) {
     throw new Error(`Network error: ${e.message}. Check your connection.`);
   }
 
-  // 3. Handle non-OK responses with informative messages
   if (!resp.ok) {
     let detail = "";
     try {
@@ -155,41 +173,56 @@ async function apiFetch(path, { useCache = true, cacheKey = null } = {}) {
   return { data, cached: false, cachedAt: Date.now() };
 }
 
+/* Fetch one of our bundled static JSON files. Same TTL caching as the API. */
+async function staticFetch(url, { cacheKey, cacheTtl }) {
+  const cached = cache.read(cacheKey, cacheTtl);
+  if (cached) return { data: cached.data, cached: true, cachedAt: cached.ts };
+
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Failed to load ${url}: ${resp.status}`);
+  const data = await resp.json();
+  cache.write(cacheKey, data);
+  return { data, cached: false, cachedAt: Date.now() };
+}
+
 const api = {
-  fetchBazaar:  () => apiFetch(CONFIG.BAZAAR_ENDPOINT, { cacheKey: CONFIG.CACHE_KEY_BAZAAR }),
-  fetchItems:   () => apiFetch(CONFIG.ITEMS_ENDPOINT,  { cacheKey: CONFIG.CACHE_KEY_ITEMS }),
+  fetchBazaar: () => apiFetch(CONFIG.BAZAAR_ENDPOINT, {
+    cacheKey: CONFIG.CACHE_KEY_BAZAAR,
+    cacheTtl: CONFIG.CACHE_TTL_BAZAAR_MS,
+  }),
+  fetchFusionProps: () => staticFetch(CONFIG.FUSION_PROPS_URL, {
+    cacheKey: CONFIG.CACHE_KEY_FUSION_PROPS,
+    cacheTtl: CONFIG.CACHE_TTL_STATIC_MS,
+  }),
+  fetchFusionData: () => staticFetch(CONFIG.FUSION_DATA_URL, {
+    cacheKey: CONFIG.CACHE_KEY_FUSION_DATA,
+    cacheTtl: CONFIG.CACHE_TTL_STATIC_MS,
+  }),
 };
 
 /* =========================================================================
- * 5. PROFITABILITY MATH
+ * 5. PROFITABILITY MATH — bazaar flipping
  *
  *   Terminology (matches the in-game Bazaar):
- *     buyPrice  — what you PAY to insta-buy (the lowest sell-offer prices)
- *     sellPrice — what you RECEIVE from insta-sell (the highest buy-orders)
+ *     buyPrice  — what you PAY to insta-buy  (lowest sell-offer band)
+ *     sellPrice — what you RECEIVE from insta-sell (highest buy-order band)
  *
- *   The realistic flip uses ORDERS rather than instant transactions:
- *     1) Place a BUY ORDER at ≈ sellPrice + ε (you become the top buyer).
- *        Pay ≈ sellPrice per unit.
- *     2) Once filled, place a SELL OFFER at ≈ buyPrice − ε.
- *        Receive ≈ buyPrice × (1 − tax) per unit (sell offers get taxed).
+ *   Realistic flip uses ORDERS rather than instant transactions:
+ *     1) BUY ORDER at ≈ sellPrice + ε  → fills at ≈ sellPrice
+ *     2) SELL OFFER at ≈ buyPrice − ε  → receives buyPrice × (1 − tax)
+ *        (sell-offer payouts are taxed; buy-order spending is not)
  *
- *   So:  profitPerUnit ≈ buyPrice × (1 − tax)  −  sellPrice
- *        marginPercent ≈ profitPerUnit / sellPrice × 100
- *
- *   We also compute:
- *     spread        — gross gap (buyPrice − sellPrice), pre-tax
- *     weeklyVolume  — sum of insta-sell & insta-buy weekly volumes (a
- *                     liquidity / "how often does this actually trade" gauge)
+ *   profitPerUnit = buyPrice × (1 − tax) − sellPrice
+ *   marginPercent = profitPerUnit / sellPrice × 100
  * ======================================================================= */
 function computeMetrics(qs, tax) {
-  const buyPrice  = qs?.buyPrice  ?? 0; // insta-buy cost
-  const sellPrice = qs?.sellPrice ?? 0; // insta-sell revenue
+  const buyPrice  = qs?.buyPrice  ?? 0;
+  const sellPrice = qs?.sellPrice ?? 0;
 
   const spread        = buyPrice - sellPrice;
   const profitPerUnit = buyPrice * (1 - tax) - sellPrice;
   const marginPercent = sellPrice > 0 ? (profitPerUnit / sellPrice) * 100 : 0;
 
-  // Weekly liquidity — total units cycled through both sides over 7 days.
   const sellWeek  = qs?.sellMovingWeek ?? 0;
   const buyWeek   = qs?.buyMovingWeek  ?? 0;
   const weeklyVolume = sellWeek + buyWeek;
@@ -208,54 +241,138 @@ function computeMetrics(qs, tax) {
   };
 }
 
-/* Project profit over the realistic weekly throughput.
- * Capped at half the weaker side (you can't move more units than the market
- * absorbs). This produces a more honest "expected weekly profit" than
- * profitPerUnit alone — a 1M-coin margin on a 5/week item is much less
- * useful than a 100-coin margin on a 50k/week item. */
+/* Project profit over realistic weekly throughput.
+ * Capped at half the weaker market side — you can't move more units than
+ * the market absorbs without driving the price. */
 function projectedWeeklyProfit(m) {
   const throughput = Math.min(m.sellWeek, m.buyWeek) * 0.5;
   return m.profitPerUnit * throughput;
 }
 
 /* =========================================================================
- * 6. PIPELINE — turn bazaar response into table rows
+ * 6. FUSION MATH — craft-vs-buy economics
+ *
+ * Fusion recipes from SkyShards have shape:
+ *
+ *   recipes[targetCode] = {
+ *     <outputQty>: [ [inputCodeA, inputCodeB], ... ],
+ *     ...
+ *   }
+ *
+ *   Each pair [A, B] in the fusion machine produces `outputQty` of target.
+ *
+ * Cost basis per input:  sellPrice  (place a buy order — cheapest sourcing)
+ *
+ * Cost per output unit = (price(A) + price(B)) / outputQty
+ *
+ * Best recipe = the pair across all output-qty buckets that minimises cost
+ * per output unit. We then compare to the target's market value to derive
+ * fusion profit / unit.
  * ======================================================================= */
+function priceOfInput(bazaarId) {
+  if (!bazaarId || !state.raw?.products) return null;
+  const prod = state.raw.products[bazaarId];
+  if (!prod) return null;
+  /* Use sellPrice (buy-order cost) as the realistic sourcing price.
+   * If sellPrice is 0 (no buy orders at all) fall back to buyPrice (insta-buy)
+   * so the recipe stays evaluable. */
+  const sp = prod.quick_status?.sellPrice;
+  if (sp && sp > 0) return sp;
+  return prod.quick_status?.buyPrice || null;
+}
 
-/* Is this bazaar product an Attribute Shard? */
+/* Compute the cheapest fusion route for a single target shard.
+ * Returns null when the shard has no recipes or no priceable inputs. */
+function computeBestFusion(targetBazaarId) {
+  const code = state.bazaarToCode[targetBazaarId];
+  if (!code || !state.fusionRecipes) return null;
+
+  const recipeBucket = state.fusionRecipes.recipes?.[code];
+  if (!recipeBucket) return null;
+
+  let best = null;
+
+  for (const [qtyStr, pairs] of Object.entries(recipeBucket)) {
+    const qty = parseInt(qtyStr, 10);
+    if (!qty) continue;
+
+    for (const [aCode, bCode] of pairs) {
+      const aId = state.codeToBazaar[aCode];
+      const bId = state.codeToBazaar[bCode];
+      const aPrice = priceOfInput(aId);
+      const bPrice = priceOfInput(bId);
+      if (aPrice == null || bPrice == null) continue;
+
+      const pairCost = aPrice + bPrice;
+      const costPerOutput = pairCost / qty;
+
+      if (!best || costPerOutput < best.costPerOutput) {
+        best = {
+          inputs: [
+            { code: aCode, bazaarId: aId, name: state.shardsDb[aId]?.name || aId, price: aPrice },
+            { code: bCode, bazaarId: bId, name: state.shardsDb[bId]?.name || bId, price: bPrice },
+          ],
+          outputQty: qty,
+          pairCost,
+          costPerOutput,
+        };
+      }
+    }
+  }
+
+  return best;
+}
+
+/* =========================================================================
+ * 7. PIPELINE — turn bazaar response into table rows
+ * ======================================================================= */
 function isShardProduct(id) {
+  /* Live API uses SHARD_* exclusively, but we keep the secondary prefix
+   * to future-proof against Hypixel renaming the schema. */
   return id.startsWith("SHARD_") || id.startsWith("ATTRIBUTE_SHARD");
 }
 
-/* Look up display metadata, falling back to auto-prettification. */
 function getShardMeta(id) {
-  const known = SHARDS_DB[id];
+  const known = state.shardsDb[id];
   if (known) return { ...known, known: true };
   return {
-    name: prettifyShardId(id),
+    name:      prettifyShardId(id),
     attribute: "—",
-    rarity: "UNKNOWN",
-    family: "—",
-    known: false,
+    rarity:    "UNKNOWN",
+    family:    "—",
+    category:  "—",
+    code:      null,
+    known:     false,
   };
 }
 
-/* Build the enriched rows from the raw bazaar payload. */
+/* Build enriched rows from the raw bazaar payload. */
 function buildRows(bazaarPayload) {
   if (!bazaarPayload?.products) return [];
+  const tax = state.tax;
 
   const rows = [];
   for (const [id, product] of Object.entries(bazaarPayload.products)) {
     if (!isShardProduct(id)) continue;
 
     const meta    = getShardMeta(id);
-    const metrics = computeMetrics(product.quick_status, state.tax);
+    const metrics = computeMetrics(product.quick_status, tax);
 
-    // Filter out totally dead markets where no trades have happened.
+    /* Filter dead markets. */
     if (metrics.weeklyVolume < CONFIG.MIN_WEEKLY_VOLUME) continue;
 
-    // Maximum-level investment estimate: cost to syphon to level 10 if you
-    // bought every shard via buy orders. Useful for "how much to max?" view.
+    /* Fusion economics. */
+    const bestFusion = computeBestFusion(id);
+    let fusionProfitPerUnit = null;
+    let fusionMarginPercent = null;
+    if (bestFusion) {
+      fusionProfitPerUnit = metrics.buyPrice * (1 - tax) - bestFusion.costPerOutput;
+      fusionMarginPercent = bestFusion.costPerOutput > 0
+        ? (fusionProfitPerUnit / bestFusion.costPerOutput) * 100
+        : 0;
+    }
+
+    /* Investment to syphon to max level. */
     const maxShards = SHARDS_MAX_LEVEL_BY_RARITY[meta.rarity];
     const maxLevelCost = maxShards ? maxShards * metrics.sellPrice : null;
 
@@ -264,18 +381,22 @@ function buildRows(bazaarPayload) {
       ...meta,
       ...metrics,
       weeklyExpectedProfit: projectedWeeklyProfit(metrics),
+      bestFusion,
+      fusionProfitPerUnit,
+      fusionMarginPercent,
+      hasFusion: !!bestFusion,
       maxLevelCost,
-      hasFusion: !!FUSION_RECIPES[id],
     });
   }
   return rows;
 }
 
-/* Apply UI filters (search text + rarity pills). */
 function applyFilters(rows) {
   const q = state.search.trim().toLowerCase();
   return rows.filter((r) => {
     if (!state.selectedRarities.has(r.rarity)) return false;
+    if (state.fusionOnly && !r.hasFusion) return false;
+    if (state.profitableFusionsOnly && !(r.fusionProfitPerUnit > 0)) return false;
     if (!q) return true;
     return (
       r.name.toLowerCase().includes(q) ||
@@ -286,7 +407,6 @@ function applyFilters(rows) {
   });
 }
 
-/* Sort with stable null handling. */
 function applySort(rows) {
   const dir = state.sortDir === "asc" ? 1 : -1;
   const key = state.sortKey;
@@ -301,9 +421,9 @@ function applySort(rows) {
 }
 
 /* =========================================================================
- * 7. RENDERING
+ * 8. RENDERING
  * ======================================================================= */
-const $ = (sel, root = document) => root.querySelector(sel);
+const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 function fmtCoins(n, opts = {}) {
@@ -327,6 +447,34 @@ function fmtInt(n) {
   return n.toLocaleString("en-US");
 }
 
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/* Inline SVG placeholder shown when a texture URL fails to load. */
+const PLACEHOLDER_ICON =
+  "data:image/svg+xml;utf8," + encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
+       <path d='M16 3 L28 14 L20 30 L12 30 L4 14 Z'
+             fill='#1a2033' stroke='#3a4670' stroke-width='1.5'/>
+     </svg>`
+  );
+
+function iconUrl(bazaarId) {
+  const pack = TEXTURE_PACKS[state.texturePack] || TEXTURE_PACKS.skyshards;
+  const url = pack.resolve(bazaarId, {
+    shardsDb:     state.shardsDb,
+    bazaarToCode: state.bazaarToCode,
+  });
+  return url || PLACEHOLDER_ICON;
+}
+
 function renderStats(visibleRows) {
   const totalEl     = $("#stat-total");
   const topProfitEl = $("#stat-top-profit");
@@ -335,44 +483,31 @@ function renderStats(visibleRows) {
 
   totalEl.textContent = visibleRows.length;
 
-  // Most profitable per-unit flip
   const topProfit = visibleRows.reduce(
-    (best, r) => (r.profitPerUnit > (best?.profitPerUnit ?? -Infinity) ? r : best),
-    null
+    (best, r) => (r.profitPerUnit > (best?.profitPerUnit ?? -Infinity) ? r : best), null
   );
-  if (topProfit) {
-    topProfitEl.innerHTML = `
-      <span class="stat-value-major">${fmtCoins(topProfit.profitPerUnit)}</span>
-      <span class="stat-value-minor">${topProfit.name}</span>`;
-  } else {
-    topProfitEl.innerHTML = `<span class="stat-value-major">—</span>`;
-  }
+  topProfitEl.innerHTML = topProfit
+    ? `<span class="stat-value-major">${fmtCoins(topProfit.profitPerUnit)}</span>
+       <span class="stat-value-minor">${escapeHtml(topProfit.name)}</span>`
+    : `<span class="stat-value-major">—</span>`;
 
-  // Largest absolute spread
   const topSpread = visibleRows.reduce(
-    (best, r) => (r.spread > (best?.spread ?? -Infinity) ? r : best),
-    null
+    (best, r) => (r.spread > (best?.spread ?? -Infinity) ? r : best), null
   );
-  if (topSpread) {
-    topSpreadEl.innerHTML = `
-      <span class="stat-value-major">${fmtCoins(topSpread.spread)}</span>
-      <span class="stat-value-minor">${topSpread.name}</span>`;
-  } else {
-    topSpreadEl.innerHTML = `<span class="stat-value-major">—</span>`;
-  }
+  topSpreadEl.innerHTML = topSpread
+    ? `<span class="stat-value-major">${fmtCoins(topSpread.spread)}</span>
+       <span class="stat-value-minor">${escapeHtml(topSpread.name)}</span>`
+    : `<span class="stat-value-major">—</span>`;
 
-  if (state.lastUpdated) {
-    updatedEl.innerHTML = `
-      <span class="stat-value-major" id="time-ago">just now</span>
-      <span class="stat-value-minor">${new Date(state.lastUpdated).toLocaleTimeString()}</span>`;
-  } else {
-    updatedEl.innerHTML = `<span class="stat-value-major">—</span>`;
-  }
+  updatedEl.innerHTML = state.lastUpdated
+    ? `<span class="stat-value-major" id="time-ago">just now</span>
+       <span class="stat-value-minor">${new Date(state.lastUpdated).toLocaleTimeString()}</span>`
+    : `<span class="stat-value-major">—</span>`;
 }
 
 function renderRarityFilters() {
   const wrap = $("#rarity-filters");
-  if (wrap.children.length) return; // already built
+  if (wrap.children.length) return;
 
   const rarities = ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "UNKNOWN"];
   for (const r of rarities) {
@@ -394,12 +529,67 @@ function renderRarityFilters() {
   }
 }
 
+/* Top "Best Fusions" panel — ranked craft-and-flip opportunities. */
+function renderBestFusionsPanel() {
+  const wrap = $("#best-fusions");
+  if (!wrap) return;
+
+  const ranked = state.rows
+    .filter((r) => r.hasFusion && r.fusionProfitPerUnit > 0)
+    .sort((a, b) => b.fusionProfitPerUnit - a.fusionProfitPerUnit)
+    .slice(0, 6);
+
+  if (!ranked.length) {
+    wrap.innerHTML = `
+      <div class="fusion-empty">No profitable fusions right now.
+        Markets shift constantly — check back in a minute.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = ranked.map((r) => `
+    <article class="fusion-card" style="--rarity-color:${RARITY_COLORS[r.rarity]}">
+      <div class="fusion-card-head">
+        <img class="fusion-icon" src="${iconUrl(r.id)}" alt="" loading="lazy"
+             onerror="this.src='${PLACEHOLDER_ICON}'"/>
+        <div class="fusion-card-titles">
+          <div class="fusion-card-name">${escapeHtml(r.name)}</div>
+          <div class="fusion-card-rarity" style="color:${RARITY_COLORS[r.rarity]}">
+            ${r.rarity.toLowerCase()}
+          </div>
+        </div>
+        <div class="fusion-card-profit pos">
+          ${fmtCoins(r.fusionProfitPerUnit)}
+          <span class="fusion-card-margin">${fmtPct(r.fusionMarginPercent)}</span>
+        </div>
+      </div>
+      <div class="fusion-recipe">
+        ${r.bestFusion.inputs.map((inp) => `
+          <div class="fusion-input">
+            <img class="fusion-input-icon" src="${iconUrl(inp.bazaarId)}" alt="" loading="lazy"
+                 onerror="this.src='${PLACEHOLDER_ICON}'"/>
+            <div class="fusion-input-meta">
+              <div class="fusion-input-name">${escapeHtml(inp.name)}</div>
+              <div class="fusion-input-price">${fmtCoins(inp.price)}</div>
+            </div>
+          </div>
+        `).join(`<div class="fusion-plus">+</div>`)}
+        <div class="fusion-arrow">→</div>
+        <div class="fusion-output">
+          <div class="fusion-output-qty">×${r.bestFusion.outputQty}</div>
+          <div class="fusion-output-name">${escapeHtml(r.name)}</div>
+          <div class="fusion-output-cost">cost ${fmtCoins(r.bestFusion.costPerOutput)} ea</div>
+        </div>
+      </div>
+    </article>
+  `).join("");
+}
+
 function renderTable() {
   const tbody = $("#shard-table tbody");
   const filtered = applyFilters(state.rows);
   const sorted = applySort(filtered);
 
-  // Update column-header sort indicators
+  /* Update column-header sort indicators. */
   $$("#shard-table th[data-sort]").forEach((th) => {
     const isActive = th.dataset.sort === state.sortKey;
     th.classList.toggle("sort-active", isActive);
@@ -407,10 +597,11 @@ function renderTable() {
     th.classList.toggle("sort-desc", isActive && state.sortDir === "desc");
   });
 
-  // Empty / loading / error
+  const COLSPAN = 10;
+
   if (state.loading && !state.rows.length) {
     tbody.innerHTML = `
-      <tr><td colspan="8" class="state-row">
+      <tr><td colspan="${COLSPAN}" class="state-row">
         <div class="state-loading"><span class="spinner"></span>Loading bazaar data…</div>
       </td></tr>`;
     renderStats([]);
@@ -418,7 +609,7 @@ function renderTable() {
   }
   if (state.error) {
     tbody.innerHTML = `
-      <tr><td colspan="8" class="state-row">
+      <tr><td colspan="${COLSPAN}" class="state-row">
         <div class="state-error">
           <strong>Couldn't load data.</strong>
           <span>${escapeHtml(state.error)}</span>
@@ -431,14 +622,13 @@ function renderTable() {
   }
   if (!sorted.length) {
     tbody.innerHTML = `
-      <tr><td colspan="8" class="state-row">
+      <tr><td colspan="${COLSPAN}" class="state-row">
         <div class="state-empty">No shards match your filters.</div>
       </td></tr>`;
     renderStats([]);
     return;
   }
 
-  // Build rows using a DocumentFragment for fast insertion
   const frag = document.createDocumentFragment();
   sorted.forEach((r, idx) => {
     const tr = document.createElement("tr");
@@ -447,13 +637,28 @@ function renderTable() {
 
     const profitClass = r.profitPerUnit > 0 ? "pos" : r.profitPerUnit < 0 ? "neg" : "neu";
     const marginClass = r.marginPercent > 0 ? "pos" : r.marginPercent < 0 ? "neg" : "neu";
+    const fusionClass = r.fusionProfitPerUnit == null ? "neu"
+      : r.fusionProfitPerUnit > 0 ? "pos" : "neg";
+
+    const fusionCell = r.bestFusion
+      ? `<span class="fusion-val ${fusionClass}" title="${escapeHtml(
+            r.bestFusion.inputs.map(i => i.name).join("  +  ")
+            + `  →  ×${r.bestFusion.outputQty} ${r.name}\n`
+            + `Input cost: ${fmtCoins(r.bestFusion.costPerOutput)}/ea`
+          )}">${fmtCoins(r.fusionProfitPerUnit)}</span>`
+      : `<span class="num-muted">—</span>`;
 
     tr.innerHTML = `
       <td class="cell-rank">${idx + 1}</td>
+      <td class="cell-icon">
+        <img class="shard-icon" src="${iconUrl(r.id)}" alt="" loading="lazy"
+             onerror="this.src='${PLACEHOLDER_ICON}'"/>
+      </td>
       <td class="cell-shard">
         <div class="shard-name">
           ${escapeHtml(r.name)}
           ${r.known ? "" : '<span class="badge-unknown" title="No metadata in our database — auto-detected from bazaar">new</span>'}
+          ${r.hasFusion ? '<span class="badge-fusion" title="Has at least one known fusion recipe">⚒</span>' : ""}
         </div>
         <div class="shard-meta">
           <span class="meta-rarity" style="color:${RARITY_COLORS[r.rarity]}">${r.rarity.toLowerCase()}</span>
@@ -467,42 +672,50 @@ function renderTable() {
       <td class="num">${fmtCoins(r.spread)}</td>
       <td class="num ${profitClass}">${fmtCoins(r.profitPerUnit)}</td>
       <td class="num ${marginClass}">${fmtPct(r.marginPercent)}</td>
+      <td class="num">${fusionCell}</td>
       <td class="num">${fmtInt(r.weeklyVolume)}</td>
     `;
     frag.appendChild(tr);
   });
   tbody.replaceChildren(frag);
   renderStats(sorted);
+  renderBestFusionsPanel();
 }
 
-function escapeHtml(s) {
-  if (s == null) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-/* "Updated 12s ago" auto-refresher (purely cosmetic) */
+/* "Updated 12s ago" auto-refresher (purely cosmetic). */
 function startTimeAgoTicker() {
   setInterval(() => {
     const el = $("#time-ago");
     if (!el || !state.lastUpdated) return;
     const sec = Math.round((Date.now() - state.lastUpdated) / 1000);
     let text;
-    if (sec < 5)        text = "just now";
-    else if (sec < 60)  text = `${sec}s ago`;
+    if (sec < 5)         text = "just now";
+    else if (sec < 60)   text = `${sec}s ago`;
     else if (sec < 3600) text = `${Math.floor(sec / 60)}m ago`;
-    else                text = `${Math.floor(sec / 3600)}h ago`;
+    else                 text = `${Math.floor(sec / 3600)}h ago`;
     el.textContent = text;
   }, 1000);
 }
 
 /* =========================================================================
- * 8. ORCHESTRATION & EVENT HANDLERS
+ * 9. ORCHESTRATION & EVENT HANDLERS
  * ======================================================================= */
+async function ensureFusionDataLoaded() {
+  /* Load fusion datasets in parallel; build the merged shards DB. */
+  if (state.fusionProps && state.fusionRecipes) return;
+  const [propsResp, recipesResp] = await Promise.all([
+    api.fetchFusionProps(),
+    api.fetchFusionData(),
+  ]);
+  state.fusionProps   = propsResp.data;
+  state.fusionRecipes = recipesResp.data;
+
+  const built = buildShardsDbFromProperties(state.fusionProps);
+  state.shardsDb     = built.shardsDb;
+  state.codeToBazaar = built.codeToBazaar;
+  state.bazaarToCode = built.bazaarToCode;
+}
+
 async function loadData(forceRefresh = false) {
   if (forceRefresh) {
     cache.clear(CONFIG.CACHE_KEY_BAZAAR);
@@ -513,15 +726,14 @@ async function loadData(forceRefresh = false) {
   renderTable();
 
   try {
+    await ensureFusionDataLoaded();
     const { data, cached, cachedAt } = await api.fetchBazaar();
     state.raw = data;
     state.lastUpdated = data.lastUpdated || cachedAt;
     state.fetchedAt = Date.now();
     state.rows = buildRows(data);
 
-    // Visual hint when serving from cache
-    const cacheBadge = $("#cache-badge");
-    cacheBadge.style.display = cached ? "inline-flex" : "none";
+    $("#cache-badge").style.display = cached ? "inline-flex" : "none";
   } catch (e) {
     state.error = e.message;
     console.error("[ShardMarket] load failed:", e);
@@ -531,8 +743,21 @@ async function loadData(forceRefresh = false) {
   }
 }
 
+function populateTexturePackSelect() {
+  const sel = $("#texture-select");
+  if (!sel) return;
+  sel.innerHTML = "";
+  for (const [key, pack] of Object.entries(TEXTURE_PACKS)) {
+    const opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = pack.label;
+    sel.appendChild(opt);
+  }
+  sel.value = state.texturePack;
+}
+
 function bindUI() {
-  // Search
+  /* Search */
   const searchInput = $("#search-input");
   let searchTimer;
   searchInput.addEventListener("input", (e) => {
@@ -543,7 +768,7 @@ function bindUI() {
     }, 120);
   });
 
-  // Sort dropdown (mobile-friendly alt to header clicks)
+  /* Sort dropdown (mobile-friendly alt to header clicks). */
   $("#sort-select").addEventListener("change", (e) => {
     const [key, dir] = e.target.value.split(":");
     state.sortKey = key;
@@ -551,7 +776,7 @@ function bindUI() {
     renderTable();
   });
 
-  // Sortable column headers
+  /* Sortable column headers. */
   $$("#shard-table th[data-sort]").forEach((th) => {
     th.addEventListener("click", () => {
       const key = th.dataset.sort;
@@ -561,16 +786,25 @@ function bindUI() {
         state.sortKey = key;
         state.sortDir = th.dataset.defaultDir || "desc";
       }
-      // Sync the dropdown
       $("#sort-select").value = `${state.sortKey}:${state.sortDir}`;
       renderTable();
     });
   });
 
-  // Refresh button
+  /* Fusion toggles. */
+  $("#fusion-only")?.addEventListener("change", (e) => {
+    state.fusionOnly = e.target.checked;
+    renderTable();
+  });
+  $("#fusion-profitable-only")?.addEventListener("change", (e) => {
+    state.profitableFusionsOnly = e.target.checked;
+    renderTable();
+  });
+
+  /* Refresh */
   $("#refresh-btn").addEventListener("click", () => loadData(true));
 
-  // Settings: API key + tax
+  /* Settings panel */
   const settingsPanel = $("#settings-panel");
   const setPanelOpen = (open) => {
     settingsPanel.classList.toggle("open", open);
@@ -595,18 +829,25 @@ function bindUI() {
     flashStatus("API key cleared.");
   });
 
-  // Tax setting
+  /* Tax */
   const taxSelect = $("#tax-select");
   taxSelect.value = String(state.tax);
   taxSelect.addEventListener("change", () => {
     state.tax = parseFloat(taxSelect.value);
     localStorage.setItem(CONFIG.TAX_STORAGE, String(state.tax));
-    // Re-compute existing rows without re-fetching
     if (state.raw) state.rows = buildRows(state.raw);
     renderTable();
   });
 
-  // Click outside the settings panel to close it
+  /* Texture pack */
+  populateTexturePackSelect();
+  $("#texture-select")?.addEventListener("change", (e) => {
+    state.texturePack = e.target.value;
+    localStorage.setItem(CONFIG.TEXTURE_STORAGE, state.texturePack);
+    renderTable();
+  });
+
+  /* Click-outside to close settings. */
   document.addEventListener("click", (e) => {
     const panel = $("#settings-panel");
     const toggle = $("#settings-toggle");
@@ -625,15 +866,14 @@ function flashStatus(msg) {
   setTimeout(() => el.classList.remove("visible"), 2000);
 }
 
-/* Boot */
 function init() {
   renderRarityFilters();
   bindUI();
   startTimeAgoTicker();
   loadData(false);
 
-  // Auto-refresh every 60s (silently — uses cache so no hammering)
-  setInterval(() => loadData(false), CONFIG.CACHE_TTL_MS);
+  /* Auto-refresh every minute. Hits cache silently if data is fresh. */
+  setInterval(() => loadData(false), CONFIG.CACHE_TTL_BAZAAR_MS);
 }
 
 document.addEventListener("DOMContentLoaded", init);
