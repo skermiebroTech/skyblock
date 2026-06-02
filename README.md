@@ -5,6 +5,7 @@ A browser-based **Hypixel SkyBlock optimizer**. Reads the official Hypixel API s
 - flip **Attribute Shards** on the Bazaar (live profit, spreads, fusion crafting)
 - plan **accessory Magical Power** — what's missing, what to upgrade, what to recombobulate
 - **max your attributes** — exactly how many shards each one needs and the coin cost
+- optimize **Sweep** — all known Sweep sources sorted from lowest to highest live coin cost
 
 No backend. No build step. No tracking. Static files you can host on GitHub Pages.
 
@@ -21,6 +22,7 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
   - **Accessory Path** combines missing accessories, family upgrades, and recombobulates into one ranked checklist with `/bz` & `/ahs` copy commands and live prices.
   - **Attribute maxing** — shards remaining and live bazaar cost per attribute.
   - **Personalized craft flips** — your Hunting level is pulled from the profile API and fusion opportunities above your level are locked out of profit rankings.
+- **Sweep Optimizer** lists permanent, pet, armor, tool, equipment, enchantment, attribute, booster, and Heart of the Forest Sweep sources. Bazaar-tradable methods use live Bazaar prices; gear/pets use live lowest-BIN Auction House scans; progression-only sources are clearly marked as not directly priceable.
 - Every item links to the **Hypixel Wiki**; **soulbound** items are flagged (can't be bought on the AH).
 - Player panel shows coin purse, bank, SkyBlock level, Hunting/Combat levels, slayer XP, and fairy souls.
 - Stores responses in `localStorage` with short TTLs so quick reloads don't hammer the API.
@@ -31,10 +33,11 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
 
 ```
 shard-market/
-├── index.html              ← Markup & shell (3 pages: Shards / Accessory Path / Attributes)
+├── index.html              ← Markup & shell (4 pages: Shards / Accessory Path / Attributes / Sweep)
 ├── style.css               ← Obsidian + ember dashboard styling
 ├── script.js               ← API client, caching, profit + fusion math, page renderers
 ├── shards-data.js          ← Static lookups (rarity, colors, texture-pack registry, ID overrides)
+├── sweep-data.js           ← Static Sweep source list from the Hypixel Wiki Sweep page
 ├── nbt.js                  ← Minimal NBT parser (decodes the gzipped inventory blob)
 ├── prices.js               ← Unified price resolver: bazaar + AH lowest-BIN scan
 ├── accessories.js          ← Accessory catalog, upgrade families, Magical Power math
@@ -84,6 +87,16 @@ the source shard. Totals across all usable attributes are shown up top.
 
 The Accessory Path page shows a live **Magical Power progress bar**.
 
+### Sweep Optimizer
+
+A cost-ranked checklist for increasing **Sweep**. It uses the Sweep wiki source list supplied in `sweep-data.js` and prices anything market-tradable live:
+
+- **Bazaar**: Agatha's Coupons, Sweep Boosters, First Impression, Citrine, and Sweep-related Attribute Shards.
+- **Auction House lowest BIN**: pets, foraging armor, axes, and equipment.
+- **Progression / situational sources**: Tree Gift milestones, Heart of the Forest perks, David's Cloak milestones, and other sources that do not have a direct coin price.
+
+Attribute entries assume the Tier X target shown on the wiki and estimate maxing from Tier I shards (`512×` Tier I shards). The page sorts live-priced methods from cheapest to most expensive and also shows cost per Sweep where the source has a numeric Sweep gain.
+
 ### Hunting-level craft flips
 
 When you link a profile, the app reads `members[uuid].player_data.experience.SKILL_HUNTING` from the Hypixel Profiles API and converts XP to a Hunting level with the standard skill XP table. Fusion craft flips are then personalized: recipes above your Hunting level are shown as locked and excluded from the Best Fusions/profitable-fusion rankings, so the top craft flips are ones your profile can actually perform.
@@ -95,10 +108,11 @@ Current fusion gates use the shard rarity ladder: Common 0, Uncommon 10, Rare 20
 - **Shards (bazaar)** show either **insta-buy** (buy now from sell offers) or
   **buy-order** (place an order — cheaper, slower). Toggle between them with the
   *Shard price* switch on the **Attributes** page; the total maxing cost updates live.
-- **Accessories (Auction House)** show the **lowest BIN**, computed by scanning the
-  official `/skyblock/auctions` endpoint (all ~42 pages, in parallel batches, cached
-  5 min) and matching listings to items by name (reforge prefixes stripped). The scan
-  starts automatically the first time you open an accessory page.
+- **Auction-House items** show the **lowest BIN**, computed by scanning the
+  official `/skyblock/auctions` endpoint (all pages, in parallel batches, cached
+  5 min) and matching listings to known item names (reforge prefixes and pet level
+  prefixes stripped). The scan starts automatically the first time you open an
+  accessory or Sweep page.
 - **Prefer max tier** (on by default): targets the *family maximum* accessory. Turn
   it off to target only the *next tier up* — cheaper, incremental upgrades.
 

@@ -23,19 +23,21 @@
 
 "use strict";
 
-/* Common reforge prefixes that appear before an accessory's base name in the
+/* Common reforge prefixes that appear before an item's base name in the
  * auction `item_name`. Stripped so "Gilded Scavenger Artifact" matches
- * "Scavenger Artifact". (Accessory reforges only — not an exhaustive list of
- * every reforge in the game.) */
+ * "Scavenger Artifact" and "Toil Fig Hew" matches "Fig Hew". This is not
+ * exhaustive, but covers the reforges that most often affect accessories,
+ * armor, equipment, and foraging axes. */
 const ACCESSORY_REFORGE_PREFIXES = new Set([
   "GILDED", "JADED", "FORCEFUL", "STRONG", "HEROIC", "ZEALOUS", "DEMONIC",
-  "HURTFUL", "KEEN", "SUPERIOR", "UNPLEASANT", "FORScEFUL", "BIZARRE",
+  "HURTFUL", "KEEN", "SUPERIOR", "UNPLEASANT", "FORCEFUL", "BIZARRE",
   "ITCHY", "OMINOUS", "PLEASANT", "PRETTY", "SHADED", "SIMPLE", "VIVID",
   "GODLY", "SHINY", "BLESSED", "BLOODED", "STELLAR", "SILKY", "FRUITFUL",
   "MOIL", "TOIL", "GREEN_THUMB", "BUSTLING", "MOSSY", "FESTIVE",
   "CUBIC", "WARPED", "ANCIENT", "UNDEAD", "MYTHICAL", "FORTUNATE",
   "FABLED", "SPIRITUAL", "SUSPICIOUS", "DIRTY", "FLEET", "HEATED",
-  "AMBARED", "AUSPICIOUS", "FLEETING", "MENACING", "RICOCHET", "MAGNETIC",
+  "AMBERED", "AUSPICIOUS", "FLEETING", "MENACING", "RICOCHET", "MAGNETIC",
+  "RENOWNED", "GIANT", "TITANIC", "SPIKED", "SUBMERGED", "LUSH", "BLOOMING",
 ]);
 
 /* Normalise an auction item_name to a comparable base name:
@@ -44,24 +46,33 @@ const ACCESSORY_REFORGE_PREFIXES = new Set([
 function normalizeAuctionName(rawName) {
   let n = rawName
     .replace(/§[0-9a-fk-or]/gi, "")          // legacy color codes
-    .replace(/[✪⚚✦®™]/g, "")                 // star / symbol decorations
+    .replace(/\[[^\]]*Lvl\s*\d+[^\]]*\]/gi, "") // pet level prefix: [Lvl 100]
+    .replace(/\bLvl\s*\d+\b/gi, "")         // occasional unbracketed pet level text
+    .replace(/[✪⚚✦®™➊➋➌➍➎➏➐➑➒➓]/g, "")     // star / symbol decorations
     .replace(/\s+/g, " ")
     .trim();
 
   /* Strip a single leading reforge word if present. */
   const parts = n.split(" ");
-  if (parts.length > 1 && ACCESSORY_REFORGE_PREFIXES.has(parts[0].toUpperCase())) {
+  if (parts.length > 1 && ACCESSORY_REFORGE_PREFIXES.has(parts[0].toUpperCase().replace(/ /g, "_"))) {
     parts.shift();
     n = parts.join(" ");
   }
   return n.toLowerCase();
 }
 
-/* Build a name → bazaarId lookup from the accessory catalog. */
+/* Build a name → item id lookup from any catalog with a byId map.
+ * Optional catalog.aliases can add extra auction display names for synthetic
+ * ids such as pets that are absent from the resources item endpoint. */
 function buildNameIndex(catalog) {
   const idx = new Map();
   for (const id in catalog.byId) {
-    idx.set(catalog.byId[id].name.toLowerCase(), id);
+    const item = catalog.byId[id];
+    if (item?.name) idx.set(normalizeAuctionName(item.name), id);
+    for (const alias of item?.aliases || []) idx.set(normalizeAuctionName(alias), id);
+  }
+  for (const [alias, id] of Object.entries(catalog.aliases || {})) {
+    idx.set(normalizeAuctionName(alias), id);
   }
   return idx;
 }

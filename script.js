@@ -61,7 +61,7 @@ const CONFIG = {
   CACHE_KEY_FUSION_DATA:   "shardmarket.cache.fusionData.v1",
   CACHE_KEY_ITEMS:         "shardmarket.cache.items.v1",
   CACHE_KEY_ATTR_DESC:     "shardmarket.cache.attrDesc.v1",
-  CACHE_KEY_BINS:          "shardmarket.cache.lowestBins.v1",
+  CACHE_KEY_BINS:          "shardmarket.cache.lowestBins.v2",
   CACHE_KEY_PROFILE_PREFIX: "shardmarket.cache.profile.",  // + uuid
   CACHE_TTL_BINS_MS:       300_000,   // 5 min — AH moves but a full scan is heavy
 
@@ -124,10 +124,11 @@ const state = {
     error:         null,
   },
 
-  /* Item catalog (accessories) — loaded once from the resources endpoint. */
+  /* Item catalog (accessories + Sweep optimizer) — loaded once from the resources endpoint. */
   accessoryCatalog: null,
+  sweepCatalog: null,
   attributeCatalog: null,    // from attribute-desc.json
-  lowestBins: null,          // Map<bazaarId, price> | null (not loaded)
+  lowestBins: null,          // Map<id, price> | null (not loaded)
   binsLoading: false,
   binsProgress: 0,           // 0..1
 
@@ -138,7 +139,7 @@ const state = {
   preferMax:  localStorage.getItem(CONFIG.PREFER_MAX_STORAGE) !== "0",
   accSortKey: localStorage.getItem(CONFIG.ACC_SORT_STORAGE) || "mp",
 
-  /* Active page: "shards" | "missing" | "upgrades" | "attributes" */
+  /* Active page: "shards" | "missing" | "upgrades" | "attributes" | "sweep" */
   view: "shards",
 };
 
@@ -1214,10 +1215,11 @@ function setView(view) {
   $("#view-missing").hidden    = view !== "missing";
   $("#view-upgrades").hidden   = view !== "upgrades";
   $("#view-attributes").hidden = view !== "attributes";
+  $("#view-sweep").hidden      = view !== "sweep";
 
-  /* Accessory pages benefit from real AH prices — start a scan on first visit
+  /* Accessory and Sweep pages benefit from real AH prices — start a scan on first visit
    * (uses cache on subsequent visits; never blocks the UI). */
-  if ((view === "missing" || view === "upgrades") && state.player.username && !state.lowestBins) {
+  if ((view === "missing" || view === "upgrades" || view === "sweep") && !state.lowestBins) {
     loadLowestBinsIfNeeded(false);
   }
 
@@ -1228,6 +1230,7 @@ function renderActiveView() {
   if (state.view === "missing")    renderMissingView();
   if (state.view === "upgrades")   renderUpgradesView();
   if (state.view === "attributes") renderAttributesView();
+  if (state.view === "sweep")      renderSweepView();
   if (state.view === "shards")     renderTable();
 }
 
@@ -1263,6 +1266,45 @@ function accessoryPrice(id) {
   });
 }
 
+function buildSweepCatalog(itemsData) {
+  const byId = {};
+  const resourceItems = itemsData?.items || [];
+  const resourcesById = new Map(resourceItems.map((it) => [it.id, it]));
+
+  for (const src of window.SWEEP_SOURCES || []) {
+    for (const id of src.itemIds || []) {
+      if (state.raw?.products?.[id]) continue; // Bazaar products do not need AH name matching.
+      const item = resourcesById.get(id);
+      byId[id] = {
+        id,
+        name: item?.name || src.name,
+        tier: item?.tier || "UNKNOWN",
+        category: item?.category || src.type || "ITEM",
+        aliases: src.aliases || [],
+      };
+    }
+  }
+
+  return { byId };
+}
+
+function combinePriceCatalogs(...catalogs) {
+  const byId = {};
+  for (const catalog of catalogs) Object.assign(byId, catalog?.byId || {});
+  return { byId };
+}
+
+async function ensurePriceCatalogsLoaded() {
+  if (state.accessoryCatalog && state.sweepCatalog) {
+    return combinePriceCatalogs(state.accessoryCatalog, state.sweepCatalog);
+  }
+
+  const { data } = await api.fetchItems();
+  if (!state.accessoryCatalog) state.accessoryCatalog = buildAccessoryCatalog(data);
+  if (!state.sweepCatalog) state.sweepCatalog = buildSweepCatalog(data);
+  return combinePriceCatalogs(state.accessoryCatalog, state.sweepCatalog);
+}
+
 /* Kick off a full AH lowest-BIN scan (cached). Re-renders the active view as
  * progress advances so the user sees prices populate. */
 async function loadLowestBinsIfNeeded(force = false) {
@@ -1279,19 +1321,14 @@ async function loadLowestBinsIfNeeded(force = false) {
     }
   }
 
-  if (!state.accessoryCatalog) {
-    try {
-      const { data } = await api.fetchItems();
-      state.accessoryCatalog = buildAccessoryCatalog(data);
-    } catch (e) { console.error(e); return; }
-  }
+  const combinedCatalog = await ensurePriceCatalogsLoaded();
 
   state.binsLoading = true;
   state.binsProgress = 0;
   renderActiveView();
 
   try {
-    const bins = await loadLowestBins(state.accessoryCatalog, {
+    const bins = await loadLowestBins(combinedCatalog, {
       onProgress: (done, total) => {
         state.binsProgress = done / total;
         /* Throttle re-render to every ~8 pages to avoid thrashing. */
@@ -1808,6 +1845,203 @@ function renderAttributeRow(r) {
           </button>
         </div>` : ""}
     </article>`;
+}
+
+/* ----- SWEEP OPTIMIZER page ----- */
+function sweepValueLabel(src) {
+  if (src.sweepLabel) return src.sweepLabel;
+  if (src.sweep == null) return "variable";
+  return `+${src.sweep} Sweep`;
+}
+
+function sweepPriceForItem(id) {
+  return resolvePrice(id, {
+    bazaar: state.raw?.products,
+    bins: state.lowestBins,
+    bazaarMode: state.bazaarMode,
+  });
+}
+
+function sweepBazaarCommand(id) {
+  let name = id;
+  if (name.startsWith("ENCHANTMENT_ULTIMATE_")) name = name.replace("ENCHANTMENT_ULTIMATE_", "");
+  else if (name.startsWith("ENCHANTMENT_")) name = name.replace("ENCHANTMENT_", "");
+  else if (name.startsWith("SHARD_")) name = name.replace("SHARD_", "");
+  name = name.replace(/_/g, " ").toLowerCase();
+  return `/bz ${name}`;
+}
+
+function sweepAuctionCommand(src) {
+  const query = src.aliases?.[0] || src.name;
+  return `/ah ${query}`;
+}
+
+function resolveSweepSource(src) {
+  const details = [];
+  let totalCost = null;
+  let market = "progression";
+  let command = null;
+
+  if (src.costKind === "bazaar-bundle") {
+    totalCost = 0;
+    market = "bazaar";
+    for (const c of src.costs || []) {
+      const p = sweepPriceForItem(c.id);
+      if (p.best == null) { totalCost = null; break; }
+      totalCost += p.best * c.qty;
+      details.push(`${fmtInt(c.qty)}× ${escapeHtml(c.label || c.id)} @ ${fmtCoins(p.best)}`);
+      command = sweepBazaarCommand(c.id, c.label || c.id);
+    }
+  } else if (src.costKind === "bazaar") {
+    const id = src.itemIds?.[0];
+    const p = id ? sweepPriceForItem(id) : null;
+    market = "bazaar";
+    totalCost = p?.best ?? null;
+    if (id) {
+      details.push(`${escapeHtml(src.name)} @ ${totalCost != null ? fmtCoins(totalCost) : "unknown"} (${p?.label || "bazaar"})`);
+      command = sweepBazaarCommand(id, src.name);
+    }
+  } else if (src.costKind === "attribute") {
+    const p = sweepPriceForItem(src.shardId);
+    market = "bazaar";
+    const shardsToTierX = 512;
+    totalCost = p.best == null ? null : p.best * shardsToTierX;
+    details.push(`512× Tier I shard to fuse Tier X @ ${p.best != null ? fmtCoins(p.best) : "unknown"}/ea`);
+    command = sweepBazaarCommand(src.shardId, src.name);
+  } else if (src.costKind === "auction") {
+    const id = src.itemIds?.[0];
+    const p = id ? sweepPriceForItem(id) : null;
+    market = "auction";
+    totalCost = p?.best ?? null;
+    details.push(`${escapeHtml(src.name)} ${p?.bin != null ? `lowest BIN ${fmtCoins(p.bin)}` : state.binsLoading ? "AH scanning…" : "AH price unknown"}`);
+    command = sweepAuctionCommand(src);
+  } else if (src.costKind === "auction-bundle") {
+    totalCost = 0;
+    market = "auction";
+    for (const id of src.itemIds || []) {
+      const p = sweepPriceForItem(id);
+      const label = state.sweepCatalog?.byId?.[id]?.name || id;
+      details.push(`${escapeHtml(label)}: ${p.best != null ? fmtCoins(p.best) : state.binsLoading ? "scanning…" : "unknown"}`);
+      if (p.best == null) totalCost = null;
+      else if (totalCost != null) totalCost += p.best;
+    }
+    command = sweepAuctionCommand(src);
+  } else {
+    details.push(src.note || "Progression, milestone, or situational source; no direct coin price from Bazaar/AH.");
+  }
+
+  const sweep = typeof src.sweep === "number" && src.sweep > 0 ? src.sweep : null;
+  const costPerSweep = totalCost != null && sweep ? totalCost / sweep : null;
+  return { ...src, totalCost, costPerSweep, market, details, command };
+}
+
+function getSweepRows() {
+  return (window.SWEEP_SOURCES || [])
+    .map(resolveSweepSource)
+    .sort((a, b) => {
+      const ap = Number.isFinite(a.totalCost) ? 0 : 1;
+      const bp = Number.isFinite(b.totalCost) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      if (Number.isFinite(a.totalCost) && Number.isFinite(b.totalCost)) return a.totalCost - b.totalCost;
+      return a.category.localeCompare(b.category) || a.name.localeCompare(b.name);
+    });
+}
+
+function sweepToolbarHTML() {
+  const binsState = state.binsLoading
+    ? `<span class="ah-status">Scanning AH… ${Math.round(state.binsProgress * 100)}%</span>`
+    : state.lowestBins
+      ? `<span class="ah-status ah-status-ok">AH prices loaded (${state.lowestBins.size})</span>`
+      : `<button class="btn-secondary btn-small" id="load-sweep-bins-btn">Load AH prices</button>`;
+
+  return `
+    <div class="acc-toolbar sweep-toolbar">
+      <div class="acc-toolbar-left">
+        <span class="sweep-source-note">Sorted by known live coin cost, cheapest → highest. Bazaar uses your current ${state.bazaarMode === "buyOrder" ? "buy-order" : "insta-buy"} setting.</span>
+      </div>
+      <div class="acc-toolbar-right">
+        <div class="segmented" role="group" aria-label="Bazaar price mode">
+          <button class="seg-btn ${state.bazaarMode === "instaBuy" ? "active" : ""}" data-sweep-bz="instaBuy">Insta-buy</button>
+          <button class="seg-btn ${state.bazaarMode === "buyOrder" ? "active" : ""}" data-sweep-bz="buyOrder">Buy order</button>
+        </div>
+        <div class="acc-toolbar-group acc-toolbar-ah">${binsState}</div>
+      </div>
+    </div>`;
+}
+
+function renderSweepCard(row, index) {
+  const priced = Number.isFinite(row.totalCost);
+  const unit = Number.isFinite(row.costPerSweep) ? `${fmtCoins(row.costPerSweep)}/Sweep` : "—";
+  const marketLabel = row.costKind === "progression" ? "progression" : row.market;
+  const cmd = row.command;
+
+  return `
+    <article class="sweep-card ${priced ? "" : "sweep-card--unpriced"}">
+      <div class="sweep-rank">${priced ? index + 1 : "—"}</div>
+      <div class="sweep-main">
+        <div class="sweep-card-head">
+          <div>
+            <h3>${escapeHtml(row.name)}</h3>
+            <div class="sweep-meta">
+              <span>${escapeHtml(row.category)}</span>
+              <span class="meta-sep">·</span>
+              <span>${escapeHtml(row.type)}</span>
+              <span class="meta-sep">·</span>
+              <span>${escapeHtml(row.source || marketLabel)}</span>
+            </div>
+          </div>
+          <div class="sweep-gain">${escapeHtml(sweepValueLabel(row))}</div>
+        </div>
+        <p class="sweep-note">${escapeHtml(row.note || "")}</p>
+        <div class="sweep-cost-line">
+          <span class="sweep-cost ${priced ? "" : "sweep-cost-muted"}">${priced ? fmtCoins(row.totalCost) : "Not directly priceable"}</span>
+          <span class="sweep-unit">${unit}</span>
+          <span class="sweep-market">${escapeHtml(marketLabel)}</span>
+        </div>
+        ${row.details?.length ? `<ul class="sweep-details">${row.details.map((d) => `<li>${d}</li>`).join("")}</ul>` : ""}
+        ${cmd ? `<div class="acc-card-cmd sweep-cmd"><code class="acc-cmd-text">${escapeHtml(cmd)}</code><button class="btn-copy" data-copy="${escapeHtml(cmd)}">Copy</button></div>` : ""}
+      </div>
+    </article>`;
+}
+
+function renderSweepView() {
+  const pane = $("#view-sweep");
+  const rows = getSweepRows();
+  const priced = rows.filter((r) => Number.isFinite(r.totalCost));
+  const totalKnownSweep = priced.reduce((s, r) => s + (typeof r.sweep === "number" ? r.sweep : 0), 0);
+  const cheapest = priced[0];
+
+  pane.innerHTML = `
+    <div class="acc-page-head sweep-page-head">
+      <div>
+        <h2 class="acc-page-title">Sweep Optimizer</h2>
+        <p class="acc-page-sub">
+          Every Sweep source from the Hypixel Wiki page, priced from the official Bazaar and Auction House where possible.
+          Cheapest known next method: <strong>${cheapest ? `${escapeHtml(cheapest.name)} (${fmtCoins(cheapest.totalCost)})` : "load prices first"}</strong>.
+        </p>
+      </div>
+    </div>
+    <section class="stats-grid sweep-stats" aria-label="Sweep overview">
+      <div class="stat-card"><div class="stat-label">Sources tracked</div><div class="stat-value">${fmtInt(rows.length)}</div></div>
+      <div class="stat-card"><div class="stat-label">Live-priced methods</div><div class="stat-value">${fmtInt(priced.length)}</div></div>
+      <div class="stat-card"><div class="stat-label">Known priced Sweep</div><div class="stat-value">${fmtInt(totalKnownSweep)}</div></div>
+      <div class="stat-card"><div class="stat-label">Best cost / Sweep</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${cheapest?.costPerSweep ? fmtCoins(cheapest.costPerSweep) : "—"}</span></div></div>
+    </section>
+    ${sweepToolbarHTML()}
+    <div class="sweep-grid">
+      ${rows.map(renderSweepCard).join("")}
+    </div>`;
+
+  pane.querySelector("#load-sweep-bins-btn")?.addEventListener("click", () => loadLowestBinsIfNeeded(true));
+  pane.querySelectorAll("[data-sweep-bz]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.bazaarMode = btn.dataset.sweepBz;
+      localStorage.setItem(CONFIG.BAZAAR_MODE_STORAGE, state.bazaarMode);
+      renderSweepView();
+      if (state.player.attributeAnalysis) loadAttributeAnalysis();
+    });
+  });
+  bindCopyButtons(pane);
 }
 
 function renderTable() {
