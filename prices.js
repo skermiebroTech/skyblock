@@ -52,9 +52,13 @@ function normalizeAuctionName(rawName) {
     .replace(/\s+/g, " ")
     .trim();
 
-  /* Strip a single leading reforge word if present. */
+  /* Strip leading reforge prefix (supports single and multi-word like Green Thumb). */
   const parts = n.split(" ");
-  if (parts.length > 1 && ACCESSORY_REFORGE_PREFIXES.has(parts[0].toUpperCase().replace(/ /g, "_"))) {
+  if (parts.length > 2 && ACCESSORY_REFORGE_PREFIXES.has((parts[0] + "_" + parts[1]).toUpperCase())) {
+    parts.shift();
+    parts.shift();
+    n = parts.join(" ");
+  } else if (parts.length > 1 && ACCESSORY_REFORGE_PREFIXES.has(parts[0].toUpperCase())) {
     parts.shift();
     n = parts.join(" ");
   }
@@ -96,7 +100,10 @@ async function loadLowestBins(catalog, { batchSize = 8, onProgress = null } = {}
     }
   };
 
-  const first = await fetch(`${CONFIG.API_BASE}/skyblock/auctions?page=0`).then((r) => r.json());
+  const firstRes = await fetch(`${CONFIG.API_BASE}/skyblock/auctions?page=0`);
+  if (!firstRes.ok) throw new Error(`Auction API error ${firstRes.status}`);
+  const first = await firstRes.json();
+  if (first.success === false) throw new Error(first.cause || "Auction API failed");
   ingest(first.auctions || []);
   const totalPages = first.totalPages || 1;
   if (onProgress) onProgress(1, totalPages);

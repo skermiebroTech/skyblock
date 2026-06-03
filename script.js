@@ -488,7 +488,7 @@ const SWEEP_AXE_ID_RE = /(AXE|TREECAPITATOR)/i;
  * alternatives should not be recommended as separate next purchases. */
 const SWEEP_GEAR_PROGRESSIONS = [
   ["canopy-armor", "fig-armor"],
-  ["spruce-axe", "seriously-damaged-axe", "decent-axe", "fig-hew", "treecapitator", "figstone-splitter"],
+  ["spruce-axe", "seriously-damaged-axe", "decent-axe", "treecapitator", "fig-hew", "figstone-splitter"],
 ];
 
 function hasSweepBooster(it) {
@@ -970,6 +970,7 @@ function buildRows(bazaarPayload) {
 
     rows.push({
       id,
+      rank: rows.length + 1,
       ...meta,
       ...metrics,
       weeklyExpectedProfit: projectedWeeklyProfit(metrics),
@@ -1586,7 +1587,7 @@ function accessoryActionRow(item, mpLabel, mpValue) {
   const cmdRow = item.soulbound
     ? `<div class="acc-card-cmd acc-card-cmd--sb">
          <span class="acc-sb-note">Soulbound — obtain in-game</span>
-         <a class="btn-copy" href="${wikiUrl(item.name)}" target="_blank" rel="noopener noreferrer">Wiki</a>
+         <a class="btn-secondary" href="${wikiUrl(item.name)}" target="_blank" rel="noopener noreferrer">Wiki</a>
        </div>`
     : `<div class="acc-card-cmd">
         <code class="acc-cmd-text">${escapeHtml(cmd)}</code>
@@ -1624,14 +1625,33 @@ function accessoryActionRow(item, mpLabel, mpValue) {
 function bindCopyButtons(container) {
   container.addEventListener("click", (e) => {
     const btn = e.target.closest(".btn-copy");
-    if (!btn) return;
+    if (!btn || !btn.dataset.copy) return;
     const text = btn.dataset.copy;
-    navigator.clipboard?.writeText(text).then(() => {
+    if (!navigator.clipboard?.writeText) {
+      /* Fallback for insecure context / blocked clipboard */
+      try {
+        const temp = document.createElement("textarea");
+        temp.value = text;
+        temp.style.position = "fixed"; temp.style.opacity = "0";
+        document.body.appendChild(temp); temp.select();
+        document.execCommand("copy"); document.body.removeChild(temp);
+        const orig = btn.innerHTML;
+        btn.classList.add("copied");
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.innerHTML = orig; btn.classList.remove("copied"); }, 1200);
+      } catch (err) {
+        console.error("Clipboard fallback failed:", err);
+      }
+      return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
       const orig = btn.innerHTML;
       btn.classList.add("copied");
       btn.textContent = "Copied!";
       setTimeout(() => { btn.innerHTML = orig; btn.classList.remove("copied"); }, 1200);
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error("Clipboard writeText failed:", err);
+    });
   });
 }
 
@@ -2067,10 +2087,27 @@ function sweepPriceForItem(id) {
 
 function sweepBazaarCommand(id) {
   let name = id;
-  if (name.startsWith("ENCHANTMENT_ULTIMATE_")) name = name.replace("ENCHANTMENT_ULTIMATE_", "");
-  else if (name.startsWith("ENCHANTMENT_")) name = name.replace("ENCHANTMENT_", "");
-  else if (name.startsWith("SHARD_")) name = name.replace("SHARD_", "");
+  const isShard = name.startsWith("SHARD_");
+  const isUltimate = name.startsWith("ENCHANTMENT_ULTIMATE_");
+  const isEnch = name.startsWith("ENCHANTMENT_") && !isUltimate;
+
+  if (isUltimate) name = "ULTIMATE_" + name.replace("ENCHANTMENT_ULTIMATE_", "");
+  else if (isEnch) name = name.replace("ENCHANTMENT_", "");
+  else if (isShard) name = name.replace("SHARD_", "");
+
+  if (isUltimate || isEnch) {
+    name = name.replace(/_1$/, "_I")
+               .replace(/_2$/, "_II")
+               .replace(/_3$/, "_III")
+               .replace(/_4$/, "_IV")
+               .replace(/_5$/, "_V");
+  }
+
   name = name.replace(/_/g, " ").toLowerCase();
+  name = name.replace(/\b\w/g, (c) => c.toUpperCase());
+
+  if (isShard) name += " Shard";
+
   return `/bz ${name}`;
 }
 
@@ -2143,6 +2180,29 @@ function getSweepRows() {
     .map((src) => {
       const row = resolveSweepSource(src);
       const completion = state.player.sweepAnalysis?.bySource?.[src.id] || null;
+
+      if (completion) {
+        if (src.id === "sweep-booster-armor" || src.id === "sweep-booster-equipment") {
+          const current = typeof completion.current === "number" ? completion.current : 0;
+          const remaining = Math.max(0, 4 - current);
+          const p = sweepPriceForItem("SWEEP_BOOSTER");
+          row.totalCost = p.best == null ? null : p.best * remaining;
+          row.details = [`${remaining}× Sweep Booster needed to finish @ ${p.best != null ? fmtCoins(p.best) : "unknown"}/ea`].concat(row.details.slice(1));
+          if (row.sweep) {
+            const remainingSweep = remaining * src.sweep;
+            row.costPerSweep = row.totalCost != null && remainingSweep > 0 ? row.totalCost / remainingSweep : null;
+          }
+        } else if (src.costKind === "attribute" && Number.isFinite(completion.current)) {
+          const p = sweepPriceForItem(src.shardId);
+          const remaining = Math.max(0, 512 - completion.current);
+          row.totalCost = p.best == null ? null : p.best * remaining;
+          row.details = [`${remaining}× Tier I shards to finish Tier X @ ${p.best != null ? fmtCoins(p.best) : "unknown"}/ea`].concat(row.details.slice(1));
+          if (row.sweep) {
+            const remainingSweep = (remaining / 512) * src.sweep;
+            row.costPerSweep = row.totalCost != null && remainingSweep > 0 ? row.totalCost / remainingSweep : null;
+          }
+        }
+      }
       return { ...row, completion };
     })
     .sort((a, b) => {
@@ -2446,6 +2506,10 @@ async function loadData(forceRefresh = false) {
     state.rows = buildRows(data);
 
     $("#cache-badge").style.display = cached ? "inline-flex" : "none";
+
+    if (state.player && state.player.attributeStacks) {
+      loadAttributeAnalysis();
+    }
   } catch (e) {
     state.error = e.message;
     console.error("[Hypixie] load failed:", e);

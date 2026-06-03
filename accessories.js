@@ -173,6 +173,9 @@ const RARITY_ORDER = ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC
 /* The MP an accessory would have one rarity tier higher (after recombobulating).
  * Returns { nextRarity, nextMP, mpGain } or null if already at top / no gain. */
 function recombGain(item) {
+  if (item.id === "HEGEMONY_ARTIFACT") {
+    return { nextRarity: "MYTHIC", nextMP: 44, mpGain: 12 };
+  }
   const idx = RARITY_ORDER.indexOf(item.tier);
   if (idx < 0 || idx >= RARITY_ORDER.length - 1) return null;
   const nextRarity = RARITY_ORDER[idx + 1];
@@ -336,7 +339,9 @@ function analyseAccessories(catalog, owned, opts = {}) {
 
     /* Own at least one — credit the highest owned, flag upgrade if not top. */
     const bestOwned = ownedMembers[ownedMembers.length - 1];
-    currentMP += bestOwned.mp;
+    const recombed = isRecombed(bestOwned.id);
+    const rGain = recombed ? (recombGain(bestOwned)?.mpGain || 0) : 0;
+    currentMP += bestOwned.mp + rGain;
 
     if (bestOwned.id !== highest.id) {
       /* Upgrade target: family max when preferMax, else the next tier up. */
@@ -358,7 +363,9 @@ function analyseAccessories(catalog, owned, opts = {}) {
   for (const a of catalog.standalone) {
     maxMP += a.mp;
     if (ownedHas(a.id)) {
-      currentMP += a.mp;
+      const recombed = isRecombed(a.id);
+      const rGain = recombed ? (recombGain(a)?.mpGain || 0) : 0;
+      currentMP += a.mp + rGain;
       considerRecomb(a);   // owned standalone → can recombobulate for more MP
     } else if (a.mp > 0 && !a.soulbound) {
       /* Skip soulbound (can't be bought on AH) and zero-MP items in the
