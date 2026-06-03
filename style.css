@@ -306,6 +306,8 @@ code {
 
 input[type="password"],
 input[type="search"],
+input[type="number"],
+.input-native,
 .select-native {
   width: 100%;
   background: var(--bg);
@@ -319,6 +321,8 @@ input[type="search"],
 }
 input[type="password"]:focus,
 input[type="search"]:focus,
+input[type="number"]:focus,
+.input-native:focus,
 .select-native:focus {
   outline: none;
   border-color: var(--ember);
@@ -3189,6 +3193,35 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   font-size: 0.8em;
   color: var(--text-soft);
   font-style: italic;
+}
+
+.btn-toggle {
+  background: var(--surface);
+  color: var(--text-soft);
+  border: 1px solid var(--surface-line);
+  padding: 10px 16px;
+  border-radius: var(--r-md);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-toggle:hover {
+  background: var(--surface-hi);
+  color: var(--text);
+  border-color: var(--ember);
+}
+.btn-toggle.active {
+  background: rgba(255, 107, 53, 0.12);
+  color: var(--ember-light);
+  border-color: var(--ember);
+  box-shadow: 0 0 16px rgba(255, 107, 53, 0.15);
 }
 
 
