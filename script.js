@@ -123,6 +123,11 @@ const state = {
     attributeAnalysis: null, // {rows, totalShardsNeeded, totalCost, ...}
     sweepAnalysis: null,     // profile-aware Sweep ownership/completion map
     craftedMinions: null,    // parsed profile crafted minions
+    equippedArmor: null,
+    equippedEquipment: null,
+    hotbar: null,
+    profileInventoryLoading: false,
+    inventoryError: null,
     loading:       false,
     error:         null,
   },
@@ -148,6 +153,7 @@ const state = {
 
   /* Active page: "home" | "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" */
   view: "home",
+  profileSubTab: "overview",
 };
 
 function getNumberFromStorage(key, fallback) {
@@ -663,9 +669,13 @@ function selectProfile(profileId) {
   state.player.accessoryAnalysis = null;
   state.player.attributeAnalysis = null;
   state.player.sweepAnalysis = null;
+  state.player.equippedArmor = null;
+  state.player.equippedEquipment = null;
+  state.player.hotbar = null;
   loadAccessoryAnalysis(prof._raw);
   loadAttributeAnalysis();
   loadSweepAnalysis(prof._raw);
+  loadProfileInventory(prof._raw);
   rebuildRows();
 }
 
@@ -687,6 +697,48 @@ async function loadAccessoryAnalysis(rawProfile) {
   } finally {
     renderPlayerPanel();
     if (state.view === "missing" || state.view === "upgrades" || state.view === "profile") renderActiveView();
+  }
+}
+
+/* Decode armor, equipment, and hotbar for the Profile Viewer. */
+async function loadProfileInventory(rawProfile) {
+  state.player.profileInventoryLoading = true;
+  state.player.equippedArmor = null;
+  state.player.equippedEquipment = null;
+  state.player.hotbar = null;
+  state.player.inventoryError = null;
+
+  try {
+    const member = rawProfile?.members?.[state.player.uuid];
+    if (!member?.inventory) {
+      state.player.inventoryError = "Inventory API is disabled in Hypixel settings.";
+      return;
+    }
+
+    // Decode armor
+    if (member.inventory.inv_armor?.data) {
+      const armor = await decodeInventory(member.inventory.inv_armor.data);
+      // In Minecraft: slot 0 = boots, slot 1 = leggings, slot 2 = chestplate, slot 3 = helmet.
+      // We keep slot indices but we can also store the array.
+      state.player.equippedArmor = armor;
+    }
+
+    // Decode equipment
+    if (member.inventory.equipment_contents?.data) {
+      state.player.equippedEquipment = await decodeInventory(member.inventory.equipment_contents.data);
+    }
+
+    // Decode hotbar (first 9 slots of inv_contents)
+    if (member.inventory.inv_contents?.data) {
+      const inv = await decodeInventory(member.inventory.inv_contents.data);
+      state.player.hotbar = inv.filter((it) => it.slotIndex < 9);
+    }
+  } catch (e) {
+    console.error("[Hypixie] profile inventory decode failed:", e);
+    state.player.inventoryError = "Failed to decode inventory NBT data.";
+  } finally {
+    state.player.profileInventoryLoading = false;
+    if (state.view === "profile") renderActiveView();
   }
 }
 
@@ -738,6 +790,8 @@ function clearPlayer() {
     ownedAccessories: null, accessoryAnalysis: null,
     attributeStacks: null, attributeAnalysis: null, sweepAnalysis: null,
     craftedMinions: null,
+    equippedArmor: null, equippedEquipment: null, hotbar: null,
+    profileInventoryLoading: false, inventoryError: null,
     loading: false, error: null,
   };
   localStorage.removeItem(CONFIG.USERNAME_STORAGE);
@@ -3257,6 +3311,149 @@ function getPetEmoji(type) {
   return map[type?.toUpperCase()] || "🐾";
 }
 
+/* =========================================================================
+ * MINECRAFT COLOR & STYLE HELPERS (SKYCRYPT LOOKS)
+ * ======================================================================= */
+
+function minecraftToHtml(text) {
+  if (!text) return "";
+  const colorMap = {
+    '0': '#000000', '1': '#0000aa', '2': '#00aa00', '3': '#00aaaa',
+    '4': '#aa0000', '5': '#aa00aa', '6': '#ffaa00', '7': '#aaaaaa',
+    '8': '#555555', '9': '#5555ff', 'a': '#55ff55', 'b': '#55ffff',
+    'c': '#ff5555', 'd': '#ff55ff', 'e': '#ffff55', 'f': '#ffffff'
+  };
+  
+  let html = "";
+  let currentSpan = false;
+  let parts = text.split("§");
+  
+  html += escapeHtml(parts[0]);
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i];
+    if (part.length === 0) continue;
+    const code = part[0].toLowerCase();
+    const content = part.slice(1);
+    
+    if (colorMap[code]) {
+      if (currentSpan) {
+        html += "</span>";
+      }
+      html += `<span style="color: ${colorMap[code]};">`;
+      currentSpan = true;
+    } else if (code === 'r') {
+      if (currentSpan) {
+        html += "</span>";
+        currentSpan = false;
+      }
+    } else if (code === 'l') { // bold
+      if (currentSpan) {
+        html += "</span>";
+      }
+      html += `<span style="font-weight: bold;">`;
+      currentSpan = true;
+    }
+    html += escapeHtml(content);
+  }
+  if (currentSpan) {
+    html += "</span>";
+  }
+  return html;
+}
+
+function stripColorCodes(text) {
+  if (!text) return "";
+  return text.replace(/§[0-9a-fk-or]/gi, "");
+}
+
+function getRarityColor(tier) {
+  const map = {
+    COMMON: "#ffffff",
+    UNCOMMON: "#55ff55",
+    RARE: "#55ffff",
+    EPIC: "#aa00aa",
+    LEGENDARY: "#ffaa00",
+    MYTHIC: "#ff55ff",
+    SPECIAL: "#ff5555",
+    VERY_SPECIAL: "#ff5555"
+  };
+  return map[tier?.toUpperCase()] || "#ffffff";
+}
+
+function renderGearSlotHTML(item, defaultEmoji, slotName) {
+  if (!item) {
+    return `
+      <div class="profile-gear-slot empty" title="Empty ${slotName} Slot">
+        <div class="profile-gear-icon-placeholder">${defaultEmoji}</div>
+        <div class="profile-gear-details">
+          <div class="profile-gear-name-placeholder">No ${slotName}</div>
+          <div class="profile-gear-type">${slotName}</div>
+        </div>
+      </div>`;
+  }
+
+  const itemName = item.rawTag?.display?.Name || item.skyblockId || "Unknown Item";
+  const recombobulated = item.recombobulated;
+  const loreLines = item.rawTag?.display?.Lore || [];
+  const loreHTML = loreLines.map(line => `<div>${minecraftToHtml(line)}</div>`).join("");
+
+  return `
+    <div class="profile-gear-slot tooltip-container">
+      <div class="profile-gear-icon">${defaultEmoji}</div>
+      <div class="profile-gear-details">
+        <div class="profile-gear-name" style="color: ${getRarityColor(item.rawTag?.ExtraAttributes?.rarity || 'COMMON')}">
+          ${minecraftToHtml(itemName)}
+        </div>
+        <div class="profile-gear-type">
+          ${slotName} ${recombobulated ? `<span class="recomb-star" title="Recombobulated">✦</span>` : ""}
+        </div>
+      </div>
+      <div class="tooltip-content">
+        <div class="tooltip-name" style="color: ${getRarityColor(item.rawTag?.ExtraAttributes?.rarity || 'COMMON')}">
+          ${minecraftToHtml(itemName)}
+        </div>
+        <div class="tooltip-lore">${loreHTML}</div>
+      </div>
+    </div>`;
+}
+
+function renderHotbarSlotHTML(item, index) {
+  if (!item) {
+    return `<div class="profile-hotbar-slot empty" title="Slot ${index + 1}"></div>`;
+  }
+
+  const itemName = item.rawTag?.display?.Name || item.skyblockId || "Unknown Item";
+  const loreLines = item.rawTag?.display?.Lore || [];
+  const loreHTML = loreLines.map(line => `<div>${minecraftToHtml(line)}</div>`).join("");
+
+  let emoji = "⚔️";
+  const id = item.skyblockId?.toLowerCase() || "";
+  if (id.includes("bow")) emoji = "🏹";
+  else if (id.includes("pickaxe")) emoji = "⛏️";
+  else if (id.includes("axe")) emoji = "🪓";
+  else if (id.includes("shovel")) emoji = "⛏️";
+  else if (id.includes("hoe")) emoji = "🌾";
+  else if (id.includes("fishing")) emoji = "🎣";
+  else if (id.includes("drill")) emoji = "⚙️";
+  else if (id.includes("rod")) emoji = "🎣";
+  else if (id.includes("potion")) emoji = "🧪";
+  else if (id.includes("book")) emoji = "📖";
+  else if (id.includes("essence") || id.includes("shard")) emoji = "✨";
+  else if (item.count > 1) emoji = "📦";
+
+  return `
+    <div class="profile-hotbar-slot tooltip-container">
+      <div class="profile-hotbar-icon">${emoji}</div>
+      ${item.count > 1 ? `<span class="profile-hotbar-count">${item.count}</span>` : ""}
+      <div class="tooltip-content">
+        <div class="tooltip-name" style="color: ${getRarityColor(item.rawTag?.ExtraAttributes?.rarity || 'COMMON')}">
+          ${minecraftToHtml(itemName)}
+        </div>
+        <div class="tooltip-lore">${loreHTML}</div>
+      </div>
+    </div>`;
+}
+
 function renderProfileView() {
   const pane = $("#view-profile");
   if (!pane) return;
@@ -3456,6 +3653,239 @@ function renderProfileView() {
       </div>`;
   }
 
+  // 5. Gear & Hotbar Rendering (Overview Tab)
+  let gearContentHTML = "";
+  if (p.profileInventoryLoading) {
+    gearContentHTML = `<div style="padding: 40px; text-align: center;"><span class="spinner"></span> Decoding player inventory NBT...</div>`;
+  } else if (p.inventoryError) {
+    gearContentHTML = `
+      <div style="padding: 24px; text-align: center; color: var(--text-muted); background: rgba(0,0,0,0.2); border: 1px dashed rgba(255,255,255,0.06); border-radius: 8px;">
+        <div style="font-size: 32px; margin-bottom: 12px;">🔒</div>
+        <h4 style="color: #fff; font-family: var(--font-display); font-size: 15px;">${p.inventoryError}</h4>
+        <p style="font-size: 12px; margin-top: 8px; line-height: 1.6; max-width: 460px; margin-left: auto; margin-right: auto;">
+          To display your equipped gear, weapons, and inventory like SkyCrypt, enable your <strong>Inventory API</strong> in Hypixel settings:
+          in-game open the SkyBlock menu (or run <code>/api</code>) ➔ Settings ➔ API Settings ➔ Enable Inventory API.
+        </p>
+      </div>`;
+  } else {
+    const armor = p.equippedArmor || [];
+    const equip = p.equippedEquipment || [];
+    const hotbar = p.hotbar || [];
+
+    const helmet = armor.find(it => it.slotIndex === 3);
+    const chestplate = armor.find(it => it.slotIndex === 2);
+    const leggings = armor.find(it => it.slotIndex === 1);
+    const boots = armor.find(it => it.slotIndex === 0);
+
+    const necklace = equip.find(it => it.slotIndex === 0);
+    const cloak = equip.find(it => it.slotIndex === 1);
+    const belt = equip.find(it => it.slotIndex === 2);
+    const gloves = equip.find(it => it.slotIndex === 3);
+
+    const hotbarSlots = [];
+    for (let i = 0; i < 9; i++) {
+      hotbarSlots.push(hotbar.find(it => it.slotIndex === i) || null);
+    }
+
+    gearContentHTML = `
+      <div class="profile-gear-container">
+        <!-- Armor -->
+        <div class="profile-gear-section">
+          <h4>🛡️ Equipped Armor</h4>
+          <div class="profile-gear-list">
+            ${renderGearSlotHTML(helmet, "🪖", "Helmet")}
+            ${renderGearSlotHTML(chestplate, "👕", "Chestplate")}
+            ${renderGearSlotHTML(leggings, "👖", "Leggings")}
+            ${renderGearSlotHTML(boots, "🥾", "Boots")}
+          </div>
+        </div>
+
+        <!-- Equipment -->
+        <div class="profile-gear-section">
+          <h4>⚡ Equipment</h4>
+          <div class="profile-gear-list">
+            ${renderGearSlotHTML(necklace, "📿", "Necklace")}
+            ${renderGearSlotHTML(cloak, "🧥", "Cloak")}
+            ${renderGearSlotHTML(belt, "🎗️", "Belt")}
+            ${renderGearSlotHTML(gloves, "🧤", "Gloves")}
+          </div>
+        </div>
+      </div>
+
+      <!-- Hotbar -->
+      <div style="margin-top: 24px;">
+        <h4 style="font-family: var(--font-display); font-size: 14px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 8px; border-left: 3px solid var(--ember); padding-left: 8px;">🎒 Hotbar</h4>
+        <div class="profile-hotbar-grid">
+          ${hotbarSlots.map((it, idx) => renderHotbarSlotHTML(it, idx)).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  // 6. Accessories tab content
+  const RARITY_ORDER = ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC"];
+  let accessoriesContentHTML = "";
+  if (!p.ownedAccessories) {
+    accessoriesContentHTML = `<div style="padding: 40px; text-align: center;"><span class="spinner"></span> Analyzing accessory bag...</div>`;
+  } else if (p.ownedAccessories.size === 0) {
+    accessoriesContentHTML = `<div style="padding: 40px; text-align: center; color: var(--text-muted);">No accessories found in your talisman bag, inventory, or ender chest. Make sure they are in your accessory bag in-game!</div>`;
+  } else {
+    const ownedList = [];
+    for (const [id, meta] of p.ownedAccessories.entries()) {
+      const item = state.accessoryCatalog?.byId?.[id];
+      if (item) {
+        const recombed = meta.recombobulated === true;
+        const currentMp = item.mp + (recombed ? (recombGain(item)?.mpGain || 0) : 0);
+        ownedList.push({
+          id,
+          name: item.name,
+          tier: recombed ? (RARITY_ORDER[RARITY_ORDER.indexOf(item.tier) + 1] || item.tier) : item.tier,
+          baseTier: item.tier,
+          mp: currentMp,
+          recombed
+        });
+      }
+    }
+
+    // Sort by Magical Power (highest first)
+    ownedList.sort((a, b) => b.mp - a.mp || a.name.localeCompare(b.name));
+
+    accessoriesContentHTML = `
+      <div class="profile-accessories-info">
+        <div class="profile-header-stat-box" style="min-width: 110px;">
+          <span class="profile-header-stat-label">Unique Talismans</span>
+          <span class="profile-header-stat-value" style="color: #ffb347;">${ownedList.length}</span>
+        </div>
+        <div class="profile-header-stat-box" style="min-width: 110px;">
+          <span class="profile-header-stat-label">Recombobulated</span>
+          <span class="profile-header-stat-value" style="color: #ff55ff;">${ownedList.filter(it => it.recombed).length}</span>
+        </div>
+        <div class="profile-header-stat-box" style="min-width: 110px;">
+          <span class="profile-header-stat-label">Bag Magical Power</span>
+          <span class="profile-header-stat-value" style="color: #33ccff;">${p.accessoryAnalysis?.currentMP || 0} MP</span>
+        </div>
+      </div>
+
+      <div class="profile-accessories-grid">
+        ${ownedList.map(it => `
+          <div class="profile-accessory-card tooltip-container" style="border-color: rgba(${it.baseTier === 'COMMON' ? '150,150,150' : it.baseTier === 'UNCOMMON' ? '71,209,71' : it.baseTier === 'RARE' ? '90,185,255' : it.baseTier === 'EPIC' ? '179,71,255' : it.baseTier === 'LEGENDARY' ? '255,179,71' : '255,71,179'}, 0.2)">
+            <span class="profile-accessory-name" style="color: ${getRarityColor(it.tier)}">
+              ${it.recombed ? '✦ ' : ''}${escapeHtml(it.name)}
+            </span>
+            <span class="profile-accessory-mp">+${it.mp} MP</span>
+            
+            <div class="tooltip-content">
+              <div class="tooltip-name" style="color: ${getRarityColor(it.tier)}">
+                ${it.recombed ? '✦ ' : ''}${escapeHtml(it.name)}
+              </div>
+              <div class="tooltip-lore">
+                <div>Rarity: <strong style="color: ${getRarityColor(it.tier)};">${it.tier}</strong></div>
+                <div>Magical Power: <strong style="color: #33ccff;">+${it.mp} MP</strong></div>
+                ${it.recombed ? `<div><span style="color: var(--ember);">✦</span> Recombobulated (+${recombGain(state.accessoryCatalog.byId[it.id])?.mpGain || 0} MP)</div>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  // Define sub-tabs
+  const subtabs = [
+    { id: "overview", label: "Gear & Overview", icon: "🛡️" },
+    { id: "skills", label: "Skills", icon: "📊" },
+    { id: "slayers", label: "Slayers", icon: "⚔️" },
+    { id: "dungeons", label: "Dungeons", icon: "💀" },
+    { id: "pets", label: "Pets", icon: "🐾" },
+    { id: "accessories", label: "Accessories", icon: "💍" }
+  ];
+
+  const tabsHTML = `
+    <nav class="profile-tabs" role="tablist" aria-label="Profile Sections">
+      ${subtabs.map(tab => `
+        <button class="profile-tab ${state.profileSubTab === tab.id ? 'active' : ''}" data-subtab="${tab.id}">
+          <span>${tab.icon}</span> ${tab.label}
+        </button>
+      `).join("")}
+    </nav>
+  `;
+
+  // Determine active tab HTML content
+  let activeTabHTML = "";
+  if (state.profileSubTab === "overview") {
+    activeTabHTML = gearContentHTML;
+  } else if (state.profileSubTab === "skills") {
+    activeTabHTML = `
+      <section class="profile-section-card" aria-label="Skills progress" style="animation: fadeIn 0.2s ease-out;">
+        <h3 class="profile-section-title">
+          <span style="color: var(--ember);">📊</span> Skills Collection
+        </h3>
+        <div class="profile-items-grid">
+          ${skillsHTML}
+        </div>
+      </section>
+    `;
+  } else if (state.profileSubTab === "slayers") {
+    activeTabHTML = `
+      <section class="profile-section-card" aria-label="Slayers progress" style="animation: fadeIn 0.2s ease-out;">
+        <h3 class="profile-section-title">
+          <span style="color: #ff3333;">⚔️</span> Slayer Bosses
+        </h3>
+        <div class="profile-items-grid">
+          ${slayersHTML}
+        </div>
+      </section>
+    `;
+  } else if (state.profileSubTab === "dungeons") {
+    activeTabHTML = `
+      <section class="profile-section-card" aria-label="Dungeon info" style="animation: fadeIn 0.2s ease-out;">
+        <h3 class="profile-section-title">
+          <span style="color: #33ccff;">💀</span> Dungeon &amp; Classes
+        </h3>
+        <div class="profile-items-grid">
+          <!-- Catacombs Primary -->
+          <div class="profile-skill-row" style="border-color: rgba(90, 185, 255, 0.15);" title="Catacombs Progression Details">
+            <div class="profile-skill-icon" style="background: rgba(90, 185, 255, 0.1); color: #33ccff;">💀</div>
+            <div class="profile-skill-info">
+              <div class="profile-skill-name-row">
+                <span class="profile-skill-name" style="color: #fff; font-weight: 800;">Catacombs Level</span>
+                <span class="profile-skill-level" style="color: #33ccff;">Lvl ${cata.level}</span>
+              </div>
+              <div class="profile-progress-bg">
+                <div class="profile-progress-bar" style="width: ${cataPct}%; background: #33ccff;"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                <span style="font-size: 10px; color: var(--text-muted);">${cata.xpNeeded ? `${cataPct}% to next` : "Max Level"}</span>
+                <span class="profile-skill-tooltip-text">${cata.xpNeeded ? `${formatNum(cata.xpInLevel)} / ${formatNum(cata.xpNeeded)} XP` : `${formatNum(dungeonExp)} XP`}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Class list -->
+          ${classesHTML}
+        </div>
+      </section>
+    `;
+  } else if (state.profileSubTab === "pets") {
+    activeTabHTML = `
+      <section class="profile-section-card" aria-label="Pets collection" style="animation: fadeIn 0.2s ease-out;">
+        <h3 class="profile-section-title">
+          <span style="color: #ffd24d;">🐾</span> Pets Collection (${petsList.length})
+        </h3>
+        ${petsHTML}
+      </section>
+    `;
+  } else if (state.profileSubTab === "accessories") {
+    activeTabHTML = `
+      <section class="profile-section-card" aria-label="Accessories collection" style="animation: fadeIn 0.2s ease-out;">
+        <h3 class="profile-section-title">
+          <span style="color: #33ccff;">💍</span> Accessory Bag &amp; Talismans
+        </h3>
+        ${accessoriesContentHTML}
+      </section>
+    `;
+  }
+
   // Combine everything into pane inner HTML
   pane.innerHTML = `
     <div class="profile-view-container">
@@ -3498,73 +3928,23 @@ function renderProfileView() {
         </div>
       </header>
 
-      <!-- Main grids of visual statistics -->
-      <div class="profile-grid-layout">
-        
-        <!-- Skills List Section -->
-        <section class="profile-section-card" aria-label="Skills progress">
-          <h3 class="profile-section-title">
-            <span style="color: var(--ember);">📊</span> Skills Collection
-          </h3>
-          <div class="profile-items-grid">
-            ${skillsHTML}
-          </div>
-        </section>
+      <!-- Sub-tab Navigation menu -->
+      ${tabsHTML}
 
-        <!-- Slayers List Section -->
-        <section class="profile-section-card" aria-label="Slayers progress">
-          <h3 class="profile-section-title">
-            <span style="color: #ff3333;">⚔️</span> Slayer Bosses
-          </h3>
-          <div class="profile-items-grid">
-            ${slayersHTML}
-          </div>
-        </section>
-
-      </div>
-
-      <div class="profile-grid-layout">
-        
-        <!-- Catacombs and Dungeons Section -->
-        <section class="profile-section-card" aria-label="Dungeon info">
-          <h3 class="profile-section-title">
-            <span style="color: #33ccff;">💀</span> Dungeon &amp; Classes
-          </h3>
-          <div class="profile-items-grid">
-            <!-- Catacombs Primary -->
-            <div class="profile-skill-row" style="border-color: rgba(90, 185, 255, 0.15);" title="Catacombs Progression Details">
-              <div class="profile-skill-icon" style="background: rgba(90, 185, 255, 0.1); color: #33ccff;">💀</div>
-              <div class="profile-skill-info">
-                <div class="profile-skill-name-row">
-                  <span class="profile-skill-name" style="color: #fff; font-weight: 800;">Catacombs Level</span>
-                  <span class="profile-skill-level" style="color: #33ccff;">Lvl ${cata.level}</span>
-                </div>
-                <div class="profile-progress-bg">
-                  <div class="profile-progress-bar" style="width: ${cataPct}%; background: #33ccff;"></div>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-                  <span style="font-size: 10px; color: var(--text-muted);">${cata.xpNeeded ? `${cataPct}% to next` : "Max Level"}</span>
-                  <span class="profile-skill-tooltip-text">${cata.xpNeeded ? `${formatNum(cata.xpInLevel)} / ${formatNum(cata.xpNeeded)} XP` : `${formatNum(dungeonExp)} XP`}</span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Class list -->
-            ${classesHTML}
-          </div>
-        </section>
-
-        <!-- Pets List Section -->
-        <section class="profile-section-card" aria-label="Pets collection">
-          <h3 class="profile-section-title">
-            <span style="color: #ffd24d;">🐾</span> Pets Collection (${petsList.length})
-          </h3>
-          ${petsHTML}
-        </section>
-
+      <!-- Main Active Sub-tab View -->
+      <div class="profile-subtab-pane">
+        ${activeTabHTML}
       </div>
 
     </div>`;
+
+  // Bind event listeners to profile sub-tabs
+  pane.querySelectorAll(".profile-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      state.profileSubTab = tab.dataset.subtab;
+      renderActiveView();
+    });
+  });
 }
 
 document.addEventListener("DOMContentLoaded", init);
