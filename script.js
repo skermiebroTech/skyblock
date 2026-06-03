@@ -154,6 +154,17 @@ const state = {
   /* Active page: "home" | "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" */
   view: "home",
   profileSubTab: "overview",
+
+  /* P2W Calculator settings */
+  p2w: {
+    selectedItemId: "HYPERION",
+    selectedItemName: "Hyperion",
+    customPrice: null,
+    cookieMethod: "instantSell",
+    currency: "USD",
+    exchangeRate: 1.5,
+    searchQuery: ""
+  },
 };
 
 function getNumberFromStorage(key, fallback) {
@@ -1487,10 +1498,11 @@ function setView(view) {
   $("#view-sweep").hidden      = view !== "sweep";
   $("#view-minions").hidden    = view !== "minions";
   $("#view-profile").hidden    = view !== "profile";
+  $("#view-p2w").hidden        = view !== "p2w";
 
   /* Accessory and Sweep pages benefit from real AH prices — start a scan on first visit
    * (uses cache on subsequent visits; never blocks the UI). */
-  if ((view === "missing" || view === "upgrades" || view === "sweep") && !state.lowestBins) {
+  if ((view === "missing" || view === "upgrades" || view === "sweep" || view === "p2w") && !state.lowestBins) {
     loadLowestBinsIfNeeded(false);
   }
 
@@ -1505,6 +1517,7 @@ function renderActiveView() {
   if (state.view === "sweep")      renderSweepView();
   if (state.view === "minions")    renderMinionsView();
   if (state.view === "profile")    renderProfileView();
+  if (state.view === "p2w")        renderP2wView();
   if (state.view === "shards")     renderTable();
 }
 
@@ -1568,15 +1581,31 @@ function combinePriceCatalogs(...catalogs) {
   return { byId };
 }
 
+function buildAllCatalog(itemsPayload) {
+  const byId = {};
+  for (const it of itemsPayload?.items || []) {
+    byId[it.id] = {
+      id: it.id,
+      name: it.name,
+      tier: it.tier,
+    };
+  }
+  return { byId };
+}
+
 async function ensurePriceCatalogsLoaded() {
-  if (state.accessoryCatalog && state.sweepCatalog) {
-    return combinePriceCatalogs(state.accessoryCatalog, state.sweepCatalog);
+  if (state.accessoryCatalog && state.sweepCatalog && state.allCatalog) {
+    return combinePriceCatalogs(state.accessoryCatalog, state.sweepCatalog, state.allCatalog);
   }
 
   const { data } = await api.fetchItems();
+  if (data?.items) {
+    state.allItems = data.items;
+  }
   if (!state.accessoryCatalog) state.accessoryCatalog = buildAccessoryCatalog(data);
   if (!state.sweepCatalog) state.sweepCatalog = buildSweepCatalog(data);
-  return combinePriceCatalogs(state.accessoryCatalog, state.sweepCatalog);
+  if (!state.allCatalog) state.allCatalog = buildAllCatalog(data);
+  return combinePriceCatalogs(state.accessoryCatalog, state.sweepCatalog, state.allCatalog);
 }
 
 /* Kick off a full AH lowest-BIN scan (cached). Re-renders the active view as
@@ -2849,9 +2878,19 @@ function renderHomeView() {
           <div class="home-card-icon" style="background: rgba(230, 138, 0, 0.1); color: var(--ember-light);">👤</div>
           <span class="home-card-badge">${state.player?.username ? "Active" : "Link Profile"}</span>
         </div>
-        <h3 class="home-card-title">SkyCrypt Profile</h3>
+        <h3 class="home-card-title">Profile Viewer</h3>
         <p class="home-card-desc">Inspect your skills, slayer boss progress, catacombs dungeon classes, and active pets in a rich, animated dashboard.</p>
         <button class="btn-secondary btn-small home-card-btn">Open Profile Viewer →</button>
+      </article>
+
+      <article class="home-card" data-go="p2w">
+        <div class="home-card-header">
+          <div class="home-card-icon" style="background: rgba(232, 234, 242, 0.1); color: #e8eaf2;">💎</div>
+          <span class="home-card-badge">P2W Calc</span>
+        </div>
+        <h3 class="home-card-title">P2W Calculator</h3>
+        <p class="home-card-desc">Calculate the real-world dollar cost (USD/AUD) to buy any in-game item (like a Hyperion) by selling store-bought Booster Cookies.</p>
+        <button class="btn-secondary btn-small home-card-btn">Open P2W Calculator →</button>
       </article>
     </div>
   `;
@@ -3958,5 +3997,578 @@ function renderProfileView() {
     });
   });
 }
+
+/* =========================================================================
+ * VIEW: P2W CALCULATOR
+ * ======================================================================= */
+
+const GEM_PACKAGES = [
+  { gems: 17000, cost: 131.99, name: "17,000 SkyBlock Gems" },
+  { gems: 7600,  cost: 65.99,  name: "7,600 SkyBlock Gems" },
+  { gems: 3750,  cost: 32.99,  name: "3,750 SkyBlock Gems" },
+  { gems: 1800,  cost: 16.49,  name: "1,800 SkyBlock Gems" },
+  { gems: 700,   cost: 6.59,   name: "700 SkyBlock Gems" }
+];
+
+function optimizeGems(targetGems) {
+  if (targetGems <= 0) return { cost: 0, packages: {}, gemsObtained: 0, surplus: 0 };
+  
+  let preBuyCount = 0;
+  let remainingGems = targetGems;
+  const threshold = 100000;
+  
+  if (remainingGems > threshold) {
+    const excess = remainingGems - threshold;
+    preBuyCount = Math.floor(excess / 17000) + 1;
+    remainingGems -= preBuyCount * 17000;
+    if (remainingGems < 0) remainingGems = 0;
+  }
+  
+  const unit = 50;
+  const targetUnits = Math.ceil(remainingGems / unit);
+  const dp = new Array(targetUnits + 1).fill(Infinity);
+  const parent = new Array(targetUnits + 1).fill(-1);
+  const chosenPack = new Array(targetUnits + 1).fill(-1);
+  
+  dp[0] = 0;
+  
+  const unitsPacks = GEM_PACKAGES.map(p => ({
+    units: Math.floor(p.gems / unit),
+    cost: p.cost,
+    gems: p.gems,
+  }));
+  
+  for (let i = 0; i <= targetUnits; i++) {
+    if (dp[i] === Infinity) continue;
+    for (const p of unitsPacks) {
+      const next = Math.min(targetUnits, i + p.units);
+      if (dp[i] + p.cost < dp[next]) {
+        dp[next] = dp[i] + p.cost;
+        parent[next] = i;
+        chosenPack[next] = p;
+      }
+    }
+  }
+  
+  const counts = {};
+  for (const p of GEM_PACKAGES) {
+    counts[p.gems] = 0;
+  }
+  if (preBuyCount > 0) {
+    counts[17000] = preBuyCount;
+  }
+  
+  let curr = targetUnits;
+  let totalCost = preBuyCount * 131.99;
+  let totalGems = preBuyCount * 17000;
+  
+  while (curr > 0 && parent[curr] !== -1) {
+    const p = chosenPack[curr];
+    counts[p.gems]++;
+    totalCost += p.cost;
+    totalGems += p.gems;
+    curr = parent[curr];
+  }
+  
+  const resultPacks = {};
+  for (const k in counts) {
+    if (counts[k] > 0) {
+      resultPacks[k] = counts[k];
+    }
+  }
+  
+  return {
+    cost: totalCost,
+    packages: resultPacks,
+    gemsObtained: totalGems,
+    surplus: totalGems - targetGems
+  };
+}
+
+async function fetchExchangeRate() {
+  try {
+    const res = await fetch("https://open.er-api.com/v6/latest/USD");
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.rates?.AUD) {
+        state.p2w.exchangeRate = data.rates.AUD;
+        console.log("[Hypixie] Fetched USD to AUD rate:", state.p2w.exchangeRate);
+        if (state.view === "p2w") renderP2wView();
+      }
+    }
+  } catch (e) {
+    console.warn("[Hypixie] Failed to fetch exchange rate, using fallback 1.5:", e);
+  }
+}
+
+function renderP2wView() {
+  const pane = $("#view-p2w");
+  if (!pane) return;
+
+  // Gate check for items list loading
+  if (!state.allItems) {
+    pane.innerHTML = `
+      <div class="acc-gate">
+        <div class="acc-gate-icon"><span class="spinner"></span></div>
+        <h2>Loading Item Database...</h2>
+        <p>Please wait while we fetch the latest Hypixel item catalog and market pricing.</p>
+      </div>`;
+    ensurePriceCatalogsLoaded().then(() => {
+      renderP2wView();
+    });
+    return;
+  }
+
+  // Fetch exchange rate on demand if AUD is selected and it hasn't been fetched yet
+  if (state.p2w.currency === "AUD" && !state.p2w.exchangeRateFetched) {
+    state.p2w.exchangeRateFetched = true;
+    fetchExchangeRate();
+  }
+
+  // Resolve cookie prices
+  const cookieProd = state.raw?.products?.["BOOSTER_COOKIE"];
+  const cookieSellPrice = cookieProd?.quick_status?.sellPrice || null;
+  const cookieBuyPrice = cookieProd?.quick_status?.buyPrice || null;
+  
+  let cookieEffectivePrice = 0;
+  let cookieDisplayPrice = 0;
+  let cookieLabel = "";
+
+  if (state.p2w.cookieMethod === "instantSell") {
+    cookieEffectivePrice = cookieSellPrice || 12300000; // fallback if api fails
+    cookieDisplayPrice = cookieSellPrice || 12300000;
+    cookieLabel = "Instant Sell price";
+  } else {
+    cookieDisplayPrice = cookieBuyPrice || 12900000;
+    cookieEffectivePrice = cookieBuyPrice ? cookieBuyPrice * (1 - state.tax) : 12900000 * (1 - state.tax);
+    cookieLabel = "Sell Offer price (after tax)";
+  }
+
+  // Resolve selected item price
+  let resolvedPriceVal = 0;
+  let resolvedPriceSource = "";
+  
+  const pObj = resolvePrice(state.p2w.selectedItemId, { bazaar: state.raw?.products, bins: state.lowestBins, bazaarMode: state.bazaarMode });
+  if (pObj.best != null) {
+    resolvedPriceVal = pObj.best;
+    resolvedPriceSource = pObj.market === "bazaar" ? "Live price from Bazaar" : "Live price from Auction House (lowest BIN)";
+  } else {
+    // Hardcode fallback for Hyperion if AH lowest-BIN has not completed yet
+    if (state.p2w.selectedItemId === "HYPERION") {
+      resolvedPriceVal = 1250000000;
+      resolvedPriceSource = "Standard fallback price (market estimate)";
+    } else {
+      resolvedPriceVal = 0;
+      resolvedPriceSource = "No live price available (please enter manually)";
+    }
+  }
+
+  // Determine current working cost (custom override or resolved)
+  if (state.p2w.customPrice === null) {
+    state.p2w.customPrice = resolvedPriceVal;
+  }
+  const workingCost = state.p2w.customPrice;
+
+  // Calculate calculations
+  const cookiesNeeded = workingCost > 0 && cookieEffectivePrice > 0 ? Math.ceil(workingCost / cookieEffectivePrice) : 0;
+  const gemsNeeded = cookiesNeeded * 325;
+  const optResult = optimizeGems(gemsNeeded);
+
+  // Convert pricing to chosen currency
+  let finalCost = optResult.cost;
+  let currencySymbol = "USD $";
+  if (state.p2w.currency === "AUD") {
+    finalCost = optResult.cost * state.p2w.exchangeRate;
+    currencySymbol = "AUD $";
+  }
+
+  // AH scan status text for toolbar integration
+  const binsState = state.binsLoading
+    ? `<span class="ah-status">Scanning AH… ${Math.round(state.binsProgress * 100)}%</span>`
+    : state.lowestBins
+      ? `<span class="ah-status ah-status-ok">AH prices loaded (${state.lowestBins.size})</span>`
+      : `<button class="btn-secondary btn-small" id="p2w-load-bins-btn">Load AH prices</button>`;
+
+  pane.innerHTML = `
+    <header class="view-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <h2 class="view-title" style="margin-bottom: 4px;">P2W Cookie Calculator</h2>
+        <p class="view-subtitle" style="margin: 0;">Find out how many real-world dollars (USD/AUD) are needed to buy any item in Hypixel SkyBlock by selling store-bought Booster Cookies.</p>
+      </div>
+      <div class="acc-toolbar-ah" style="background: var(--bg-elevated); padding: 8px 16px; border-radius: var(--r-sm); border: 1px solid var(--surface-line); font-size: 0.85em; display: flex; align-items: center; gap: 10px;">
+        ${binsState}
+      </div>
+    </header>
+
+    <div class="p2w-container">
+      <!-- Left Column: Controls -->
+      <div class="p2w-controls-column">
+        <div class="p2w-panel card">
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;"><span class="emoji">🔍</span> 1. Select SkyBlock Item</h3>
+          
+          <div class="p2w-input-group">
+            <label for="p2w-item-search" class="p2w-label">Search Item</label>
+            <div class="search-wrap" style="width: 100%;">
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input type="search" id="p2w-item-search" placeholder="Type to search (e.g. Hyperion)..." value="${escapeHtml(state.p2w.searchQuery)}" autocomplete="off" style="width: 100%;" />
+            </div>
+            <!-- Search Results Dropdown -->
+            <div id="p2w-search-results" class="p2w-dropdown-results" hidden></div>
+          </div>
+          
+          <div class="p2w-input-group">
+            <label class="p2w-label">Selected Item</label>
+            <div class="p2w-selected-info">
+              <span class="p2w-item-name-tag" style="color: var(--ember-light); font-weight: bold; font-size: 1.05em;">
+                ${escapeHtml(state.p2w.selectedItemName)}
+              </span>
+              <span class="p2w-item-id-tag" style="font-family: var(--font-mono); font-size: 0.8em; color: var(--text-muted);">
+                ID: ${escapeHtml(state.p2w.selectedItemId)}
+              </span>
+            </div>
+          </div>
+
+          <div class="p2w-input-group">
+            <label for="p2w-item-cost" class="p2w-label">In-Game Coin Cost</label>
+            <div class="input-with-button">
+              <input type="number" id="p2w-item-cost" class="input-native" value="${state.p2w.customPrice}" min="0" step="100000" style="font-family: var(--font-mono); font-weight: bold; color: var(--text);" />
+              <button class="btn-ghost btn-small" id="p2w-reset-cost" title="Reset to live market price" style="white-space: nowrap; padding: 0 16px;">Reset</button>
+            </div>
+            <p class="p2w-help-text" id="p2w-price-source-label" style="font-weight: 500; color: var(--text-muted); margin-top: 6px;">
+              Source: <span style="color: var(--info);">${resolvedPriceSource}</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="p2w-panel card" style="margin-top: 24px;">
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;"><span class="emoji">🍪</span> 2. Booster Cookie Method</h3>
+          
+          <div class="p2w-input-group">
+            <label class="p2w-label">Selling Method</label>
+            <div class="toggle-group" style="display: flex; gap: 8px;">
+              <button class="btn-toggle ${state.p2w.cookieMethod === "instantSell" ? "active" : ""}" id="p2w-method-instasell" style="flex: 1;">
+                Instant Sell
+              </button>
+              <button class="btn-toggle ${state.p2w.cookieMethod === "sellOrder" ? "active" : ""}" id="p2w-method-sellorder" style="flex: 1;">
+                Sell Offer
+              </button>
+            </div>
+            <p class="p2w-help-text" style="margin-top: 10px; font-size: 0.85em;">
+              <b>Instant Sell</b>: Sell cookies immediately to active buy orders.<br/>
+              <b>Sell Offer</b>: Create a sell offer on the bazaar and wait. Pays Bazaar tax (current: <b>${(state.tax * 100).toFixed(3)}%</b>).
+            </p>
+          </div>
+
+          <div class="p2w-cookie-price-display">
+            <div class="cookie-stat-row">
+              <span>Live Cookie Price:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold; color: var(--ember-light);">${fmtInt(cookieDisplayPrice)} coins</span>
+            </div>
+            <div class="cookie-stat-row" style="border-top: 1px dashed var(--surface-line); padding-top: 8px; margin-top: 8px;">
+              <span>Effective Value per Cookie:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold; color: var(--pos);">${fmtInt(Math.round(cookieEffectivePrice))} coins</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="p2w-panel card" style="margin-top: 24px;">
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;"><span class="emoji">💵</span> 3. Real-Money Currency</h3>
+          <div class="p2w-input-group" style="margin-bottom: 0;">
+            <label class="p2w-label">Currency Option</label>
+            <div class="toggle-group" style="display: flex; gap: 8px;">
+              <button class="btn-toggle ${state.p2w.currency === "USD" ? "active" : ""}" id="p2w-currency-usd" style="flex: 1;">
+                USD ($)
+              </button>
+              <button class="btn-toggle ${state.p2w.currency === "AUD" ? "active" : ""}" id="p2w-currency-aud" style="flex: 1;">
+                AUD ($)
+              </button>
+            </div>
+            <div class="exchange-rate-input-wrap" id="exchange-rate-group" style="margin-top: 16px; display: ${state.p2w.currency === "AUD" ? "block" : "none"};">
+              <label for="p2w-exchange-rate" class="p2w-label">USD to AUD Exchange Rate</label>
+              <input type="number" id="p2w-exchange-rate" class="input-native" value="${state.p2w.exchangeRate}" step="0.01" style="width: 100%; font-family: var(--font-mono); font-weight: bold; color: var(--text);" />
+              <p class="p2w-help-text">Dynamic exchange rate fetched from Open ER API. Custom changes update pricing instantly.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Results -->
+      <div class="p2w-results-column">
+        <div class="p2w-result-card card">
+          <div class="result-header">Real-World Pricing Result</div>
+          
+          <div class="result-metric-grid">
+            <div class="result-metric-box">
+              <div class="metric-label">Item Coin Cost</div>
+              <div class="metric-value" style="color: var(--text);">${fmtCoins(workingCost)}</div>
+            </div>
+            <div class="result-metric-box" title="Amount of Booster Cookies needed to cover the item cost: itemCost / cookiePrice (rounded up)">
+              <div class="metric-label">Cookies Needed</div>
+              <div class="metric-value" style="color: var(--ember-light);">${fmtInt(cookiesNeeded)} 🍪</div>
+            </div>
+            <div class="result-metric-box" title="Cookies Needed x 325 Gems per cookie">
+              <div class="metric-label">Gems Required</div>
+              <div class="metric-value" style="color: var(--info);">${fmtInt(gemsNeeded)} 💎</div>
+            </div>
+          </div>
+
+          <div class="result-total-cost-box">
+            <div class="total-cost-label">Estimated Real-World Cost</div>
+            <div class="total-cost-value">${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div class="total-cost-subtitle" style="font-weight: 500;">Optimal real-money gem packages combination to yield ${fmtInt(gemsNeeded)} gems.</div>
+          </div>
+
+          <div class="optimal-packs-section">
+            <h4 style="margin-bottom: 12px; font-weight: bold;">Optimal Gem Package Combination</h4>
+            <div class="packs-list">
+              ${Object.entries(optResult.packages).length === 0
+                ? `<div class="pack-item" style="color: var(--text-muted); font-style: italic;">No packages required</div>`
+                : Object.entries(optResult.packages).sort((a,b) => b[0] - a[0]).map(([gems, count]) => {
+                    const packInfo = GEM_PACKAGES.find(p => p.gems === parseInt(gems));
+                    const unitPrice = packInfo ? packInfo.cost : 0;
+                    const displayCost = state.p2w.currency === "AUD" ? unitPrice * state.p2w.exchangeRate : unitPrice;
+                    return `
+                      <div class="pack-item">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span class="pack-count-badge">×${count}</span>
+                          <span style="font-weight: 600;">${packInfo ? packInfo.name : gems + " gems"}</span>
+                        </div>
+                        <span style="font-family: var(--font-mono); color: var(--text-soft); font-weight: bold;">
+                          ${currencySymbol}${(displayCost * count).toFixed(2)}
+                        </span>
+                      </div>
+                    `;
+                  }).join("")
+              }
+            </div>
+            <div class="packs-surplus" style="margin-top: 10px; color: var(--text-soft); font-size: 0.85em;">
+              Gems Obtained: <strong style="color: var(--info);">${fmtInt(optResult.gemsObtained)}</strong> / Leftover Surplus: <strong style="color: var(--pos);">${fmtInt(optResult.surplus)} gems</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Bind UI Event Listeners
+  const searchInput = pane.querySelector("#p2w-item-search");
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      updateP2wSuggestions(e.target.value);
+    });
+    // On focus, update suggestions
+    searchInput.addEventListener("focus", (e) => {
+      updateP2wSuggestions(e.target.value);
+    });
+  }
+
+  // Cost Input
+  const costInput = pane.querySelector("#p2w-item-cost");
+  if (costInput) {
+    costInput.addEventListener("input", (e) => {
+      const val = parseFloat(e.target.value);
+      state.p2w.customPrice = Number.isFinite(val) && val >= 0 ? val : 0;
+      recalculateP2wResultsInline();
+    });
+  }
+
+  // Reset Cost Button
+  const resetBtn = pane.querySelector("#p2w-reset-cost");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      state.p2w.customPrice = null;
+      renderP2wView();
+    });
+  }
+
+  // Sells Toggles
+  const instaBtn = pane.querySelector("#p2w-method-instasell");
+  if (instaBtn) {
+    instaBtn.addEventListener("click", () => {
+      state.p2w.cookieMethod = "instantSell";
+      renderP2wView();
+    });
+  }
+  const offerBtn = pane.querySelector("#p2w-method-sellorder");
+  if (offerBtn) {
+    offerBtn.addEventListener("click", () => {
+      state.p2w.cookieMethod = "sellOrder";
+      renderP2wView();
+    });
+  }
+
+  // Currencies Toggles
+  const usdBtn = pane.querySelector("#p2w-currency-usd");
+  if (usdBtn) {
+    usdBtn.addEventListener("click", () => {
+      state.p2w.currency = "USD";
+      renderP2wView();
+    });
+  }
+  const audBtn = pane.querySelector("#p2w-currency-aud");
+  if (audBtn) {
+    audBtn.addEventListener("click", () => {
+      state.p2w.currency = "AUD";
+      renderP2wView();
+    });
+  }
+
+  // Exchange rate
+  const rateInput = pane.querySelector("#p2w-exchange-rate");
+  if (rateInput) {
+    rateInput.addEventListener("input", (e) => {
+      const val = parseFloat(e.target.value);
+      state.p2w.exchangeRate = Number.isFinite(val) && val > 0 ? val : 1.5;
+      recalculateP2wResultsInline();
+    });
+  }
+
+  // Scan AH button
+  const loadAHBtn = pane.querySelector("#p2w-load-bins-btn");
+  if (loadAHBtn) {
+    loadAHBtn.addEventListener("click", () => {
+      loadLowestBinsIfNeeded(true);
+    });
+  }
+}
+
+// Localized results recalculation to avoid losing focus in text boxes
+function recalculateP2wResultsInline() {
+  const pane = $("#view-p2w");
+  if (!pane) return;
+
+  const cookieProd = state.raw?.products?.["BOOSTER_COOKIE"];
+  const cookieSellPrice = cookieProd?.quick_status?.sellPrice || null;
+  const cookieBuyPrice = cookieProd?.quick_status?.buyPrice || null;
+  
+  let cookieEffectivePrice = 0;
+  if (state.p2w.cookieMethod === "instantSell") {
+    cookieEffectivePrice = cookieSellPrice || 12300000;
+  } else {
+    cookieEffectivePrice = cookieBuyPrice ? cookieBuyPrice * (1 - state.tax) : 12900000 * (1 - state.tax);
+  }
+
+  const workingCost = state.p2w.customPrice !== null ? state.p2w.customPrice : 0;
+  const cookiesNeeded = workingCost > 0 && cookieEffectivePrice > 0 ? Math.ceil(workingCost / cookieEffectivePrice) : 0;
+  const gemsNeeded = cookiesNeeded * 325;
+  const optResult = optimizeGems(gemsNeeded);
+
+  let finalCost = optResult.cost;
+  let currencySymbol = "USD $";
+  if (state.p2w.currency === "AUD") {
+    finalCost = optResult.cost * state.p2w.exchangeRate;
+    currencySymbol = "AUD $";
+  }
+
+  // Update DOM elements directly!
+  const elItemCost = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(1) .metric-value");
+  const elCookies = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(2) .metric-value");
+  const elGems = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(3) .metric-value");
+  const elRealCost = pane.querySelector("#result-real-cost");
+  const elSurplus = pane.querySelector(".packs-surplus");
+  const elPacksList = pane.querySelector(".packs-list");
+
+  if (elItemCost) elItemCost.textContent = fmtCoins(workingCost);
+  if (elCookies) elCookies.textContent = `${fmtInt(cookiesNeeded)} 🍪`;
+  if (elGems) elGems.textContent = `${fmtInt(gemsNeeded)} 💎`;
+  if (elRealCost) elRealCost.textContent = `${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  
+  if (elSurplus) {
+    elSurplus.innerHTML = `Gems Obtained: <strong style="color: var(--info);">${fmtInt(optResult.gemsObtained)}</strong> / Leftover Surplus: <strong style="color: var(--pos);">${fmtInt(optResult.surplus)} gems</strong>`;
+  }
+
+  if (elPacksList) {
+    elPacksList.innerHTML = Object.entries(optResult.packages).length === 0
+      ? `<div class="pack-item" style="color: var(--text-muted); font-style: italic;">No packages required</div>`
+      : Object.entries(optResult.packages).sort((a,b) => b[0] - a[0]).map(([gems, count]) => {
+          const packInfo = GEM_PACKAGES.find(p => p.gems === parseInt(gems));
+          const unitPrice = packInfo ? packInfo.cost : 0;
+          const displayCost = state.p2w.currency === "AUD" ? unitPrice * state.p2w.exchangeRate : unitPrice;
+          return `
+            <div class="pack-item">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="pack-count-badge">×${count}</span>
+                <span style="font-weight: 600;">${packInfo ? packInfo.name : gems + " gems"}</span>
+              </div>
+              <span style="font-family: var(--font-mono); color: var(--text-soft); font-weight: bold;">
+                ${currencySymbol}${(displayCost * count).toFixed(2)}
+              </span>
+            </div>
+          `;
+        }).join("");
+  }
+}
+
+function updateP2wSuggestions(query) {
+  const resultsContainer = $("#p2w-search-results");
+  if (!resultsContainer) return;
+  
+  state.p2w.searchQuery = query;
+  const q = query.trim().toLowerCase();
+  
+  if (!q) {
+    resultsContainer.innerHTML = "";
+    resultsContainer.hidden = true;
+    return;
+  }
+  
+  // Filter all items by name matching query
+  const matches = state.allItems.filter(item => 
+    item.name && item.name.toLowerCase().includes(q)
+  ).slice(0, 10); // Limit to top 10 results
+  
+  if (matches.length === 0) {
+    resultsContainer.innerHTML = `<div style="padding: 12px 16px; color: var(--text-muted); font-size: 0.9em;">No matching items found</div>`;
+    resultsContainer.hidden = false;
+    return;
+  }
+  
+  resultsContainer.innerHTML = matches.map(item => {
+    // Resolve price for this item
+    const priceObj = resolvePrice(item.id, { bazaar: state.raw?.products, bins: state.lowestBins, bazaarMode: state.bazaarMode });
+    const priceText = priceObj.best != null ? fmtCoins(priceObj.best) : "—";
+    const marketLabel = priceObj.market === "bazaar" ? "Bazaar" : priceObj.market === "auction" ? "AH" : "";
+    const badgeText = marketLabel ? `<span class="home-card-badge" style="font-size: 0.75em; padding: 2px 6px; background: rgba(255,255,255,0.06);">${marketLabel}</span>` : "";
+    
+    return `
+      <div class="p2w-suggestion-item" data-id="${item.id}" data-name="${escapeHtml(item.name)}">
+        <span>${escapeHtml(item.name)} ${badgeText}</span>
+        <span style="font-family: var(--font-mono); color: var(--text-soft); font-size: 0.85em;">${priceText}</span>
+      </div>
+    `;
+  }).join("");
+  
+  resultsContainer.hidden = false;
+  
+  // Bind click handlers for the suggestion items
+  resultsContainer.querySelectorAll(".p2w-suggestion-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const itemId = el.dataset.id;
+      const itemName = el.dataset.name;
+      
+      state.p2w.selectedItemId = itemId;
+      state.p2w.selectedItemName = itemName;
+      state.p2w.customPrice = null; // Clear custom price override so we resolve new item's live price
+      state.p2w.searchQuery = ""; // Clear query
+      
+      resultsContainer.hidden = true;
+      renderP2wView();
+    });
+  });
+}
+
+// Global click handler to dismiss dropdowns
+document.addEventListener("click", (e) => {
+  const searchInput = document.getElementById("p2w-item-search");
+  const resultsContainer = document.getElementById("p2w-search-results");
+  if (resultsContainer && !resultsContainer.hidden) {
+    if (searchInput && !searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+      resultsContainer.hidden = true;
+    }
+  }
+});
 
 document.addEventListener("DOMContentLoaded", init);
