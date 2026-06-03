@@ -1677,6 +1677,42 @@ function accessoryIconUrl(item) {
   return `https://sky.shiiyu.moe/item/${item.id}`;
 }
 
+function getUniversalItemIconUrl(itemId) {
+  if (!itemId) return PLACEHOLDER_ICON;
+  
+  // 1. Check if it's a Shard (exists in shardsDb or begins with SHARD_)
+  if (state.shardsDb && (state.shardsDb[itemId] || itemId.startsWith("SHARD_"))) {
+    return iconUrl(itemId);
+  }
+  
+  // 2. Check if it's an Accessory in the accessory catalog
+  if (state.accessoryCatalog?.byId?.[itemId]) {
+    return accessoryIconUrl(state.accessoryCatalog.byId[itemId]);
+  }
+  
+  // 3. Check if we have the full items database and can find skinTextureId
+  if (state.allItems) {
+    const matchedItem = state.allItems.find(it => it.id === itemId);
+    if (matchedItem) {
+      const skinTextureId = window.getSkinTextureId ? window.getSkinTextureId(matchedItem) : null;
+      if (skinTextureId) {
+        return `https://sky.shiiyu.moe/api/head/${skinTextureId}`;
+      }
+    }
+  }
+  
+  // 4. Resolve via texture packs
+  const id = itemId.toLowerCase();
+  if (state.texturePack === "furfsky") {
+    return `https://raw.githubusercontent.com/SkyCryptWebsite/SkyCrypt-Backend/dev/assets/resourcepacks/FurfSky/assets/cittofirmgenerated/textures/item/${id}.png`;
+  }
+  if (state.texturePack === "hypixel_plus") {
+    return `https://raw.githubusercontent.com/SkyCryptWebsite/SkyCrypt-Backend/dev/assets/resourcepacks/Hypixel_Plus/assets/cittofirmgenerated/textures/item/${id}.png`;
+  }
+  
+  return `https://sky.shiiyu.moe/item/${itemId}`;
+}
+
 /* Render one accessory action row (used by both pages). */
 function accessoryActionRow(item, mpLabel, mpValue) {
   const isBz = accessoryIsBazaar(item.id);
@@ -2136,11 +2172,13 @@ function renderAttributesView() {
 function renderAttributeRow(r) {
   const color = RARITY_COLORS[r.rarity] || RARITY_COLORS.UNKNOWN;
   const progPct = Math.round((r.current / r.max) * 100);
+  const shardBazaarId = state.codeToBazaar?.[r.code];
 
   if (r.maxed) {
     return `
       <article class="attr-card attr-card--maxed" style="--tier-color:${color}">
-        <div class="attr-card-head">
+        <div class="attr-card-head" style="display: flex; align-items: center; gap: 8px;">
+          <img src="${iconUrl(shardBazaarId)}" alt="" style="width: 18px; height: 18px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0;" onerror="this.style.display='none';">
           <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
           <span class="attr-maxed-badge">✓ MAX</span>
         </div>
@@ -2151,7 +2189,6 @@ function renderAttributeRow(r) {
 
   /* sourcing command for the shard that grants this attribute */
   const propName = state.fusionProps?.[r.code]?.name;
-  const shardBazaarId = state.codeToBazaar?.[r.code];
   const cmd = propName
     ? `/bz ${propName} Shard`
     : null;
@@ -2163,7 +2200,8 @@ function renderAttributeRow(r) {
 
   return `
     <article class="attr-card ${r.missing ? "attr-card--missing" : ""}" style="--tier-color:${color}">
-      <div class="attr-card-head">
+      <div class="attr-card-head" style="display: flex; align-items: center; gap: 8px;">
+        <img src="${iconUrl(shardBazaarId)}" alt="" style="width: 18px; height: 18px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0;" onerror="this.style.display='none';">
         <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
         ${statusBadge}
       </div>
@@ -2411,14 +2449,19 @@ function renderSweepCard(row, index) {
       <div class="sweep-rank">${priced ? index + 1 : "—"}</div>
       <div class="sweep-main">
         <div class="sweep-card-head">
-          <div>
-            <h3>${escapeHtml(row.name)}</h3>
-            <div class="sweep-meta">
-              <span>${escapeHtml(row.category)}</span>
-              <span class="meta-sep">·</span>
-              <span>${escapeHtml(row.type)}</span>
-              <span class="meta-sep">·</span>
-              <span>${escapeHtml(row.source || marketLabel)}</span>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="sweep-card-icon-wrapper" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-line); border-radius: var(--r-md); padding: 4px; flex-shrink: 0;">
+              <img src="${getUniversalItemIconUrl(row.id)}" alt="" class="sweep-card-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="this.src='${PLACEHOLDER_ICON}'">
+            </div>
+            <div>
+              <h3>${escapeHtml(row.name)}</h3>
+              <div class="sweep-meta">
+                <span>${escapeHtml(row.category)}</span>
+                <span class="meta-sep">·</span>
+                <span>${escapeHtml(row.type)}</span>
+                <span class="meta-sep">·</span>
+                <span>${escapeHtml(row.source || marketLabel)}</span>
+              </div>
             </div>
           </div>
           <div class="sweep-gain-wrap">
@@ -2789,6 +2832,7 @@ function bindUI() {
     state.texturePack = e.target.value;
     localStorage.setItem(CONFIG.TEXTURE_STORAGE, state.texturePack);
     renderTable();
+    renderActiveView();
   });
 
   /* Click-outside to close settings. */
@@ -3060,6 +3104,7 @@ function minionsToolbarHTML() {
 
 function renderMinionCard(item, idx) {
   const { minion, currentTier, nextTier, isMaxed, totalCost, items } = item;
+  const minionItemId = `${minion.id}_GENERATOR_${currentTier || 1}`;
 
   let selectOpts = `<option value="0" ${currentTier === 0 ? "selected" : ""}>Uncrafted (T0)</option>`;
   for (let t = 1; t <= 11; t++) {
@@ -3155,14 +3200,19 @@ function renderMinionCard(item, idx) {
       <span class="sweep-rank">${idx + 1}</span>
       <div class="sweep-main">
         <div class="sweep-card-head">
-          <div>
-            <h3 class="sweep-card-title">${escapeHtml(minion.name)} Minion</h3>
-            <div class="sweep-meta">
-              <span style="color: ${categoryColor}; font-weight: bold; text-transform: uppercase;">
-                ${minion.category}
-              </span>
-              <span class="meta-sep">·</span>
-              ${cardStatus}
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="minion-card-icon-wrapper" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-line); border-radius: var(--r-md); padding: 4px; flex-shrink: 0;">
+              <img src="${getUniversalItemIconUrl(minionItemId)}" alt="" class="minion-card-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="this.src='${PLACEHOLDER_ICON}'">
+            </div>
+            <div>
+              <h3 class="sweep-card-title">${escapeHtml(minion.name)} Minion</h3>
+              <div class="sweep-meta">
+                <span style="color: ${categoryColor}; font-weight: bold; text-transform: uppercase;">
+                  ${minion.category}
+                </span>
+                <span class="meta-sep">·</span>
+                ${cardStatus}
+              </div>
             </div>
           </div>
           <div class="minion-manual-row">
@@ -4241,13 +4291,18 @@ function renderP2wView() {
           
           <div class="p2w-input-group">
             <label class="p2w-label">Selected Item</label>
-            <div class="p2w-selected-info">
-              <span class="p2w-item-name-tag" style="color: var(--ember-light); font-weight: bold; font-size: 1.05em;">
-                ${escapeHtml(state.p2w.selectedItemName)}
-              </span>
-              <span class="p2w-item-id-tag" style="font-family: var(--font-mono); font-size: 0.8em; color: var(--text-muted);">
-                ID: ${escapeHtml(state.p2w.selectedItemId)}
-              </span>
+            <div class="p2w-selected-info" style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--r-md); border: 1px solid var(--surface-line);">
+              <div class="p2w-item-icon-wrapper" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-line); border-radius: var(--r-md); padding: 4px; flex-shrink: 0;">
+                <img src="${getUniversalItemIconUrl(state.p2w.selectedItemId)}" alt="" class="p2w-item-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="this.src='${PLACEHOLDER_ICON}'">
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span class="p2w-item-name-tag" style="color: var(--ember-light); font-weight: bold; font-size: 1.05em;">
+                  ${escapeHtml(state.p2w.selectedItemName)}
+                </span>
+                <span class="p2w-item-id-tag" style="font-family: var(--font-mono); font-size: 0.8em; color: var(--text-muted);">
+                  ID: ${escapeHtml(state.p2w.selectedItemId)}
+                </span>
+              </div>
             </div>
           </div>
 

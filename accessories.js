@@ -231,6 +231,7 @@ function getSkinTextureId(it) {
   }
   return null;
 }
+window.getSkinTextureId = getSkinTextureId;
 
 function buildAccessoryCatalog(itemsPayload) {
   const all = (itemsPayload?.items || []).filter((i) => i.category === "ACCESSORY");
