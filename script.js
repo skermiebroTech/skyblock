@@ -94,6 +94,7 @@ const state = {
   rows:        [],        // enriched shard rows
   loading:     false,
   error:       null,
+  allItemsById: null,
 
   /* Filters & sorting */
   search: "",
@@ -1598,6 +1599,7 @@ async function ensurePriceCatalogsLoaded() {
   const { data } = await api.fetchItems();
   if (data?.items) {
     state.allItems = data.items;
+    state.allItemsById = new Map(data.items.map((it) => [it.id, it]));
   }
   if (!state.accessoryCatalog) state.accessoryCatalog = buildAccessoryCatalog(data);
   if (!state.sweepCatalog) state.sweepCatalog = buildSweepCatalog(data);
@@ -1674,7 +1676,20 @@ function accessoryIconUrl(item) {
     return `https://raw.githubusercontent.com/SkyCryptWebsite/SkyCrypt-Backend/dev/assets/resourcepacks/Hypixel_Plus/assets/cittofirmgenerated/textures/item/${id}.png`;
   }
   
-  return `https://sky.shiiyu.moe/item/${item.id}`;
+  return skyCryptItemIconUrl(item.id);
+}
+
+function skyCryptItemIconUrl(itemId) {
+  return `https://sky.shiiyu.moe/api/item/${encodeURIComponent(itemId)}`;
+}
+
+function fallbackToSkyCryptItemOnError(itemId, finalFallback = PLACEHOLDER_ICON) {
+  const safeFallback = String(finalFallback || PLACEHOLDER_ICON).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  return `if(!this.dataset.skycryptFallback){this.dataset.skycryptFallback='1';this.src='${skyCryptItemIconUrl(itemId)}';}else{this.onerror=null;this.src='${safeFallback}';}`;
+}
+
+function fallbackToSkyCryptItemOrHideOnError(itemId) {
+  return `if(!this.dataset.skycryptFallback){this.dataset.skycryptFallback='1';this.src='${skyCryptItemIconUrl(itemId)}';}else{this.style.display='none';}`;
 }
 
 function getUniversalItemIconUrl(itemId) {
@@ -1691,8 +1706,8 @@ function getUniversalItemIconUrl(itemId) {
   }
   
   // 3. Check if we have the full items database and can find skinTextureId
-  if (state.allItems) {
-    const matchedItem = state.allItems.find(it => it.id === itemId);
+  if (state.allItemsById || state.allItems) {
+    const matchedItem = state.allItemsById?.get(itemId) || state.allItems?.find(it => it.id === itemId);
     if (matchedItem) {
       const skinTextureId = window.getSkinTextureId ? window.getSkinTextureId(matchedItem) : null;
       if (skinTextureId) {
@@ -1710,7 +1725,7 @@ function getUniversalItemIconUrl(itemId) {
     return `https://raw.githubusercontent.com/SkyCryptWebsite/SkyCrypt-Backend/dev/assets/resourcepacks/Hypixel_Plus/assets/cittofirmgenerated/textures/item/${id}.png`;
   }
   
-  return `https://sky.shiiyu.moe/item/${itemId}`;
+  return skyCryptItemIconUrl(itemId);
 }
 
 /* Render one accessory action row (used by both pages). */
@@ -2451,7 +2466,7 @@ function renderSweepCard(row, index) {
         <div class="sweep-card-head">
           <div style="display: flex; align-items: center; gap: 12px;">
             <div class="sweep-card-icon-wrapper" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-line); border-radius: var(--r-md); padding: 4px; flex-shrink: 0;">
-              <img src="${getUniversalItemIconUrl(row.id)}" alt="" class="sweep-card-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="this.src='${PLACEHOLDER_ICON}'">
+              <img src="${getUniversalItemIconUrl(row.id)}" alt="" class="sweep-card-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="${fallbackToSkyCryptItemOnError(row.id)}">
             </div>
             <div>
               <h3>${escapeHtml(row.name)}</h3>
@@ -3202,7 +3217,7 @@ function renderMinionCard(item, idx) {
         <div class="sweep-card-head">
           <div style="display: flex; align-items: center; gap: 12px;">
             <div class="minion-card-icon-wrapper" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-line); border-radius: var(--r-md); padding: 4px; flex-shrink: 0;">
-              <img src="${getUniversalItemIconUrl(minionItemId)}" alt="" class="minion-card-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="this.src='${PLACEHOLDER_ICON}'">
+              <img src="${getUniversalItemIconUrl(minionItemId)}" alt="" class="minion-card-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="${fallbackToSkyCryptItemOnError(minionItemId)}">
             </div>
             <div>
               <h3 class="sweep-card-title">${escapeHtml(minion.name)} Minion</h3>
@@ -3509,7 +3524,7 @@ function renderGearSlotHTML(item, defaultEmoji, slotName) {
   return `
     <div class="profile-gear-slot tooltip-container">
       <div class="profile-gear-icon">
-        <img src="https://sky.shiiyu.moe/item/${encodeURIComponent(item.skyblockId)}" alt="" class="profile-gear-icon-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <img src="${getUniversalItemIconUrl(item.skyblockId)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToSkyCryptItemOnError(item.skyblockId)}">
         <span class="profile-gear-emoji-fallback" style="display: none; font-size: 24px;">${defaultEmoji}</span>
       </div>
       <div class="profile-gear-details">
@@ -3556,7 +3571,7 @@ function renderHotbarSlotHTML(item, index) {
   return `
     <div class="profile-hotbar-slot tooltip-container">
       <div class="profile-hotbar-icon" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-        <img src="https://sky.shiiyu.moe/item/${encodeURIComponent(item.skyblockId)}" alt="" class="profile-gear-icon-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <img src="${getUniversalItemIconUrl(item.skyblockId)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToSkyCryptItemOnError(item.skyblockId)}">
         <span class="profile-hotbar-emoji-fallback" style="display: none; font-size: 20px;">${emoji}</span>
       </div>
       ${item.count > 1 ? `<span class="profile-hotbar-count">${item.count}</span>` : ""}
@@ -3761,7 +3776,7 @@ function renderProfileView() {
             <div class="profile-pet-card ${rarityClass}" title="${pet.tier || "COMMON"} ${cleanName} - Exp: ${formatNum(pet.exp || 0)}">
               ${pet.active ? `<span class="profile-pet-active-badge"></span>` : ""}
               <div class="profile-pet-icon">
-                <img src="https://sky.shiiyu.moe/item/PET_${pet.type}" alt="" class="profile-gear-icon-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <img src="${getUniversalItemIconUrl(`PET_${pet.type}`)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToSkyCryptItemOnError(`PET_${pet.type}`)}">
                 <span class="profile-pet-emoji-fallback" style="display: none; font-size: 24px;">${emoji}</span>
               </div>
               <div class="profile-pet-level">Lvl ${petLvl}</div>
@@ -3888,7 +3903,7 @@ function renderProfileView() {
         ${ownedList.map(it => `
           <div class="profile-accessory-card tooltip-container" style="border-color: rgba(${it.baseTier === 'COMMON' ? '150,150,150' : it.baseTier === 'UNCOMMON' ? '71,209,71' : it.baseTier === 'RARE' ? '90,185,255' : it.baseTier === 'EPIC' ? '179,71,255' : it.baseTier === 'LEGENDARY' ? '255,179,71' : '255,71,179'}, 0.2)">
             <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
-              <img src="https://sky.shiiyu.moe/item/${encodeURIComponent(it.id)}" alt="" style="width: 20px; height: 20px; image-rendering: pixelated; object-fit: contain;" onerror="this.style.display='none';">
+              <img src="${getUniversalItemIconUrl(it.id)}" alt="" style="width: 20px; height: 20px; image-rendering: pixelated; object-fit: contain;" onerror="${fallbackToSkyCryptItemOrHideOnError(it.id)}">
               <span class="profile-accessory-name" style="color: ${getRarityColor(it.tier)}">
                 ${it.recombed ? '✦ ' : ''}${escapeHtml(it.name)}
               </span>
@@ -4293,7 +4308,7 @@ function renderP2wView() {
             <label class="p2w-label">Selected Item</label>
             <div class="p2w-selected-info" style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--r-md); border: 1px solid var(--surface-line);">
               <div class="p2w-item-icon-wrapper" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-line); border-radius: var(--r-md); padding: 4px; flex-shrink: 0;">
-                <img src="${getUniversalItemIconUrl(state.p2w.selectedItemId)}" alt="" class="p2w-item-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="this.src='${PLACEHOLDER_ICON}'">
+                <img src="${getUniversalItemIconUrl(state.p2w.selectedItemId)}" alt="" class="p2w-item-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="${fallbackToSkyCryptItemOnError(state.p2w.selectedItemId)}">
               </div>
               <div style="display: flex; flex-direction: column; gap: 2px;">
                 <span class="p2w-item-name-tag" style="color: var(--ember-light); font-weight: bold; font-size: 1.05em;">

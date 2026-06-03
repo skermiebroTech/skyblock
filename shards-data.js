@@ -83,8 +83,10 @@ const TEXTURE_PACKS = {
   vanilla: {
     label: "Vanilla (default)",
     resolve(bazaarId, ctx) {
-      // Shards in vanilla Minecraft are represented by prismarine shards
-      return "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.20.4/assets/minecraft/textures/item/prismarine_shard.png";
+      // Use SkyShards custom colored icons as they are much clearer for identifying attribute types!
+      const code = ctx.bazaarToCode[bazaarId];
+      if (!code) return null;
+      return `https://raw.githubusercontent.com/Campionnn/SkyShards/master/public/shardIcons/${code}.png`;
     },
   },
 
