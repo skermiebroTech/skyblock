@@ -1,5 +1,2 @@
-# Ignore local files with sensitive keys
-cloudflare-worker.js
-
 # Ignore OS files
 .DS_Store
