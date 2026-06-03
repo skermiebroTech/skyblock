@@ -118,7 +118,10 @@
 
     <!-- Page navigation tabs -->
     <nav class="view-tabs" role="tablist" aria-label="Pages">
-      <button class="view-tab active" id="tab-shards" data-view="shards" role="tab" aria-selected="true">
+      <button class="view-tab active" id="tab-home" data-view="home" role="tab" aria-selected="true">
+        Home
+      </button>
+      <button class="view-tab" id="tab-shards" data-view="shards" role="tab" aria-selected="false">
         Shard Market
       </button>
       <button class="view-tab" id="tab-missing" data-view="missing" role="tab" aria-selected="false">
@@ -137,8 +140,11 @@
       </button>
     </nav>
 
+    <!-- ============ VIEW: HOME ============ -->
+    <div id="view-home" class="view-pane"></div>
+
     <!-- ============ VIEW: SHARDS ============ -->
-    <div id="view-shards" class="view-pane">
+    <div id="view-shards" class="view-pane" hidden>
 
     <!-- Stats bar -->
     <section class="stats-grid" aria-label="Market overview">

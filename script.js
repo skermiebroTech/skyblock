@@ -146,8 +146,8 @@ const state = {
   minionStartFromLvl1: false,
   expandedMinions: {},
 
-  /* Active page: "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" */
-  view: "shards",
+  /* Active page: "home" | "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" */
+  view: "home",
 };
 
 function getNumberFromStorage(key, fallback) {
@@ -1423,6 +1423,7 @@ function setView(view) {
   });
 
   /* Toggle panes. */
+  $("#view-home").hidden       = view !== "home";
   $("#view-shards").hidden     = view !== "shards";
   $("#view-missing").hidden    = view !== "missing";
   $("#view-upgrades").hidden   = view !== "upgrades";
@@ -1440,6 +1441,7 @@ function setView(view) {
 }
 
 function renderActiveView() {
+  if (state.view === "home")       renderHomeView();
   if (state.view === "missing")    renderMissingView();
   if (state.view === "upgrades")   renderUpgradesView();
   if (state.view === "attributes") renderAttributesView();
@@ -2553,6 +2555,9 @@ async function loadData(forceRefresh = false) {
   } finally {
     state.loading = false;
     renderTable();
+    if (state.view !== "shards") {
+      renderActiveView();
+    }
   }
 }
 
@@ -2688,6 +2693,107 @@ function bindUI() {
         !toggle.contains(e.target)) {
       panel.classList.remove("open");
     }
+  });
+}
+
+function renderHomeView() {
+  const pane = $("#view-home");
+  if (!pane) return;
+
+  const shardsCount = state.rows ? state.rows.length : 189;
+
+  let mpBadge = "Link Profile";
+  if (state.player && state.player.accessoryAnalysis) {
+    mpBadge = `${state.player.accessoryAnalysis.currentMP} MP`;
+  }
+
+  let cheapestUpgradeStr = "Track upgrades";
+  if (typeof MINIONS_DATA !== "undefined" && state.raw?.products) {
+    const list = MINIONS_DATA.map((minion) => {
+      const profileTier = state.player?.craftedMinions?.[minion.id] || 0;
+      const manualTier = state.minionManualTiers[minion.id];
+      const currentTier = manualTier !== undefined ? manualTier : profileTier;
+      const startFromLvl1 = state.minionStartFromLvl1;
+      const nextTier = startFromLvl1 ? 1 : Math.min(11, currentTier + 1);
+      const isMaxed = !startFromLvl1 && currentTier >= 11;
+      let totalCost = null;
+      if (!isMaxed) {
+        const upgrade = calculateUpgradeCost(minion, startFromLvl1 ? 0 : currentTier, nextTier, state.raw?.products, state.bazaarMode);
+        totalCost = upgrade.totalCost;
+      }
+      return { minion, isMaxed, totalCost, nextTier };
+    });
+    const cheapest = list.find((x) => !x.isMaxed && Number.isFinite(x.totalCost));
+    if (cheapest) {
+      cheapestUpgradeStr = `${cheapest.minion.name} T${cheapest.nextTier}`;
+    }
+  }
+
+  pane.innerHTML = `
+    <div class="home-hero">
+      <h2 class="home-title">Welcome to Hypixie</h2>
+      <p class="home-subtitle">The ultimate companion dashboard for Hypixel SkyBlock optimization. Calculate live bazaar flips, plan accessory Magical Power paths, optimize attributes, track Sweep efficiency, and max out minions.</p>
+    </div>
+
+    <div class="home-grid">
+      <article class="home-card" data-go="shards">
+        <div class="home-card-header">
+          <div class="home-card-icon" style="background: rgba(255, 179, 71, 0.1); color: var(--ember-light);">⚒</div>
+          <span class="home-card-badge">${shardsCount} Shards</span>
+        </div>
+        <h3 class="home-card-title">Shard Market</h3>
+        <p class="home-card-desc">Compare live bazaar order-flip margins, bid/ask spreads, weekly volumes, and profitable Attribute Shard fusions.</p>
+        <button class="btn-secondary btn-small home-card-btn">Open Shard Market →</button>
+      </article>
+
+      <article class="home-card" data-go="missing">
+        <div class="home-card-header">
+          <div class="home-card-icon" style="background: rgba(90, 185, 255, 0.1); color: var(--info);">💍</div>
+          <span class="home-card-badge">${mpBadge}</span>
+        </div>
+        <h3 class="home-card-title">Accessory Path</h3>
+        <p class="home-card-desc">Scan your talisman bag to rank missing accessories, family upgrades, and recombobulators by coin cost per MP gain.</p>
+        <button class="btn-secondary btn-small home-card-btn">Open Accessory Path →</button>
+      </article>
+
+      <article class="home-card" data-go="attributes">
+        <div class="home-card-header">
+          <div class="home-card-icon" style="background: rgba(255, 51, 51, 0.1); color: #ff3333;">⚔</div>
+          <span class="home-card-badge">Attributes</span>
+        </div>
+        <h3 class="home-card-title">Attributes</h3>
+        <p class="home-card-desc">Calculate the exact Attribute Shards remaining and total bazaar cost to take your attributes up to Tier 10.</p>
+        <button class="btn-secondary btn-small home-card-btn">Open Attributes →</button>
+      </article>
+
+      <article class="home-card" data-go="sweep">
+        <div class="home-card-header">
+          <div class="home-card-icon" style="background: rgba(71, 209, 71, 0.1); color: #47d147;">🌪</div>
+          <span class="home-card-badge">Sweep</span>
+        </div>
+        <h3 class="home-card-title">Sweep Optimizer</h3>
+        <p class="home-card-desc">Discover the cheapest permanent, pet, armor, tool, equipment, and enchantment Sweep sources sorted by coin efficiency.</p>
+        <button class="btn-secondary btn-small home-card-btn">Open Sweep Optimizer →</button>
+      </article>
+
+      <article class="home-card" data-go="minions">
+        <div class="home-card-header">
+          <div class="home-card-icon" style="background: rgba(51, 204, 255, 0.1); color: #33ccff;">🤖</div>
+          <span class="home-card-badge">${cheapestUpgradeStr}</span>
+        </div>
+        <h3 class="home-card-title">Minion Calculator</h3>
+        <p class="home-card-desc">Identify the cheapest slots and copy smart, consolidated bazaar shopping lists to max your minions to T11.</p>
+        <button class="btn-secondary btn-small home-card-btn">Open Minion Calculator →</button>
+      </article>
+    </div>
+  `;
+
+  // Bind click handlers to the home cards
+  pane.querySelectorAll(".home-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const targetView = card.dataset.go;
+      setView(targetView);
+    });
   });
 }
 
