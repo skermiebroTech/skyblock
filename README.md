@@ -20,7 +20,7 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
 - Detects the best **fusion** craft-and-flip recipes.
 - Link your account (username + API key) to unlock accessory & attribute planning:
   - **Accessory Path** combines missing accessories, family upgrades, and recombobulates into one ranked checklist with `/bz` & `/ahs` copy commands and live prices.
-  - **Attribute maxing** — shards remaining and live bazaar cost per attribute.
+  - **Attribute maxing** — shards remaining and live bazaar cost per attribute, sorted by cheapest remaining cost to max first.
   - **Personalized craft flips** — your Hunting level is pulled from the profile API and fusion opportunities above your level are locked out of profit rankings.
 - **Sweep Optimizer** lists permanent, pet, armor, tool, equipment, enchantment, attribute, booster, and Heart of the Forest Sweep sources. Bazaar-tradable methods use live Bazaar prices; gear/pets use live lowest-BIN Auction House scans; progression-only sources are clearly marked as not directly priceable. When a profile is linked, completed/owned Sweep sources are hidden from recommendations by default and can be reviewed with **Show completed**.
 - Every item links to the **Hypixel Wiki**; **soulbound** items are flagged (can't be bought on the AH).

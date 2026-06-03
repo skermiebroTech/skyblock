@@ -68,7 +68,7 @@ function buildAttributeCatalog(descJson) {
  *   {
  *     rows: [ {attrId, title, rarity, current, max, remaining, maxed,
  *              missing, usable, requiredHuntingLevel, shardUnitPrice,
- *              remainingCost} ]  sorted: missing/unmaxed first
+ *              remainingCost} ]  sorted: cheapest remainingCost to max first
  *     totalShardsNeeded, totalCost, maxedCount, totalCount
  *   } */
 function analyseAttributes(catalog, stacks, shardPriceFor = null, opts = {}) {
@@ -127,11 +127,20 @@ function analyseAttributes(catalog, stacks, shardPriceFor = null, opts = {}) {
     });
   }
 
-  /* Sort: missing/unmaxed first, by remaining shards desc; maxed last alphabetically. */
+  /* Sort: actionable rows first by cheapest remaining coin cost to max.
+   * Priceable rows beat unpriceable rows; fully maxed rows stay at the end. */
   rows.sort((a, b) => {
     if (a.maxed !== b.maxed) return a.maxed ? 1 : -1;
-    if (a.missing !== b.missing) return a.missing ? -1 : 1;
-    if (!a.maxed) return b.remaining - a.remaining;
+    if (a.maxed && b.maxed) return a.title.localeCompare(b.title);
+
+    const aPriced = Number.isFinite(a.remainingCost);
+    const bPriced = Number.isFinite(b.remainingCost);
+    if (aPriced !== bPriced) return aPriced ? -1 : 1;
+    if (aPriced && bPriced && a.remainingCost !== b.remainingCost) {
+      return a.remainingCost - b.remainingCost;
+    }
+
+    if (a.remaining !== b.remaining) return a.remaining - b.remaining;
     return a.title.localeCompare(b.title);
   });
 
