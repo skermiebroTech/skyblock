@@ -6,6 +6,7 @@ A browser-based **Hypixel SkyBlock optimizer**. Reads the official Hypixel API s
 - plan **accessory Magical Power** — what's missing, what to upgrade, what to recombobulate
 - **max your attributes** — exactly how many shards each one needs and the coin cost
 - optimize **Sweep** — all known Sweep sources sorted from lowest to highest live coin cost
+- track and calculate **SkyBlock Mutations** — collection progress, recursive recipe requirements, Greenhouse slot planning, and a static profit leaderboard
 
 No backend. No build step. No tracking. Static files you can host on GitHub Pages.
 
@@ -38,6 +39,7 @@ shard-market/
 ├── script.js               ← API client, caching, profit + fusion math, page renderers
 ├── shards-data.js          ← Static lookups (rarity, colors, texture-pack registry, ID overrides)
 ├── sweep-data.js           ← Static Sweep source list from the Hypixel Wiki Sweep page
+├── mutations-data.js       ← Static SkyBlock Mutation recipes/effects/costs from the public SkyMutations dataset
 ├── nbt.js                  ← Minimal NBT parser (decodes the gzipped inventory blob)
 ├── prices.js               ← Unified price resolver: bazaar + AH lowest-BIN scan
 ├── accessories.js          ← Accessory catalog, upgrade families, Magical Power math
@@ -111,6 +113,17 @@ An interactive, live-priced minion upgrade planner designed to help you unlock m
 - **Interactive Level Override**: Every minion card features a manual dropdown level selector (T0 to T11). This allows you to manually mock up other setups, modify levels, or simulate progress in real-time.
 - **One-click /bz Copy Shortcuts**: Displays precise quantities and unit prices for all raw or enchanted materials required for the next upgrade, paired with instant clipboard copy buttons for official Hypixel Bazaar commands (e.g., `/bz Spawn Egg`, `/bz Enchanted Rotten Flesh`).
 - **Smart "Max to T11" Shopping List**: Features a **Max to T11 Shopping List** button on each minion card. Clicking it calculates the exact combined materials needed to upgrade from its current level all the way to Tier 11, grouping multiple levels of the same materials together so you only have to buy each type once. It includes a **Copy All** button to copy all required `/bz` commands at once, plus individual copy buttons for each aggregated ingredient.
+
+### Mutations
+
+A static companion for the new SkyBlock Mutations system, modeled after the public SkyMutations site data:
+
+- **Collection tracker** for the 40 discoverable mutations, grouped by rarity, with progress stored locally in the browser.
+- **Recursive recipe calculator** that expands direct spreading conditions into base material requirements for any quantity.
+- **Greenhouse planner** that estimates extra Ethereal Vines needed for slot targets and uses the live Bazaar price when Hypixel exposes an Ethereal Vine product.
+- **Profit leaderboard** ranking mutations by static coin value, recursive ingredient cost, profit per harvest, and profit per hour for a configurable cycle length.
+
+The bundled data lives in `mutations-data.js`; refresh it when the upstream mutation list or recipes change.
 
 ### Hunting-level craft flips
 

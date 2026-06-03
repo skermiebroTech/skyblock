@@ -152,7 +152,18 @@ const state = {
   minionStartFromLvl1: false,
   expandedMinions: {},
 
-  /* Active page: "home" | "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" */
+  /* SkyBlock Mutations planner/tracker. */
+  mutations: {
+    search: "",
+    selectedId: "ALL_IN_ALOE",
+    quantity: 1,
+    showUnlockedOnly: false,
+    sortKey: "profitPerHour",
+    greenhouseTarget: 25,
+    manualCycleHours: 4,
+  },
+
+  /* Active page: "home" | "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" | "mutations" */
   view: "home",
   profileSubTab: "overview",
 
@@ -1495,6 +1506,7 @@ function setView(view) {
   $("#view-attributes").hidden = view !== "attributes";
   $("#view-sweep").hidden      = view !== "sweep";
   $("#view-minions").hidden    = view !== "minions";
+  $("#view-mutations").hidden  = view !== "mutations";
   $("#view-profile").hidden    = view !== "profile";
   $("#view-p2w").hidden        = view !== "p2w";
 
@@ -1514,6 +1526,7 @@ function renderActiveView() {
   if (state.view === "attributes") renderAttributesView();
   if (state.view === "sweep")      renderSweepView();
   if (state.view === "minions")    renderMinionsView();
+  if (state.view === "mutations")  renderMutationsView();
   if (state.view === "profile")    renderProfileView();
   if (state.view === "p2w")        renderP2wView();
   if (state.view === "shards")     renderTable();
@@ -2952,6 +2965,16 @@ function renderHomeView() {
         <button class="btn-secondary btn-small home-card-btn">Open Minion Calculator →</button>
       </article>
 
+      <article class="home-card" data-go="mutations">
+        <div class="home-card-header">
+          <div class="home-card-icon" style="background: rgba(170, 0, 170, 0.12); color: #d66cff;">🌱</div>
+          <span class="home-card-badge">40 Mutations</span>
+        </div>
+        <h3 class="home-card-title">Mutations</h3>
+        <p class="home-card-desc">Track SkyBlock Mutation collection progress, calculate recipe requirements, plan Greenhouse slots, and rank mutation profit.</p>
+        <button class="btn-secondary btn-small home-card-btn">Open Mutations →</button>
+      </article>
+
       <article class="home-card" data-go="profile">
         <div class="home-card-header">
           <div class="home-card-icon" style="background: rgba(230, 138, 0, 0.1); color: var(--ember-light);">👤</div>
@@ -2981,6 +3004,235 @@ function renderHomeView() {
       setView(targetView);
     });
   });
+}
+
+const MUTATION_TRACKER_EXCLUDES = new Set(["CONDENSED_HELIANTHUS", "FERMENTO", "FERTILIZED_JERRYSEED"]);
+const MUTATION_DISCOVERY_RARITIES = new Set(["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY"]);
+const MUTATION_STORAGE_KEY = "hypixie.mutations.discovered.v1";
+
+function mutationCatalog() {
+  return Array.isArray(window.MUTATIONS_DATA) ? window.MUTATIONS_DATA : [];
+}
+
+function mutationByName() {
+  return new Map(mutationCatalog().map((m) => [m.name.toLowerCase(), m]));
+}
+
+function mutationById() {
+  return new Map(mutationCatalog().map((m) => [m.id, m]));
+}
+
+function mutationTrackerList() {
+  return mutationCatalog().filter((m) => MUTATION_DISCOVERY_RARITIES.has(m.rarity) && !MUTATION_TRACKER_EXCLUDES.has(m.id));
+}
+
+function mutationDiscoveredSet() {
+  try { return new Set(JSON.parse(localStorage.getItem(MUTATION_STORAGE_KEY) || "[]")); }
+  catch { return new Set(); }
+}
+
+function saveMutationDiscovered(set) {
+  localStorage.setItem(MUTATION_STORAGE_KEY, JSON.stringify(Array.from(set)));
+}
+
+function parseMutationIngredient(text) {
+  const raw = String(text || "").trim();
+  const m = raw.match(/^(\d+(?:\.\d+)?)x\s+(.+)$/i);
+  return m ? { qty: Number(m[1]), name: m[2].trim(), note: false } : { qty: 0, name: raw, note: true };
+}
+
+function mutationRecipe(mutation, quantity = 1, seen = new Set()) {
+  const byName = mutationByName();
+  const direct = [];
+  const base = new Map();
+  let recursiveCost = 0;
+  let complete = true;
+
+  function addBase(name, qty) {
+    const prev = base.get(name) || { name, qty: 0, item: byName.get(name.toLowerCase()) || null };
+    prev.qty += qty;
+    base.set(name, prev);
+  }
+
+  function walk(item, qty, path = new Set()) {
+    if (!item) { complete = false; return; }
+    if (path.has(item.id)) { complete = false; return; }
+    const nextPath = new Set(path);
+    nextPath.add(item.id);
+    const recipe = item.spreading_conditions || [];
+    if (!recipe.length) {
+      addBase(item.name, qty);
+      recursiveCost += (item.coins || 0) * qty;
+      return;
+    }
+    for (const raw of recipe) {
+      const ing = parseMutationIngredient(raw);
+      if (ing.note) {
+        if (path.size === 0 && ing.name) direct.push({ ...ing, total: 0, item: null });
+        continue;
+      }
+      const child = byName.get(ing.name.toLowerCase()) || null;
+      const total = ing.qty * qty;
+      if (path.size === 0) direct.push({ ...ing, item: child, total });
+      if (child) walk(child, total, nextPath);
+      else { addBase(ing.name, total); complete = false; }
+    }
+  }
+
+  walk(mutation, quantity, seen);
+  return { direct, base: Array.from(base.values()).sort((a, b) => a.name.localeCompare(b.name)), recursiveCost, complete };
+}
+
+function mutationProfitRows() {
+  const cycleHours = Math.max(0.25, Number(state.mutations.manualCycleHours) || 4);
+  const discovered = mutationDiscoveredSet();
+  return mutationTrackerList().map((m) => {
+    const recipe = mutationRecipe(m, 1);
+    const cost = recipe.recursiveCost;
+    const revenue = m.coins || 0;
+    const profit = revenue - cost;
+    return { mutation: m, recipe, cost, revenue, profit, roi: cost > 0 ? (profit / cost) * 100 : null, profitPerHour: profit / cycleHours, unlocked: discovered.has(m.id) };
+  });
+}
+
+function renderMutationsView() {
+  const pane = $("#view-mutations");
+  if (!pane) return;
+  if (typeof MUTATIONS_DATA === "undefined") {
+    pane.innerHTML = `<div class="acc-gate"><div class="acc-gate-icon">⚠️</div><h2>Mutation data did not load</h2><p>The Mutations tab needs <code>mutations-data.js</code>. Hard-refresh after deploying the new file.</p></div>`;
+    return;
+  }
+
+  const all = mutationCatalog();
+  const tracker = mutationTrackerList();
+  const byId = mutationById();
+  if (!byId.has(state.mutations.selectedId)) state.mutations.selectedId = tracker[0]?.id || all[0]?.id || null;
+  const selected = byId.get(state.mutations.selectedId) || tracker[0];
+  const qty = Math.max(1, Math.floor(Number(state.mutations.quantity) || 1));
+  const recipe = selected ? mutationRecipe(selected, qty) : null;
+  const discovered = mutationDiscoveredSet();
+  const progress = tracker.length ? discovered.size / tracker.length : 0;
+  const search = state.mutations.search.trim().toLowerCase();
+  const filtered = tracker.filter((m) => {
+    if (search && !(`${m.name} ${m.rarity} ${m.growth_surface || ""}`).toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  let rows = mutationProfitRows().filter((r) => !state.mutations.showUnlockedOnly || r.unlocked);
+  rows.sort((a, b) => {
+    const key = state.mutations.sortKey;
+    const av = a[key] ?? -Infinity;
+    const bv = b[key] ?? -Infinity;
+    if (typeof av === "string") return String(av).localeCompare(String(bv));
+    return (bv || 0) - (av || 0);
+  });
+
+  const vinesUnit = state.raw?.products?.ETHEREAL_VINE?.quick_status?.buyPrice || state.raw?.products?.ENCHANTED_VINE?.quick_status?.buyPrice || null;
+  const targetSlots = Math.max(12, Number(state.mutations.greenhouseTarget) || 25);
+  const vinesNeeded = Math.max(0, targetSlots - 12);
+  const vineCost = vinesUnit ? vinesNeeded * vinesUnit : null;
+
+  const rarityGroups = ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY"].map((rarity) => {
+    const items = filtered.filter((m) => m.rarity === rarity);
+    if (!items.length) return "";
+    return `<section class="mutation-rarity"><div class="mutation-rarity-head"><h3>${rarity}</h3><button class="btn-ghost btn-small" data-mutation-select-rarity="${rarity}">Select all</button></div><div class="mutation-grid">${items.map((m) => renderMutationTile(m, discovered)).join("")}</div></section>`;
+  }).join("");
+
+  pane.innerHTML = `
+    <div class="acc-page-head">
+      <div>
+        <h2 class="acc-page-title">SkyBlock Mutations</h2>
+        <p class="acc-page-sub">Collection tracker, recursive recipe calculator, Greenhouse expansion planner, and static profit leaderboard based on SkyMutations-style data.</p>
+      </div>
+      <button class="btn-secondary" id="mutation-reset-progress">Reset progress</button>
+    </div>
+
+    <section class="stats-grid" aria-label="Mutation overview" style="margin-top: 15px;">
+      <div class="stat-card"><div class="stat-label">Collection progress</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${discovered.size} / ${tracker.length}</span><span class="stat-value-minor">${(progress * 100).toFixed(1)}% discovered</span></div></div>
+      <div class="stat-card"><div class="stat-label">Selected recipe</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${selected ? escapeHtml(selected.name) : "—"}</span><span class="stat-value-minor">${selected ? selected.rarity : ""}</span></div></div>
+      <div class="stat-card"><div class="stat-label">Greenhouse target</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${targetSlots} slots</span><span class="stat-value-minor">${vinesNeeded} Ethereal Vines</span></div></div>
+      <div class="stat-card"><div class="stat-label">Vine cost</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${vineCost != null ? fmtCoins(vineCost) : "—"}</span><span class="stat-value-minor">${vinesUnit ? `${fmtCoins(vinesUnit)} each` : "live bazaar unavailable"}</span></div></div>
+    </section>
+
+    <div class="mutation-layout">
+      <section class="mutation-panel">
+        <div class="mutation-panel-head"><h3>Collection tracker</h3><input id="mutation-search" class="select-native mutation-search" type="search" placeholder="Search mutations…" value="${escapeHtml(state.mutations.search)}"></div>
+        <div class="mutation-progress"><span style="width:${Math.max(2, progress * 100)}%"></span></div>
+        ${rarityGroups}
+      </section>
+
+      <section class="mutation-panel">
+        <div class="mutation-panel-head"><h3>Greenhouse planner</h3></div>
+        <div class="mutation-controls-row">
+          <label class="sort-label" for="mutation-greenhouse-target">Target slots</label>
+          <input id="mutation-greenhouse-target" class="select-native mutation-qty" type="number" min="12" max="100" step="1" value="${targetSlots}">
+          <span class="legend-item">Default greenhouse starts at 12 slots; this estimates one Ethereal Vine per added slot.</span>
+        </div>
+
+        <div class="mutation-panel-head"><h3>Recipe calculator</h3></div>
+        <div class="mutation-controls-row">
+          <select id="mutation-selected" class="select-native">${all.filter((m) => m.rarity !== "RAW").map((m) => `<option value="${m.id}" ${m.id === selected?.id ? "selected" : ""}>${escapeHtml(m.name)} (${m.rarity})</option>`).join("")}</select>
+          <input id="mutation-qty" class="select-native mutation-qty" type="number" min="1" max="999" value="${qty}">
+        </div>
+        ${renderMutationRecipe(selected, recipe, qty)}
+
+        <div class="mutation-panel-head mutation-profit-head"><h3>Profit leaderboard</h3><label class="acc-toggle-inline"><input type="checkbox" id="mutation-unlocked-only" ${state.mutations.showUnlockedOnly ? "checked" : ""}><span>Unlocked only</span></label></div>
+        <div class="mutation-controls-row">
+          <label class="sort-label" for="mutation-cycle-hours">Cycle hours</label>
+          <input id="mutation-cycle-hours" class="select-native mutation-qty" type="number" min="0.25" step="0.25" value="${state.mutations.manualCycleHours}">
+          <select id="mutation-profit-sort" class="select-native"><option value="profitPerHour" ${state.mutations.sortKey === "profitPerHour" ? "selected" : ""}>Profit / hour</option><option value="profit" ${state.mutations.sortKey === "profit" ? "selected" : ""}>Profit / harvest</option><option value="roi" ${state.mutations.sortKey === "roi" ? "selected" : ""}>ROI</option><option value="revenue" ${state.mutations.sortKey === "revenue" ? "selected" : ""}>Revenue</option></select>
+        </div>
+        <div class="mutation-profit-list">${rows.slice(0, 12).map(renderMutationProfitRow).join("")}</div>
+      </section>
+    </div>`;
+
+  bindMutationEvents(pane);
+}
+
+function renderMutationTile(m, discovered) {
+  const on = discovered.has(m.id);
+  return `<button class="mutation-tile ${on ? "is-discovered" : ""}" data-mutation-toggle="${m.id}" title="${escapeHtml(m.tip || m.name)}"><span class="mutation-icon">${on ? "✅" : "🌱"}</span><span class="mutation-name">${escapeHtml(m.name)}</span><span class="mutation-meta">${m.watering === "YES" ? "💧" : "—"} · ${m.growthStages ?? 0} stages · ${fmtCoins(m.coins || 0)}</span></button>`;
+}
+
+function renderMutationRecipe(selected, recipe, qty) {
+  if (!selected || !recipe) return `<div class="fusion-empty">Select a mutation.</div>`;
+  const direct = recipe.direct.length ? recipe.direct.map((ing) => ing.note ? `<li>${escapeHtml(ing.name)}</li>` : `<li><strong>${fmtInt(ing.total)}</strong>× ${escapeHtml(ing.name)}</li>`).join("") : `<li>No spreading recipe listed.</li>`;
+  const base = recipe.base.length ? recipe.base.map((ing) => `<li><strong>${fmtInt(ing.qty)}</strong>× ${escapeHtml(ing.name)}</li>`).join("") : `<li>No base ingredients required.</li>`;
+  const effects = (selected.effects || []).map((e) => `<span class="pill" title="${escapeHtml(e.description || "")}">${escapeHtml(e.name)}</span>`).join("") || `<span class="pill">No listed effects</span>`;
+  return `<div class="mutation-recipe-card"><div class="mutation-recipe-title"><div><strong>${qty}× ${escapeHtml(selected.name)}</strong><span>${selected.rarity} · ${selected.size || "size unknown"} · ${selected.growth_surface || "surface unknown"}</span></div><a class="wiki-link" href="${wikiUrl(selected.name)}" target="_blank" rel="noopener noreferrer">Wiki</a></div><p>${escapeHtml(selected.tip || "")}</p><div class="mutation-effects">${effects}</div><div class="mutation-recipe-cols"><div><h4>Direct recipe</h4><ul>${direct}</ul></div><div><h4>Base requirements</h4><ul>${base}</ul></div></div><div class="mutation-cost-line"><span>NPC/coin value</span><strong>${fmtCoins((selected.coins || 0) * qty)}</strong></div></div>`;
+}
+
+function renderMutationProfitRow(row) {
+  return `<button class="mutation-profit-row" data-mutation-pick="${row.mutation.id}"><span><strong>${escapeHtml(row.mutation.name)}</strong><small>${row.mutation.rarity}${row.unlocked ? " · unlocked" : ""}</small></span><span>${fmtCoins(row.cost)} cost</span><span>${fmtCoins(row.revenue)} rev</span><span class="${row.profit >= 0 ? "pos" : "neg"}">${fmtCoins(row.profit)}/harvest</span><span>${fmtCoins(row.profitPerHour)}/hr</span></button>`;
+}
+
+function bindMutationEvents(pane) {
+  pane.querySelector("#mutation-search")?.addEventListener("input", (e) => { state.mutations.search = e.target.value; renderMutationsView(); });
+  pane.querySelector("#mutation-selected")?.addEventListener("change", (e) => { state.mutations.selectedId = e.target.value; renderMutationsView(); });
+  pane.querySelector("#mutation-qty")?.addEventListener("change", (e) => { state.mutations.quantity = e.target.value; renderMutationsView(); });
+  pane.querySelector("#mutation-greenhouse-target")?.addEventListener("change", (e) => { state.mutations.greenhouseTarget = e.target.value; renderMutationsView(); });
+  pane.querySelector("#mutation-profit-sort")?.addEventListener("change", (e) => { state.mutations.sortKey = e.target.value; renderMutationsView(); });
+  pane.querySelector("#mutation-cycle-hours")?.addEventListener("change", (e) => { state.mutations.manualCycleHours = e.target.value; renderMutationsView(); });
+  pane.querySelector("#mutation-unlocked-only")?.addEventListener("change", (e) => { state.mutations.showUnlockedOnly = e.target.checked; renderMutationsView(); });
+  pane.querySelector("#mutation-reset-progress")?.addEventListener("click", () => { saveMutationDiscovered(new Set()); renderMutationsView(); });
+  pane.querySelectorAll("[data-mutation-toggle]").forEach((btn) => btn.addEventListener("click", () => {
+    const set = mutationDiscoveredSet();
+    const id = btn.dataset.mutationToggle;
+    if (set.has(id)) set.delete(id); else set.add(id);
+    saveMutationDiscovered(set);
+    renderMutationsView();
+  }));
+  pane.querySelectorAll("[data-mutation-select-rarity]").forEach((btn) => btn.addEventListener("click", () => {
+    const rarity = btn.dataset.mutationSelectRarity;
+    const set = mutationDiscoveredSet();
+    for (const m of mutationTrackerList().filter((x) => x.rarity === rarity)) set.add(m.id);
+    saveMutationDiscovered(set);
+    renderMutationsView();
+  }));
+  pane.querySelectorAll("[data-mutation-pick]").forEach((btn) => btn.addEventListener("click", () => {
+    state.mutations.selectedId = btn.dataset.mutationPick;
+    renderMutationsView();
+  }));
 }
 
 function renderMinionsView() {
