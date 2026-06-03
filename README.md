@@ -97,7 +97,7 @@ A cost-ranked checklist for increasing **Sweep**. It uses the Sweep wiki source 
 
 Attribute entries assume the Tier X target shown on the wiki and estimate maxing from Tier I shards (`512×` Tier I shards). The page sorts live-priced methods from cheapest to most expensive and also shows cost per Sweep where the source has a numeric Sweep gain.
 
-With a linked profile, the page decodes inventory/armor/equipment/wardrobe/backpacks, pets, attributes, collections/personal bests, Tree Gift progress, and Heart of the Forest nodes to mark sources as **Recommended**, **Partly done**, or **Already have**. Already-completed sources are hidden by default so the checklist focuses on ways to gain more Sweep.
+With a linked profile, the page decodes inventory/armor/equipment/wardrobe/backpacks, pets, attributes, collections/personal bests, Tree Gift progress, and Heart of the Forest nodes to mark sources as **Recommended**, **Partly done**, or **Already have**. Already-completed sources are hidden by default so the checklist focuses on ways to gain more Sweep. Gear alternatives are treated as tiered progressions: owning a completed higher tier such as **Fig Armor** or **Figstone Splitter** suppresses lower-tier recommendations like Canopy Armor, Spruce Axe, or Treecapitator.
 
 ### Hunting-level craft flips
 

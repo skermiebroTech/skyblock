@@ -483,6 +483,14 @@ const SWEEP_ARMOR_IDS = new Set(["CANOPY_HELMET", "CANOPY_CHESTPLATE", "CANOPY_L
 const SWEEP_EQUIPMENT_IDS = new Set(["DAVIDS_CLOAK", "MANGROVE_GRIPPERS", "MANGROVE_LOCKET", "MANGROVE_VINE"]);
 const SWEEP_AXE_ID_RE = /(AXE|TREECAPITATOR)/i;
 
+/* Mutually-exclusive gear progressions for profile-aware Sweep suggestions.
+ * If the player already owns a higher completed tier in the same slot, lower
+ * alternatives should not be recommended as separate next purchases. */
+const SWEEP_GEAR_PROGRESSIONS = [
+  ["canopy-armor", "fig-armor"],
+  ["spruce-axe", "seriously-damaged-axe", "decent-axe", "fig-hew", "treecapitator", "figstone-splitter"],
+];
+
 function hasSweepBooster(it) {
   return (it?.rawTag?.ExtraAttributes?.boosters || []).includes("sweep");
 }
@@ -500,6 +508,22 @@ function countUniqueWithSweepBooster(items, predicate) {
 function countOwnedUnique(ids, wanted) {
   return wanted.filter((id) => ids.has(id)).length;
 }
+function sweepSourceFullyOwned(src, ids) {
+  if (!src?.itemIds?.length) return false;
+  if (src.costKind === "auction-bundle") return countOwnedUnique(ids, src.itemIds) >= src.itemIds.length;
+  if (src.costKind === "auction") return src.itemIds.some((id) => ids.has(id));
+  return false;
+}
+function higherOwnedSweepGear(src, ctx) {
+  const chain = SWEEP_GEAR_PROGRESSIONS.find((ids) => ids.includes(src.id));
+  if (!chain) return null;
+  const idx = chain.indexOf(src.id);
+  for (let i = chain.length - 1; i > idx; i--) {
+    const higher = ctx.sourcesById?.[chain[i]] || (window.SWEEP_SOURCES || []).find((s) => s.id === chain[i]);
+    if (higher && sweepSourceFullyOwned(higher, ctx.ids)) return higher;
+  }
+  return null;
+}
 function sweepDone(done, reason, current = null, max = null) {
   return { completed: !!done, reason, current, max };
 }
@@ -515,6 +539,11 @@ function sweepSourceCompletion(src, ctx) {
   const taskProgress = foraging.hina?.tasks?.task_progress || {};
   const nodes = member?.skill_tree?.nodes?.foraging || {};
   const stacks = member?.attributes?.stacks || {};
+
+  const higherGear = higherOwnedSweepGear(src, ctx);
+  if (higherGear) {
+    return sweepDone(true, `Covered by higher-tier ${higherGear.name} found in this profile.`);
+  }
 
   if (src.id === "jade-dragon-pet") {
     const has = (member?.pets_data?.pets || []).some((p) => p.type === "JADE_DRAGON");
@@ -593,9 +622,10 @@ async function loadSweepAnalysis(rawProfile) {
       return;
     }
     const { items, ids } = await extractSweepProfileItems(member);
+    const sourcesById = Object.fromEntries(window.SWEEP_SOURCES.map((src) => [src.id, src]));
     const bySource = {};
     for (const src of window.SWEEP_SOURCES) {
-      const completion = sweepSourceCompletion(src, { member, items, ids });
+      const completion = sweepSourceCompletion(src, { member, items, ids, sourcesById });
       if (completion) bySource[src.id] = completion;
     }
     state.player.sweepAnalysis = { bySource, itemCount: items.length };
