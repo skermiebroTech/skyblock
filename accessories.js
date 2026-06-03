@@ -218,6 +218,20 @@ function accessoryFamilyBase(name) {
 /*     standalone:  [ items with no upgrade family ]                        */
 /*   }                                                                       */
 /* ------------------------------------------------------------------------ */
+function getSkinTextureId(it) {
+  if (!it?.skin?.value) return null;
+  try {
+    const decoded = JSON.parse(atob(it.skin.value));
+    const url = decoded?.textures?.SKIN?.url;
+    if (url) {
+      return url.split("/").pop();
+    }
+  } catch (e) {
+    console.warn("Failed to parse skull skin value:", e);
+  }
+  return null;
+}
+
 function buildAccessoryCatalog(itemsPayload) {
   const all = (itemsPayload?.items || []).filter((i) => i.category === "ACCESSORY");
 
@@ -233,6 +247,7 @@ function buildAccessoryCatalog(itemsPayload) {
       canAuction: it.can_auction !== false && !it.soulbound,
       canRecomb:  it.can_recombobulate !== false, // default true unless explicitly false
       base:       accessoryFamilyBase(it.name),
+      skinTextureId: getSkinTextureId(it),
     };
   }
 

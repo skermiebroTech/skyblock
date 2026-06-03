@@ -46,7 +46,7 @@ const CONFIG = {
 
   /* Texture pack preference. */
   TEXTURE_STORAGE: "shardmarket.texturePack",
-  DEFAULT_TEXTURE: "skyshards",
+  DEFAULT_TEXTURE: "vanilla",
 
   /* Player profile preferences. */
   USERNAME_STORAGE:    "shardmarket.username",
@@ -1659,6 +1659,24 @@ function itemNameHTML(item) {
        title="Open on Hypixel Wiki">${escapeHtml(item.name)}<svg class="wiki-ext" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>${sb}`;
 }
 
+function accessoryIconUrl(item) {
+  if (!item) return PLACEHOLDER_ICON;
+  if (item.skinTextureId) {
+    return `https://sky.shiiyu.moe/api/head/${item.skinTextureId}`;
+  }
+  
+  const id = item.id.toLowerCase();
+  
+  if (state.texturePack === "furfsky") {
+    return `https://raw.githubusercontent.com/SkyCryptWebsite/SkyCrypt-Backend/dev/assets/resourcepacks/FurfSky/assets/cittofirmgenerated/textures/item/${id}.png`;
+  }
+  if (state.texturePack === "hypixel_plus") {
+    return `https://raw.githubusercontent.com/SkyCryptWebsite/SkyCrypt-Backend/dev/assets/resourcepacks/Hypixel_Plus/assets/cittofirmgenerated/textures/item/${id}.png`;
+  }
+  
+  return `https://sky.shiiyu.moe/item/${item.id}`;
+}
+
 /* Render one accessory action row (used by both pages). */
 function accessoryActionRow(item, mpLabel, mpValue) {
   const isBz = accessoryIsBazaar(item.id);
@@ -1700,12 +1718,17 @@ function accessoryActionRow(item, mpLabel, mpValue) {
   return `
     <article class="acc-card" style="--tier-color:${tierColor}">
       <div class="acc-card-main">
-        <div class="acc-card-titles">
-          ${itemNameHTML(item)}
-          <div class="acc-card-sub">
-            <span class="acc-tier" style="color:${tierColor}">${item.tier.toLowerCase()}</span>
-            <span class="meta-sep">·</span>
-            ${priceTxt}
+        <div class="acc-card-body">
+          <div class="acc-card-icon-wrapper">
+            <img src="${accessoryIconUrl(item)}" alt="" class="acc-card-icon" loading="lazy" onerror="this.src='${PLACEHOLDER_ICON}'">
+          </div>
+          <div class="acc-card-titles">
+            ${itemNameHTML(item)}
+            <div class="acc-card-sub">
+              <span class="acc-tier" style="color:${tierColor}">${item.tier.toLowerCase()}</span>
+              <span class="meta-sep">·</span>
+              ${priceTxt}
+            </div>
           </div>
         </div>
         <div class="acc-card-mp">

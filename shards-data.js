@@ -80,11 +80,38 @@ const SKYSHARDS_TO_BAZAAR_OVERRIDES = {
  * switch packs at runtime; packs are simple URL templates so adding a new
  * pack is one line. Icons fail silently to a generated SVG placeholder. */
 const TEXTURE_PACKS = {
+  vanilla: {
+    label: "Vanilla (default)",
+    resolve(bazaarId, ctx) {
+      // Shards in vanilla Minecraft are represented by prismarine shards
+      return "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.20.4/assets/minecraft/textures/item/prismarine_shard.png";
+    },
+  },
+
   skyshards: {
-    label: "SkyShards (default)",
+    label: "SkyShards (custom)",
     /* Files in https://github.com/Campionnn/SkyShards/tree/master/public/shardIcons
      * are named by SkyShards short id, e.g. C1.png, U16.png.
      * resolve() returns null when we don't have a mapping. */
+    resolve(bazaarId, ctx) {
+      const code = ctx.bazaarToCode[bazaarId];
+      if (!code) return null;
+      return `https://raw.githubusercontent.com/Campionnn/SkyShards/master/public/shardIcons/${code}.png`;
+    },
+  },
+
+  furfsky: {
+    label: "FurfSky Reborn",
+    resolve(bazaarId, ctx) {
+      // Fallback to custom colored skyshards for clarity, or return vanilla
+      const code = ctx.bazaarToCode[bazaarId];
+      if (!code) return null;
+      return `https://raw.githubusercontent.com/Campionnn/SkyShards/master/public/shardIcons/${code}.png`;
+    },
+  },
+
+  hypixel_plus: {
+    label: "Hypixel+",
     resolve(bazaarId, ctx) {
       const code = ctx.bazaarToCode[bazaarId];
       if (!code) return null;
