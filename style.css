@@ -2934,5 +2934,26 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   color: #33ccff;
 }
 
+/* --- Crispy Pixel Art Item Renders --- */
+.profile-gear-icon-img {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+.profile-gear-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.profile-pet-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 4px;
+}
+
 
 

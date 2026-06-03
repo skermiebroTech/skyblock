@@ -3399,7 +3399,10 @@ function renderGearSlotHTML(item, defaultEmoji, slotName) {
 
   return `
     <div class="profile-gear-slot tooltip-container">
-      <div class="profile-gear-icon">${defaultEmoji}</div>
+      <div class="profile-gear-icon">
+        <img src="https://sky.shiiyu.moe/item/${encodeURIComponent(item.skyblockId)}" alt="" class="profile-gear-icon-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <span class="profile-gear-emoji-fallback" style="display: none; font-size: 24px;">${defaultEmoji}</span>
+      </div>
       <div class="profile-gear-details">
         <div class="profile-gear-name" style="color: ${getRarityColor(item.rawTag?.ExtraAttributes?.rarity || 'COMMON')}">
           ${minecraftToHtml(itemName)}
@@ -3443,7 +3446,10 @@ function renderHotbarSlotHTML(item, index) {
 
   return `
     <div class="profile-hotbar-slot tooltip-container">
-      <div class="profile-hotbar-icon">${emoji}</div>
+      <div class="profile-hotbar-icon" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
+        <img src="https://sky.shiiyu.moe/item/${encodeURIComponent(item.skyblockId)}" alt="" class="profile-gear-icon-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <span class="profile-hotbar-emoji-fallback" style="display: none; font-size: 20px;">${emoji}</span>
+      </div>
       ${item.count > 1 ? `<span class="profile-hotbar-count">${item.count}</span>` : ""}
       <div class="tooltip-content">
         <div class="tooltip-name" style="color: ${getRarityColor(item.rawTag?.ExtraAttributes?.rarity || 'COMMON')}">
@@ -3620,7 +3626,7 @@ function renderProfileView() {
   }).join("");
 
   // 4. Pets rendering
-  const petsList = member.pets || [];
+  const petsList = member.pets_data?.pets || member.pets || [];
   let petsHTML = "";
   if (petsList.length === 0) {
     petsHTML = `<div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 13px;">No pets found on this profile.</div>`;
@@ -3645,7 +3651,10 @@ function renderProfileView() {
           return `
             <div class="profile-pet-card ${rarityClass}" title="${pet.tier || "COMMON"} ${cleanName} - Exp: ${formatNum(pet.exp || 0)}">
               ${pet.active ? `<span class="profile-pet-active-badge"></span>` : ""}
-              <div class="profile-pet-icon">${emoji}</div>
+              <div class="profile-pet-icon">
+                <img src="https://sky.shiiyu.moe/item/PET_${pet.type}" alt="" class="profile-gear-icon-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <span class="profile-pet-emoji-fallback" style="display: none; font-size: 24px;">${emoji}</span>
+              </div>
               <div class="profile-pet-level">Lvl ${petLvl}</div>
               <div class="profile-pet-name">${cleanName}</div>
             </div>`;
@@ -3769,9 +3778,12 @@ function renderProfileView() {
       <div class="profile-accessories-grid">
         ${ownedList.map(it => `
           <div class="profile-accessory-card tooltip-container" style="border-color: rgba(${it.baseTier === 'COMMON' ? '150,150,150' : it.baseTier === 'UNCOMMON' ? '71,209,71' : it.baseTier === 'RARE' ? '90,185,255' : it.baseTier === 'EPIC' ? '179,71,255' : it.baseTier === 'LEGENDARY' ? '255,179,71' : '255,71,179'}, 0.2)">
-            <span class="profile-accessory-name" style="color: ${getRarityColor(it.tier)}">
-              ${it.recombed ? '✦ ' : ''}${escapeHtml(it.name)}
-            </span>
+            <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+              <img src="https://sky.shiiyu.moe/item/${encodeURIComponent(it.id)}" alt="" style="width: 20px; height: 20px; image-rendering: pixelated; object-fit: contain;" onerror="this.style.display='none';">
+              <span class="profile-accessory-name" style="color: ${getRarityColor(it.tier)}">
+                ${it.recombed ? '✦ ' : ''}${escapeHtml(it.name)}
+              </span>
+            </div>
             <span class="profile-accessory-mp">+${it.mp} MP</span>
             
             <div class="tooltip-content">
