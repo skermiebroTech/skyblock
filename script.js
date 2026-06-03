@@ -124,6 +124,7 @@ const state = {
     attributeAnalysis: null, // {rows, totalShardsNeeded, totalCost, ...}
     sweepAnalysis: null,     // profile-aware Sweep ownership/completion map
     craftedMinions: null,    // parsed profile crafted minions
+    mutationAnalysis: null,   // derived from profile API mutation/greenhouse fields when available
     equippedArmor: null,
     equippedEquipment: null,
     hotbar: null,
@@ -689,6 +690,7 @@ function selectProfile(profileId) {
   state.player.accessoryAnalysis = null;
   state.player.attributeAnalysis = null;
   state.player.sweepAnalysis = null;
+  state.player.mutationAnalysis = analyseProfileMutations(prof._raw, state.player.uuid);
   state.player.equippedArmor = null;
   state.player.equippedEquipment = null;
   state.player.hotbar = null;
@@ -697,6 +699,7 @@ function selectProfile(profileId) {
   loadSweepAnalysis(prof._raw);
   loadProfileInventory(prof._raw);
   rebuildRows();
+  if (state.view === "mutations") renderActiveView();
 }
 
 /* Decode inventories + analyse accessories for the selected profile. */
@@ -809,7 +812,7 @@ function clearPlayer() {
     coinPurse: null, huntingLevel: null, huntingXp: null, extra: {},
     ownedAccessories: null, accessoryAnalysis: null,
     attributeStacks: null, attributeAnalysis: null, sweepAnalysis: null,
-    craftedMinions: null,
+    craftedMinions: null, mutationAnalysis: null,
     equippedArmor: null, equippedEquipment: null, hotbar: null,
     profileInventoryLoading: false, inventoryError: null,
     loading: false, error: null,
@@ -3010,6 +3013,101 @@ const MUTATION_TRACKER_EXCLUDES = new Set(["CONDENSED_HELIANTHUS", "FERMENTO", "
 const MUTATION_DISCOVERY_RARITIES = new Set(["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY"]);
 const MUTATION_STORAGE_KEY = "hypixie.mutations.discovered.v1";
 
+function normalizeMutationToken(value) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/§[0-9A-FK-OR]/gi, "")
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function mutationNameToId(name) {
+  return normalizeMutationToken(name);
+}
+
+function profileMutationCandidates(value, trail = [], out = []) {
+  if (value == null || out.length > 600) return out;
+  const trailText = trail.join(".").toLowerCase();
+  if ((typeof value === "boolean" || typeof value === "number" || typeof value === "string") && /(mutation|greenhouse|crop|plant|discovered|unlocked|found|garden|foraging)/i.test(trailText)) {
+    out.push({ path: trail.join("."), key: trail[trail.length - 1] || "", value });
+    return out;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((v, i) => profileMutationCandidates(v, trail.concat(String(i)), out));
+    return out;
+  }
+  if (typeof value === "object") {
+    for (const [k, v] of Object.entries(value)) {
+      const keyTrail = trail.concat(k);
+      const keyText = keyTrail.join(".").toLowerCase();
+      const keyLooksUseful = /(mutation|greenhouse|crop|plant|discovered|unlocked|found|garden|foraging)/i.test(keyText);
+      if ((typeof v === "boolean" || typeof v === "number" || typeof v === "string") && keyLooksUseful) {
+        out.push({ path: keyTrail.join("."), key: k, value: v });
+      }
+      if (typeof v === "object" || (typeof v === "string" && keyLooksUseful)) profileMutationCandidates(v, keyTrail, out);
+    }
+  }
+  return out;
+}
+
+function analyseProfileMutations(rawProfile, uuid) {
+  const member = rawProfile?.members?.[uuid];
+  const tracker = mutationTrackerList();
+  if (!member || !tracker.length) return null;
+
+  const byId = new Map(tracker.map((m) => [m.id, m]));
+  const byName = new Map(tracker.map((m) => [normalizeMutationToken(m.name), m]));
+  const discovered = new Set();
+  const evidence = {};
+
+  function mark(raw, path, value) {
+    const token = normalizeMutationToken(raw);
+    const m = byId.get(token) || byName.get(token) || byId.get(token.replace(/_MUTATION$/, "")) || byName.get(token.replace(/_MUTATION$/, ""));
+    if (!m) return false;
+    discovered.add(m.id);
+    if (!evidence[m.id]) evidence[m.id] = { path, value };
+    return true;
+  }
+
+  for (const hit of profileMutationCandidates(member)) {
+    const path = hit.path;
+    const value = hit.value;
+    const key = hit.key;
+    if (value === false || value == null || value === 0) continue;
+
+    /* Common shapes: { mutations: { ASHWREATH: true } },
+     * { discovered_mutations: ["ASHWREATH"] }, or arrays of objects with an id/name. */
+    mark(key, path, value);
+    if (typeof value === "string") mark(value, path, value);
+  }
+
+  const greenhouse = extractGreenhouseProfileStats(member);
+  return {
+    discovered,
+    evidence,
+    greenhouse,
+    source: discovered.size || greenhouse ? "Hypixel profile API" : null,
+    candidateCount: profileMutationCandidates(member).length,
+  };
+}
+
+function extractGreenhouseProfileStats(member) {
+  let slots = null;
+  let vines = null;
+  let path = null;
+  for (const hit of profileMutationCandidates(member)) {
+    const p = hit.path.toLowerCase();
+    const n = Number(hit.value);
+    if (!Number.isFinite(n) || n < 0) continue;
+    if (/(greenhouse|mutation|foraging|garden).*?(slot|plot|space|size|unlocked)/i.test(p)) {
+      if (slots == null || n > slots) { slots = n; path = hit.path; }
+    }
+    if (/(ethereal|vine)/i.test(p)) vines = n;
+  }
+  if (slots == null && vines == null) return null;
+  return { slots, vines, path };
+}
+
 function mutationCatalog() {
   return Array.isArray(window.MUTATIONS_DATA) ? window.MUTATIONS_DATA : [];
 }
@@ -3029,6 +3127,24 @@ function mutationTrackerList() {
 function mutationDiscoveredSet() {
   try { return new Set(JSON.parse(localStorage.getItem(MUTATION_STORAGE_KEY) || "[]")); }
   catch { return new Set(); }
+}
+
+function profileMutationDiscoveredSet() {
+  const set = state.player?.mutationAnalysis?.discovered;
+  return set instanceof Set ? set : new Set();
+}
+
+function combinedMutationDiscoveredSet() {
+  return new Set([...profileMutationDiscoveredSet(), ...mutationDiscoveredSet()]);
+}
+
+function mutationDiscoverySource(id) {
+  const api = profileMutationDiscoveredSet().has(id);
+  const manual = mutationDiscoveredSet().has(id);
+  if (api && manual) return "api+manual";
+  if (api) return "api";
+  if (manual) return "manual";
+  return "none";
 }
 
 function saveMutationDiscovered(set) {
@@ -3083,9 +3199,8 @@ function mutationRecipe(mutation, quantity = 1, seen = new Set()) {
   return { direct, base: Array.from(base.values()).sort((a, b) => a.name.localeCompare(b.name)), recursiveCost, complete };
 }
 
-function mutationProfitRows() {
+function mutationProfitRows(discovered = combinedMutationDiscoveredSet()) {
   const cycleHours = Math.max(0.25, Number(state.mutations.manualCycleHours) || 4);
-  const discovered = mutationDiscoveredSet();
   return mutationTrackerList().map((m) => {
     const recipe = mutationRecipe(m, 1);
     const cost = recipe.recursiveCost;
@@ -3110,7 +3225,9 @@ function renderMutationsView() {
   const selected = byId.get(state.mutations.selectedId) || tracker[0];
   const qty = Math.max(1, Math.floor(Number(state.mutations.quantity) || 1));
   const recipe = selected ? mutationRecipe(selected, qty) : null;
-  const discovered = mutationDiscoveredSet();
+  const manualDiscovered = mutationDiscoveredSet();
+  const profileDiscovered = profileMutationDiscoveredSet();
+  const discovered = new Set([...profileDiscovered, ...manualDiscovered]);
   const progress = tracker.length ? discovered.size / tracker.length : 0;
   const search = state.mutations.search.trim().toLowerCase();
   const filtered = tracker.filter((m) => {
@@ -3118,7 +3235,7 @@ function renderMutationsView() {
     return true;
   });
 
-  let rows = mutationProfitRows().filter((r) => !state.mutations.showUnlockedOnly || r.unlocked);
+  let rows = mutationProfitRows(discovered).filter((r) => !state.mutations.showUnlockedOnly || r.unlocked);
   rows.sort((a, b) => {
     const key = state.mutations.sortKey;
     const av = a[key] ?? -Infinity;
@@ -3128,9 +3245,16 @@ function renderMutationsView() {
   });
 
   const vinesUnit = state.raw?.products?.ETHEREAL_VINE?.quick_status?.buyPrice || state.raw?.products?.ENCHANTED_VINE?.quick_status?.buyPrice || null;
-  const targetSlots = Math.max(12, Number(state.mutations.greenhouseTarget) || 25);
-  const vinesNeeded = Math.max(0, targetSlots - 12);
+  const profileGreenhouse = state.player?.mutationAnalysis?.greenhouse || null;
+  const apiSlots = Number.isFinite(Number(profileGreenhouse?.slots)) ? Number(profileGreenhouse.slots) : null;
+  const apiVines = Number.isFinite(Number(profileGreenhouse?.vines)) ? Number(profileGreenhouse.vines) : null;
+  const targetSlots = Math.max(apiSlots || 12, Math.max(12, Number(state.mutations.greenhouseTarget) || 25));
+  const vinesNeeded = Math.max(0, targetSlots - (apiSlots || 12));
   const vineCost = vinesUnit ? vinesNeeded * vinesUnit : null;
+  const profileSource = state.player?.mutationAnalysis?.source;
+  const apiStatus = profileSource
+    ? `${profileDiscovered.size} from Hypixel${apiSlots != null ? ` · ${apiSlots} greenhouse slots` : ""}`
+    : (state.player?.uuid ? "No mutation fields found in selected profile API data" : "Link a player to sync discovered mutations");
 
   const rarityGroups = ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY"].map((rarity) => {
     const items = filtered.filter((m) => m.rarity === rarity);
@@ -3142,16 +3266,16 @@ function renderMutationsView() {
     <div class="acc-page-head">
       <div>
         <h2 class="acc-page-title">SkyBlock Mutations</h2>
-        <p class="acc-page-sub">Collection tracker, recursive recipe calculator, Greenhouse expansion planner, and static profit leaderboard based on SkyMutations-style data.</p>
+        <p class="acc-page-sub">Collection tracker, recursive recipe calculator, Greenhouse expansion planner, and static profit leaderboard. Link a player to sync discovered mutations and greenhouse data from the Hypixel profile API when those fields are public.</p>
       </div>
       <button class="btn-secondary" id="mutation-reset-progress">Reset progress</button>
     </div>
 
     <section class="stats-grid" aria-label="Mutation overview" style="margin-top: 15px;">
-      <div class="stat-card"><div class="stat-label">Collection progress</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${discovered.size} / ${tracker.length}</span><span class="stat-value-minor">${(progress * 100).toFixed(1)}% discovered</span></div></div>
-      <div class="stat-card"><div class="stat-label">Selected recipe</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${selected ? escapeHtml(selected.name) : "—"}</span><span class="stat-value-minor">${selected ? selected.rarity : ""}</span></div></div>
-      <div class="stat-card"><div class="stat-label">Greenhouse target</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${targetSlots} slots</span><span class="stat-value-minor">${vinesNeeded} Ethereal Vines</span></div></div>
-      <div class="stat-card"><div class="stat-label">Vine cost</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${vineCost != null ? fmtCoins(vineCost) : "—"}</span><span class="stat-value-minor">${vinesUnit ? `${fmtCoins(vinesUnit)} each` : "live bazaar unavailable"}</span></div></div>
+      <div class="stat-card"><div class="stat-label">Collection progress</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${discovered.size} / ${tracker.length}</span><span class="stat-value-minor">${profileDiscovered.size ? `${profileDiscovered.size} API · ${manualDiscovered.size} manual` : `${(progress * 100).toFixed(1)}% discovered`}</span></div></div>
+      <div class="stat-card"><div class="stat-label">Profile sync</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${profileSource ? "Synced" : "Manual"}</span><span class="stat-value-minor">${escapeHtml(apiStatus)}</span></div></div>
+      <div class="stat-card"><div class="stat-label">Greenhouse target</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${targetSlots} slots</span><span class="stat-value-minor">${apiSlots != null ? `${apiSlots} owned${apiVines != null ? ` · ${apiVines} vines` : ""}` : `${vinesNeeded} Ethereal Vines`}</span></div></div>
+      <div class="stat-card"><div class="stat-label">Vine cost</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${vineCost != null ? fmtCoins(vineCost) : "—"}</span><span class="stat-value-minor">${vinesUnit ? `${fmtCoins(vinesUnit)} each for ${vinesNeeded} more` : "live bazaar unavailable"}</span></div></div>
     </section>
 
     <div class="mutation-layout">
@@ -3191,7 +3315,9 @@ function renderMutationsView() {
 
 function renderMutationTile(m, discovered) {
   const on = discovered.has(m.id);
-  return `<button class="mutation-tile ${on ? "is-discovered" : ""}" data-mutation-toggle="${m.id}" title="${escapeHtml(m.tip || m.name)}"><span class="mutation-icon">${on ? "✅" : "🌱"}</span><span class="mutation-name">${escapeHtml(m.name)}</span><span class="mutation-meta">${m.watering === "YES" ? "💧" : "—"} · ${m.growthStages ?? 0} stages · ${fmtCoins(m.coins || 0)}</span></button>`;
+  const source = mutationDiscoverySource(m.id);
+  const sourceLabel = source === "api" ? "API" : (source === "manual" ? "Manual" : (source === "api+manual" ? "API + manual" : "Missing"));
+  return `<button class="mutation-tile ${on ? "is-discovered" : ""}" data-mutation-toggle="${m.id}" title="${escapeHtml(m.tip || m.name)}"><span class="mutation-icon">${on ? "✅" : "🌱"}</span><span class="mutation-name">${escapeHtml(m.name)}</span><span class="mutation-meta">${m.watering === "YES" ? "💧" : "—"} · ${m.growthStages ?? 0} stages · ${fmtCoins(m.coins || 0)}</span><span class="mutation-source mutation-source-${source}">${sourceLabel}</span></button>`;
 }
 
 function renderMutationRecipe(selected, recipe, qty) {

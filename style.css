@@ -3361,6 +3361,31 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 .mutation-profit-row:hover { border-color: rgba(255, 179, 71, .45); }
 .mutation-profit-row span:first-child { text-align: left; }
 .mutation-profit-row small { display: block; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+.mutation-source {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 7px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.045);
+}
+.mutation-source-api,
+.mutation-source-api\+manual {
+  color: #9fffb0;
+  border-color: rgba(71, 209, 71, 0.35);
+  background: rgba(71, 209, 71, 0.10);
+}
+.mutation-source-manual {
+  color: #ffd28a;
+  border-color: rgba(255, 179, 71, 0.35);
+  background: rgba(255, 179, 71, 0.10);
+}
 @media (max-width: 980px) {
   .mutation-layout,
   .mutation-recipe-cols { grid-template-columns: 1fr; }
