@@ -32,8 +32,6 @@ const MINIONS_DATA = [
   { id: "JUNGLE", name: "Jungle", category: "Foraging", rawId: "LOG:3", enchId: "ENCHANTED_JUNGLE_LOG" },
   { id: "ACACIA", name: "Acacia", category: "Foraging", rawId: "LOG_2", enchId: "ENCHANTED_ACACIA_LOG" },
   { id: "DARK_OAK", name: "Dark Oak", category: "Foraging", rawId: "LOG_2:1", enchId: "ENCHANTED_DARK_OAK_LOG" },
-  { id: "FIG", name: "Fig", category: "Foraging", rawId: "FIG_LOG", enchId: "ENCHANTED_FIG_LOG" },
-  { id: "MANGROVE", name: "Mangrove", category: "Foraging", rawId: "MANGROVE_LOG", enchId: "ENCHANTED_MANGROVE_LOG" },
 
   // Combat
   { id: "ZOMBIE", name: "Zombie", category: "Combat", rawId: "ROTTEN_FLESH", enchId: "ENCHANTED_ROTTEN_FLESH" },
