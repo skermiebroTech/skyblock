@@ -122,6 +122,7 @@ const state = {
     attributeStacks: null,   // raw {attrId: shards} from profile
     attributeAnalysis: null, // {rows, totalShardsNeeded, totalCost, ...}
     sweepAnalysis: null,     // profile-aware Sweep ownership/completion map
+    craftedMinions: null,    // parsed profile crafted minions
     loading:       false,
     error:         null,
   },
@@ -141,8 +142,10 @@ const state = {
   preferMax:  localStorage.getItem(CONFIG.PREFER_MAX_STORAGE) !== "0",
   accSortKey: localStorage.getItem(CONFIG.ACC_SORT_STORAGE) || "mp",
   sweepShowCompleted: localStorage.getItem(CONFIG.SWEEP_SHOW_COMPLETED_STORAGE) === "1",
+  minionManualTiers: {},
+  minionStartFromLvl1: false,
 
-  /* Active page: "shards" | "missing" | "upgrades" | "attributes" | "sweep" */
+  /* Active page: "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" */
   view: "shards",
 };
 
@@ -650,6 +653,9 @@ function selectProfile(profileId) {
   state.player.attributeStacks = stats.attributeStacks;
   state.player.extra        = stats.extra || {};
 
+  const craftedList = prof._raw?.members?.[state.player.uuid]?.player_data?.crafted_generators || [];
+  state.player.craftedMinions = typeof parseCraftedMinions !== "undefined" ? parseCraftedMinions(craftedList) : {};
+
   /* Accessory analysis runs async (NBT decode). Reset, then fill in. */
   state.player.ownedAccessories  = null;
   state.player.accessoryAnalysis = null;
@@ -729,6 +735,7 @@ function clearPlayer() {
     coinPurse: null, huntingLevel: null, huntingXp: null, extra: {},
     ownedAccessories: null, accessoryAnalysis: null,
     attributeStacks: null, attributeAnalysis: null, sweepAnalysis: null,
+    craftedMinions: null,
     loading: false, error: null,
   };
   localStorage.removeItem(CONFIG.USERNAME_STORAGE);
@@ -1420,6 +1427,7 @@ function setView(view) {
   $("#view-upgrades").hidden   = view !== "upgrades";
   $("#view-attributes").hidden = view !== "attributes";
   $("#view-sweep").hidden      = view !== "sweep";
+  $("#view-minions").hidden    = view !== "minions";
 
   /* Accessory and Sweep pages benefit from real AH prices — start a scan on first visit
    * (uses cache on subsequent visits; never blocks the UI). */
@@ -1435,6 +1443,7 @@ function renderActiveView() {
   if (state.view === "upgrades")   renderUpgradesView();
   if (state.view === "attributes") renderAttributesView();
   if (state.view === "sweep")      renderSweepView();
+  if (state.view === "minions")    renderMinionsView();
   if (state.view === "shards")     renderTable();
 }
 
@@ -2652,6 +2661,202 @@ function bindUI() {
       panel.classList.remove("open");
     }
   });
+}
+
+function renderMinionsView() {
+  const pane = $("#view-minions");
+  if (typeof MINIONS_DATA === "undefined") {
+    pane.innerHTML = `
+      <div class="acc-gate">
+        <div class="acc-gate-icon">⚠️</div>
+        <h2>Minion data did not load</h2>
+        <p>The Minions tab needs <code>minions-data.js</code>. Push your changes and hard-refresh to load the script.</p>
+      </div>`;
+    return;
+  }
+
+  const list = MINIONS_DATA.map((minion) => {
+    const profileTier = state.player?.craftedMinions?.[minion.id] || 0;
+    const manualTier = state.minionManualTiers[minion.id];
+    const currentTier = manualTier !== undefined ? manualTier : profileTier;
+
+    const startFromLvl1 = state.minionStartFromLvl1;
+    const nextTier = startFromLvl1 ? 1 : Math.min(11, currentTier + 1);
+    const isMaxed = !startFromLvl1 && currentTier >= 11;
+
+    let totalCost = null;
+    let items = [];
+
+    if (!isMaxed) {
+      const upgrade = calculateUpgradeCost(minion, startFromLvl1 ? 0 : currentTier, nextTier, state.raw?.products, state.bazaarMode);
+      totalCost = upgrade.totalCost;
+      items = upgrade.items;
+    }
+
+    return { minion, currentTier, nextTier, isMaxed, totalCost, items };
+  });
+
+  list.sort((a, b) => {
+    if (a.isMaxed !== b.isMaxed) return a.isMaxed ? 1 : -1;
+    if (a.isMaxed) return a.minion.name.localeCompare(b.minion.name);
+
+    const ac = Number.isFinite(a.totalCost) ? a.totalCost : Infinity;
+    const bc = Number.isFinite(b.totalCost) ? b.totalCost : Infinity;
+    if (ac !== bc) return ac - bc;
+    return a.minion.name.localeCompare(b.minion.name);
+  });
+
+  const cheapest = list.find((x) => !x.isMaxed && Number.isFinite(x.totalCost));
+
+  pane.innerHTML = `
+    <div class="acc-page-head">
+      <div>
+        <h2 class="acc-page-title">Minion Maxing Calculator</h2>
+        <p class="acc-page-sub">
+          Calculates the absolute cheapest minion upgrades across all standard minions. Link your account to automatically sync your crafted minion levels.
+          Cheapest next upgrade: <strong>${cheapest ? `${cheapest.minion.name} T${cheapest.nextTier} (${fmtCoins(cheapest.totalCost)})` : "unknown"}</strong>.
+        </p>
+      </div>
+    </div>
+
+    ${minionsToolbarHTML()}
+
+    <div class="sweep-grid">
+      ${list.map((x, idx) => renderMinionCard(x, idx)).join("")}
+    </div>
+  `;
+
+  bindMinionsEvents(pane);
+}
+
+function minionsToolbarHTML() {
+  return `
+    <div class="acc-toolbar sweep-toolbar">
+      <div class="acc-toolbar-left">
+        <div class="acc-toolbar-group">
+          <label class="acc-toggle-inline" title="Calculate upgrade costs starting from Tier 0 (scratch), regardless of your profile">
+            <input type="checkbox" id="minion-start-from-lvl1" ${state.minionStartFromLvl1 ? "checked" : ""}>
+            <span>Start upgrades from Level 1 (T0)</span>
+          </label>
+        </div>
+      </div>
+      <div class="acc-toolbar-right">
+        <div class="segmented" role="group" aria-label="Bazaar price mode">
+          <button class="seg-btn ${state.bazaarMode === "instaBuy" ? "active" : ""}" data-minion-bz="instaBuy">Insta-buy</button>
+          <button class="seg-btn ${state.bazaarMode === "buyOrder" ? "active" : ""}" data-minion-bz="buyOrder">Buy order</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderMinionCard(item, idx) {
+  const { minion, currentTier, nextTier, isMaxed, totalCost, items } = item;
+
+  let selectOpts = `<option value="0" ${currentTier === 0 ? "selected" : ""}>Uncrafted (T0)</option>`;
+  for (let t = 1; t <= 11; t++) {
+    selectOpts += `<option value="${t}" ${currentTier === t ? "selected" : ""}>Tier ${t}</option>`;
+  }
+
+  let cardStatus = "";
+  if (isMaxed) {
+    cardStatus = `<span class="sweep-status sweep-status-owned">MAXED (T11)</span>`;
+  } else {
+    cardStatus = `<span class="sweep-status sweep-status-next">Next: T${nextTier}</span>`;
+  }
+
+  const categoryColor = minion.category === "Mining" ? "#5c85d6"
+    : minion.category === "Foraging" ? "#e68a00"
+    : minion.category === "Farming" ? "#47d147"
+    : minion.category === "Combat" ? "#ff3333"
+    : "#33ccff";
+
+  let bodyHTML = "";
+  if (isMaxed) {
+    bodyHTML = `
+      <div class="sweep-owned-note">
+        All standard upgrades complete. You have crafted this minion to Tier 11.
+      </div>`;
+  } else {
+    const itemsHTML = items.map((it) => {
+      const bzCmd = sweepBazaarCommand(it.id);
+      return `
+        <div class="minion-recipe-row">
+          <span class="minion-recipe-item">
+            <span class="pos" style="font-weight: bold;">${it.qty}×</span> ${escapeHtml(it.id.replace(/_/g, " ").replace(/:.*/g, ""))}
+            <span class="num-muted">(@ ${it.unitPrice ? fmtCoins(it.unitPrice) : "unknown"})</span>
+          </span>
+          <button class="btn-copy btn-small" data-copy="${escapeHtml(bzCmd)}" title="Copy /bz command">Copy</button>
+        </div>`;
+    }).join("");
+
+    bodyHTML = `
+      <div class="minion-recipe-list">
+        ${itemsHTML}
+      </div>`;
+  }
+
+  return `
+    <article class="sweep-card ${isMaxed ? "sweep-card--owned" : ""}">
+      <span class="sweep-rank">${idx + 1}</span>
+      <div class="sweep-main">
+        <div class="sweep-card-head">
+          <div>
+            <h3 class="sweep-card-title">${escapeHtml(minion.name)} Minion</h3>
+            <div class="sweep-meta">
+              <span style="color: ${categoryColor}; font-weight: bold; text-transform: uppercase;">
+                ${minion.category}
+              </span>
+              <span class="meta-sep">·</span>
+              ${cardStatus}
+            </div>
+          </div>
+          <div class="minion-manual-row">
+            <label for="minion-select-${minion.id}" class="minion-select-label">Current Tier:</label>
+            <select id="minion-select-${minion.id}" class="select-native minion-select-tier" data-minion-id="${minion.id}">
+              ${selectOpts}
+            </select>
+          </div>
+        </div>
+
+        <div class="sweep-note">
+          ${bodyHTML}
+        </div>
+
+        <div class="sweep-cost-line">
+          ${!isMaxed && totalCost != null ? `
+            <span class="sweep-cost">${fmtCoins(totalCost)}</span>
+            <span class="sweep-cost-muted">next upgrade cost</span>
+          ` : ""}
+        </div>
+      </div>
+    </article>`;
+}
+
+function bindMinionsEvents(pane) {
+  pane.querySelectorAll(".minion-select-tier").forEach((sel) => {
+    sel.addEventListener("change", (e) => {
+      const id = e.target.dataset.minionId;
+      const val = parseInt(e.target.value, 10);
+      state.minionManualTiers[id] = val;
+      renderMinionsView();
+    });
+  });
+
+  pane.querySelector("#minion-start-from-lvl1")?.addEventListener("change", (e) => {
+    state.minionStartFromLvl1 = e.target.checked;
+    renderMinionsView();
+  });
+
+  pane.querySelectorAll("[data-minion-bz]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.bazaarMode = btn.dataset.minionBz;
+      localStorage.setItem(CONFIG.BAZAAR_MODE_STORAGE, state.bazaarMode);
+      renderMinionsView();
+      if (state.player.attributeAnalysis) loadAttributeAnalysis();
+    });
+  });
+
+  bindCopyButtons(pane);
 }
 
 function flashStatus(msg) {

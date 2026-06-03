@@ -101,6 +101,16 @@ Attribute entries assume the Tier X target shown on the wiki and estimate maxing
 
 With a linked profile, the page decodes inventory/armor/equipment/wardrobe/backpacks, pets, attributes, collections/personal bests, Tree Gift progress, and Heart of the Forest nodes to mark sources as **Recommended**, **Partly done**, or **Already have**. Already-completed sources are hidden by default so the checklist focuses on ways to gain more Sweep. Gear alternatives are treated as tiered progressions: owning a completed higher tier such as **Fig Armor** or **Figstone Splitter** suppresses lower-tier recommendations like Canopy Armor, Spruce Axe, or Treecapitator.
 
+### Minion Maxing Calculator
+
+An interactive, live-priced minion upgrade planner designed to help you unlock maximum minion slots for the absolute lowest coin cost.
+
+- **Automated Profile Syncing**: When an account is linked, the calculator decodes the active profile's `crafted_generators` array to automatically import your exact crafted level for all 38 standard minions.
+- **Cheapest Next Upgrade Sorting**: Computes the exact crafting ingredients and coin cost to take each of your minions to its next tier (e.g. T4 -> T5). It then ranks the entire minion list ascending, showing you the absolute cheapest minion upgrades available on your profile.
+- **Start from Scratch Toggle**: Want to plan minion crafting from the ground up? Toggle **Start upgrades from Level 1 (T0)** to calculate the upgrade cost assuming you have zero levels, ignoring your profile.
+- **Interactive Level Override**: Every minion card features a manual dropdown level selector (T0 to T11). This allows you to manually mock up other setups, modify levels, or simulate progress in real-time.
+- **One-click /bz Copy Shortcuts**: Displays precise quantities and unit prices for all raw or enchanted materials required for the next upgrade, paired with instant clipboard copy buttons for official Hypixel Bazaar commands (e.g., `/bz Spawn Egg`, `/bz Enchanted Rotten Flesh`).
+
 ### Hunting-level craft flips
 
 When you link a profile, the app reads `members[uuid].player_data.experience.SKILL_HUNTING` from the Hypixel Profiles API and converts XP to a Hunting level with the standard skill XP table. Fusion craft flips are then personalized: recipes above your Hunting level are shown as locked and excluded from the Best Fusions/profitable-fusion rankings, so the top craft flips are ones your profile can actually perform.
