@@ -2217,3 +2217,16 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   letter-spacing: 0.04em;
 }
 
+/* Minion calculator custom styling additions */
+.minion-max-section {
+  margin-top: 12px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+}
+.btn-max-toggle.active {
+  border-color: var(--ember) !important;
+  color: var(--text) !important;
+  background: rgba(255, 115, 0, 0.1) !important;
+}
+
+

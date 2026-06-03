@@ -110,6 +110,7 @@ An interactive, live-priced minion upgrade planner designed to help you unlock m
 - **Start from Scratch Toggle**: Want to plan minion crafting from the ground up? Toggle **Start upgrades from Level 1 (T0)** to calculate the upgrade cost assuming you have zero levels, ignoring your profile.
 - **Interactive Level Override**: Every minion card features a manual dropdown level selector (T0 to T11). This allows you to manually mock up other setups, modify levels, or simulate progress in real-time.
 - **One-click /bz Copy Shortcuts**: Displays precise quantities and unit prices for all raw or enchanted materials required for the next upgrade, paired with instant clipboard copy buttons for official Hypixel Bazaar commands (e.g., `/bz Spawn Egg`, `/bz Enchanted Rotten Flesh`).
+- **Smart "Max to T11" Shopping List**: Features a **Max to T11 Shopping List** button on each minion card. Clicking it calculates the exact combined materials needed to upgrade from its current level all the way to Tier 11, grouping multiple levels of the same materials together so you only have to buy each type once. It includes a **Copy All** button to copy all required `/bz` commands at once, plus individual copy buttons for each aggregated ingredient.
 
 ### Hunting-level craft flips
 

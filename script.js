@@ -144,6 +144,7 @@ const state = {
   sweepShowCompleted: localStorage.getItem(CONFIG.SWEEP_SHOW_COMPLETED_STORAGE) === "1",
   minionManualTiers: {},
   minionStartFromLvl1: false,
+  expandedMinions: {},
 
   /* Active page: "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" */
   view: "shards",
@@ -2095,6 +2096,33 @@ function sweepPriceForItem(id) {
 }
 
 function sweepBazaarCommand(id) {
+  const overrides = {
+    "INK_SACK:4": "Lapis Lazuli",
+    "INK_SACK:3": "Cocoa Beans",
+    "POTATO_ITEM": "Potato",
+    "CARROT_ITEM": "Carrot",
+    "CLAY_BALL": "Clay",
+    "LOG": "Oak Wood",
+    "LOG:1": "Spruce Wood",
+    "LOG:2": "Birch Wood",
+    "LOG:3": "Jungle Wood",
+    "LOG_2": "Acacia Wood",
+    "LOG_2:1": "Dark Oak Wood",
+    "FIG_LOG": "Fig Log",
+    "MANGROVE_LOG": "Mangrove Log",
+    "RAW_FISH": "Raw Fish",
+    "ENCHANTED_OAK_LOG": "Enchanted Oak Wood",
+    "ENCHANTED_SPRUCE_LOG": "Enchanted Spruce Wood",
+    "ENCHANTED_BIRCH_LOG": "Enchanted Birch Wood",
+    "ENCHANTED_JUNGLE_LOG": "Enchanted Jungle Wood",
+    "ENCHANTED_ACACIA_LOG": "Enchanted Acacia Wood",
+    "ENCHANTED_DARK_OAK_LOG": "Enchanted Dark Oak Wood"
+  };
+
+  if (overrides[id]) {
+    return `/bz ${overrides[id]}`;
+  }
+
   let name = id;
   const isShard = name.startsWith("SHARD_");
   const isUltimate = name.startsWith("ENCHANTMENT_ULTIMATE_");
@@ -2795,6 +2823,52 @@ function renderMinionCard(item, idx) {
       </div>`;
   }
 
+  // Max this minion section
+  const startFromLvl1 = state.minionStartFromLvl1;
+  const currentLevelForMax = startFromLvl1 ? 0 : currentTier;
+  const isExpanded = !!state.expandedMinions[minion.id];
+
+  let maxUpgradeHTML = "";
+  if (currentLevelForMax < 11) {
+    const maxUpgrade = calculateUpgradeCost(minion, currentLevelForMax, 11, state.raw?.products, state.bazaarMode);
+    if (maxUpgrade && maxUpgrade.items && maxUpgrade.items.length > 0) {
+      const maxItemsHTML = maxUpgrade.items.map((it) => {
+        const bzCmd = sweepBazaarCommand(it.id);
+        return `
+          <div class="minion-recipe-row">
+            <span class="minion-recipe-item">
+              <span class="pos" style="font-weight: bold;">${it.qty}×</span> ${escapeHtml(it.id.replace(/_/g, " ").replace(/:.*/g, ""))}
+              <span class="num-muted">(@ ${it.unitPrice ? fmtCoins(it.unitPrice) : "unknown"})</span>
+            </span>
+            <button class="btn-copy btn-small" data-copy="${escapeHtml(bzCmd)}" title="Copy /bz command">Copy</button>
+          </div>`;
+      }).join("");
+
+      const allBzCmds = maxUpgrade.items.map(it => sweepBazaarCommand(it.id)).join("\n");
+
+      maxUpgradeHTML = `
+        <div class="minion-max-section">
+          <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <button class="btn-secondary btn-small btn-max-toggle ${isExpanded ? "active" : ""}" data-target="max-details-${minion.id}" data-minion-id="${minion.id}" style="flex-grow: 1; text-align: center; justify-content: center; font-size: 11.5px; height: 28px;">
+              Max to T11 Shopping List
+            </button>
+            <button class="btn-secondary btn-small btn-copy" data-copy="${escapeHtml(allBzCmds)}" title="Copy all /bz commands to clipboard" style="height: 28px; font-size: 11.5px;">
+              Copy All
+            </button>
+          </div>
+          <div class="minion-max-details" id="max-details-${minion.id}" style="display: ${isExpanded ? "block" : "none"};">
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; display: flex; justify-content: space-between; padding: 0 4px;">
+              <span>Total T11 Cost:</span>
+              <span style="font-weight: bold; color: var(--ember-light);">${maxUpgrade.totalCost != null ? fmtCoins(maxUpgrade.totalCost) : "unknown"}</span>
+            </div>
+            <div class="minion-recipe-list">
+              ${maxItemsHTML}
+            </div>
+          </div>
+        </div>`;
+    }
+  }
+
   return `
     <article class="sweep-card ${isMaxed ? "sweep-card--owned" : ""}">
       <span class="sweep-rank">${idx + 1}</span>
@@ -2828,6 +2902,8 @@ function renderMinionCard(item, idx) {
             <span class="sweep-cost-muted">next upgrade cost</span>
           ` : ""}
         </div>
+
+        ${maxUpgradeHTML}
       </div>
     </article>`;
 }
@@ -2853,6 +2929,20 @@ function bindMinionsEvents(pane) {
       localStorage.setItem(CONFIG.BAZAAR_MODE_STORAGE, state.bazaarMode);
       renderMinionsView();
       if (state.player.attributeAnalysis) loadAttributeAnalysis();
+    });
+  });
+
+  pane.querySelectorAll(".btn-max-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const minionId = btn.dataset.minionId;
+      const targetId = btn.dataset.target;
+      state.expandedMinions[minionId] = !state.expandedMinions[minionId];
+      const el = pane.querySelector(`#${targetId}`);
+      if (el) {
+        const isExpanded = state.expandedMinions[minionId];
+        el.style.display = isExpanded ? "block" : "none";
+        btn.classList.toggle("active", isExpanded);
+      }
     });
   });
 
