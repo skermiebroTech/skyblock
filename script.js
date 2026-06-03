@@ -2842,16 +2842,64 @@ function renderMinionsView() {
 
   const cheapest = list.find((x) => !x.isMaxed && Number.isFinite(x.totalCost));
 
+  // Compute aggregate minion statistics
+  const totalMinions = list.length;
+  const craftedCount = list.filter((x) => x.currentTier >= 1).length;
+  const maxedCount = list.filter((x) => x.currentTier === 11).length;
+
+  let totalCostToMax = 0;
+  list.forEach((x) => {
+    if (x.currentTier >= 11) return;
+    const upgrade = calculateUpgradeCost(x.minion, x.currentTier, 11, state.raw?.products, state.bazaarMode);
+    if (upgrade && upgrade.totalCost != null) {
+      totalCostToMax += upgrade.totalCost;
+    }
+  });
+
+  const statsGridHTML = `
+    <section class="stats-grid" aria-label="Minion overview" style="margin-top: 15px;">
+      <div class="stat-card">
+        <div class="stat-label">Minions Crafted</div>
+        <div class="stat-value stat-value-stacked">
+          <span class="stat-value-major" style="color: var(--text);">${craftedCount} / ${totalMinions}</span>
+          <span class="stat-value-minor">${((craftedCount / totalMinions) * 100).toFixed(1)}% crafted</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Cost to Max All</div>
+        <div class="stat-value stat-value-stacked">
+          <span class="stat-value-major">${totalCostToMax > 0 ? fmtCoins(totalCostToMax) : "0"}</span>
+          <span class="stat-value-minor">T${state.minionStartFromLvl1 ? "0" : "current"} ➔ T11 from bazaar</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Cheapest Upgrade</div>
+        <div class="stat-value stat-value-stacked">
+          <span class="stat-value-major">${cheapest ? fmtCoins(cheapest.totalCost) : "—"}</span>
+          <span class="stat-value-minor">${cheapest ? `${cheapest.minion.name} T${cheapest.nextTier}` : "Fully maxed!"}</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Maxed Minions</div>
+        <div class="stat-value stat-value-stacked">
+          <span class="stat-value-major" style="color: var(--pos);">${maxedCount} / ${totalMinions}</span>
+          <span class="stat-value-minor">${((maxedCount / totalMinions) * 100).toFixed(1)}% maxed (T11)</span>
+        </div>
+      </div>
+    </section>
+  `;
+
   pane.innerHTML = `
     <div class="acc-page-head">
       <div>
         <h2 class="acc-page-title">Minion Maxing Calculator</h2>
         <p class="acc-page-sub">
           Calculates the absolute cheapest minion upgrades across all standard minions. Link your account to automatically sync your crafted minion levels.
-          Cheapest next upgrade: <strong>${cheapest ? `${cheapest.minion.name} T${cheapest.nextTier} (${fmtCoins(cheapest.totalCost)})` : "unknown"}</strong>.
         </p>
       </div>
     </div>
+
+    ${statsGridHTML}
 
     ${minionsToolbarHTML()}
 
