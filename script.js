@@ -3147,6 +3147,38 @@ function mutationDiscoverySource(id) {
   return "none";
 }
 
+function mutationIconUrl(mutation) {
+  if (!mutation?.name) return mutationFallbackIcon(mutation);
+  const file = encodeURIComponent(mutation.name.replace(/\s+/g, "_"));
+  return `https://cdn.jsdelivr.net/gh/palmaner/assets@main/images/${file}.png?v=2`;
+}
+
+function mutationFallbackIcon(mutation) {
+  const rarity = mutation?.rarity || "UNKNOWN";
+  const color = RARITY_COLORS[rarity] || RARITY_COLORS.UNKNOWN || "#ffb347";
+  const initials = String(mutation?.name || "?")
+    .split(/\s+|-/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "?";
+  return "data:image/svg+xml;utf8," + encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>
+       <defs><radialGradient id='g' cx='45%' cy='25%' r='75%'><stop offset='0' stop-color='${color}' stop-opacity='.95'/><stop offset='1' stop-color='#172033'/></radialGradient></defs>
+       <rect x='6' y='6' width='52' height='52' rx='14' fill='url(#g)' stroke='${color}' stroke-width='2'/>
+       <path d='M32 12 C42 21 45 34 32 52 C19 34 22 21 32 12 Z' fill='rgba(255,255,255,.22)' stroke='rgba(255,255,255,.5)' stroke-width='1.5'/>
+       <text x='32' y='39' text-anchor='middle' font-family='Arial,sans-serif' font-size='17' font-weight='800' fill='white'>${initials}</text>
+     </svg>`
+  );
+}
+
+function mutationIconHTML(mutation, className = "mutation-img") {
+  const src = mutationIconUrl(mutation);
+  const fallback = mutationFallbackIcon(mutation);
+  const alt = escapeHtml(mutation?.name || "Mutation");
+  return `<span class="mutation-icon-frame"><img class="${className}" src="${src}" alt="${alt}" loading="lazy" onerror="this.onerror=null;this.src='${fallback}'"></span>`;
+}
+
 function saveMutationDiscovered(set) {
   localStorage.setItem(MUTATION_STORAGE_KEY, JSON.stringify(Array.from(set)));
 }
@@ -3317,19 +3349,19 @@ function renderMutationTile(m, discovered) {
   const on = discovered.has(m.id);
   const source = mutationDiscoverySource(m.id);
   const sourceLabel = source === "api" ? "API" : (source === "manual" ? "Manual" : (source === "api+manual" ? "API + manual" : "Missing"));
-  return `<button class="mutation-tile ${on ? "is-discovered" : ""}" data-mutation-toggle="${m.id}" title="${escapeHtml(m.tip || m.name)}"><span class="mutation-icon">${on ? "✅" : "🌱"}</span><span class="mutation-name">${escapeHtml(m.name)}</span><span class="mutation-meta">${m.watering === "YES" ? "💧" : "—"} · ${m.growthStages ?? 0} stages · ${fmtCoins(m.coins || 0)}</span><span class="mutation-source mutation-source-${source}">${sourceLabel}</span></button>`;
+  return `<button class="mutation-tile ${on ? "is-discovered" : ""}" data-mutation-toggle="${m.id}" title="${escapeHtml(m.tip || m.name)}"><span class="mutation-tile-head">${mutationIconHTML(m)}<span><span class="mutation-name">${escapeHtml(m.name)}</span><span class="mutation-meta">${m.watering === "YES" ? "💧" : "—"} · ${m.growthStages ?? 0} stages · ${fmtCoins(m.coins || 0)}</span></span></span><span class="mutation-source mutation-source-${source}">${sourceLabel}</span></button>`;
 }
 
 function renderMutationRecipe(selected, recipe, qty) {
   if (!selected || !recipe) return `<div class="fusion-empty">Select a mutation.</div>`;
-  const direct = recipe.direct.length ? recipe.direct.map((ing) => ing.note ? `<li>${escapeHtml(ing.name)}</li>` : `<li><strong>${fmtInt(ing.total)}</strong>× ${escapeHtml(ing.name)}</li>`).join("") : `<li>No spreading recipe listed.</li>`;
-  const base = recipe.base.length ? recipe.base.map((ing) => `<li><strong>${fmtInt(ing.qty)}</strong>× ${escapeHtml(ing.name)}</li>`).join("") : `<li>No base ingredients required.</li>`;
+  const direct = recipe.direct.length ? recipe.direct.map((ing) => ing.note ? `<li>${escapeHtml(ing.name)}</li>` : `<li>${ing.item ? mutationIconHTML(ing.item, "mutation-img mutation-img-small") : ""}<span><strong>${fmtInt(ing.total)}</strong>× ${escapeHtml(ing.name)}</span></li>`).join("") : `<li>No spreading recipe listed.</li>`;
+  const base = recipe.base.length ? recipe.base.map((ing) => `<li>${ing.item ? mutationIconHTML(ing.item, "mutation-img mutation-img-small") : ""}<span><strong>${fmtInt(ing.qty)}</strong>× ${escapeHtml(ing.name)}</span></li>`).join("") : `<li>No base ingredients required.</li>`;
   const effects = (selected.effects || []).map((e) => `<span class="pill" title="${escapeHtml(e.description || "")}">${escapeHtml(e.name)}</span>`).join("") || `<span class="pill">No listed effects</span>`;
-  return `<div class="mutation-recipe-card"><div class="mutation-recipe-title"><div><strong>${qty}× ${escapeHtml(selected.name)}</strong><span>${selected.rarity} · ${selected.size || "size unknown"} · ${selected.growth_surface || "surface unknown"}</span></div><a class="wiki-link" href="${wikiUrl(selected.name)}" target="_blank" rel="noopener noreferrer">Wiki</a></div><p>${escapeHtml(selected.tip || "")}</p><div class="mutation-effects">${effects}</div><div class="mutation-recipe-cols"><div><h4>Direct recipe</h4><ul>${direct}</ul></div><div><h4>Base requirements</h4><ul>${base}</ul></div></div><div class="mutation-cost-line"><span>NPC/coin value</span><strong>${fmtCoins((selected.coins || 0) * qty)}</strong></div></div>`;
+  return `<div class="mutation-recipe-card"><div class="mutation-recipe-title"><div class="mutation-recipe-selected">${mutationIconHTML(selected, "mutation-img mutation-img-large")}<div><strong>${qty}× ${escapeHtml(selected.name)}</strong><span>${selected.rarity} · ${selected.size || "size unknown"} · ${selected.growth_surface || "surface unknown"}</span></div></div><a class="wiki-link" href="${wikiUrl(selected.name)}" target="_blank" rel="noopener noreferrer">Wiki</a></div><p>${escapeHtml(selected.tip || "")}</p><div class="mutation-effects">${effects}</div><div class="mutation-recipe-cols"><div><h4>Direct recipe</h4><ul>${direct}</ul></div><div><h4>Base requirements</h4><ul>${base}</ul></div></div><div class="mutation-cost-line"><span>NPC/coin value</span><strong>${fmtCoins((selected.coins || 0) * qty)}</strong></div></div>`;
 }
 
 function renderMutationProfitRow(row) {
-  return `<button class="mutation-profit-row" data-mutation-pick="${row.mutation.id}"><span><strong>${escapeHtml(row.mutation.name)}</strong><small>${row.mutation.rarity}${row.unlocked ? " · unlocked" : ""}</small></span><span>${fmtCoins(row.cost)} cost</span><span>${fmtCoins(row.revenue)} rev</span><span class="${row.profit >= 0 ? "pos" : "neg"}">${fmtCoins(row.profit)}/harvest</span><span>${fmtCoins(row.profitPerHour)}/hr</span></button>`;
+  return `<button class="mutation-profit-row" data-mutation-pick="${row.mutation.id}"><span class="mutation-profit-name">${mutationIconHTML(row.mutation, "mutation-img mutation-img-small")}<span><strong>${escapeHtml(row.mutation.name)}</strong><small>${row.mutation.rarity}${row.unlocked ? " · unlocked" : ""}</small></span></span><span>${fmtCoins(row.cost)} cost</span><span>${fmtCoins(row.revenue)} rev</span><span class="${row.profit >= 0 ? "pos" : "neg"}">${fmtCoins(row.profit)}/harvest</span><span>${fmtCoins(row.profitPerHour)}/hr</span></button>`;
 }
 
 function bindMutationEvents(pane) {

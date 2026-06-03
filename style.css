@@ -3312,7 +3312,44 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 }
 .mutation-tile:hover { transform: translateY(-1px); border-color: rgba(214,108,255,.55); }
 .mutation-tile.is-discovered { background: rgba(71, 209, 71, 0.09); border-color: rgba(71, 209, 71, 0.35); }
-.mutation-icon { margin-right: 7px; }
+.mutation-tile-head,
+.mutation-recipe-selected,
+.mutation-profit-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.mutation-icon-frame {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  background: radial-gradient(circle at 35% 25%, rgba(255,255,255,.10), rgba(255,255,255,.025));
+  overflow: hidden;
+}
+.mutation-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.mutation-img-small { width: 28px; height: 28px; }
+.mutation-img-large { width: 52px; height: 52px; }
+.mutation-recipe-selected .mutation-icon-frame { width: 52px; height: 52px; }
+.mutation-recipe-cols li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.mutation-recipe-cols li .mutation-icon-frame { width: 28px; height: 28px; border-radius: 8px; }
+.mutation-profit-name { text-align: left; }
+.mutation-profit-name .mutation-icon-frame { width: 32px; height: 32px; border-radius: 9px; }
 .mutation-name { display: block; font-weight: 800; }
 .mutation-meta { display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.82rem; }
 .mutation-controls-row { justify-content: flex-start; margin: 12px 0; flex-wrap: wrap; }
