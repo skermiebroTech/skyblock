@@ -75,6 +75,8 @@ anything bazaar-tradable. Sort by MP gain, item price, or cost per MP.
 Accessory family logic combines live Hypixel item data with maintained chain/alias rules
 mirrored from SkyCrypt / SkyHelper-Networth / NEU-style data, so non-obvious lines like
 Personal Compactors, Campfire badges, Wedding Rings, Cat → Lynx → Cheetah, Scarf Studies,
+Crystal upgrades (`Night Crystal → Moonlight Crystal`, `Day Crystal → Sunshine Crystal`),
+Fish Bowls, Kuudra organs, Crux Chronomicon → Celestial Starstone, Helianthus Relic,
 and Shady Ring → Seal of the Family are treated as one upgrade path instead of separate
 missing accessories.
 
