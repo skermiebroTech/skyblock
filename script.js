@@ -2006,6 +2006,16 @@ function renderSweepCard(row, index) {
 
 function renderSweepView() {
   const pane = $("#view-sweep");
+  if (!Array.isArray(window.SWEEP_SOURCES) || window.SWEEP_SOURCES.length === 0) {
+    pane.innerHTML = `
+      <div class="acc-gate sweep-data-gate">
+        <div class="acc-gate-icon">⚠️</div>
+        <h2>Sweep data did not load</h2>
+        <p>The Sweep tab needs <code>sweep-data.js</code>. If you are viewing GitHub Pages, push the latest commit and hard-refresh the page so the new data file is deployed.</p>
+      </div>`;
+    return;
+  }
+
   const rows = getSweepRows();
   const priced = rows.filter((r) => Number.isFinite(r.totalCost));
   const totalKnownSweep = priced.reduce((s, r) => s + (typeof r.sweep === "number" ? r.sweep : 0), 0);
