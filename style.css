@@ -1832,6 +1832,17 @@ input[type="search"]:focus,
   font-size: 12px;
 }
 .acc-toolbar-ah { margin-left: 0; }
+.acc-toggle-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  user-select: none;
+}
+.acc-toggle-inline input { accent-color: var(--ember); }
 .ah-status {
   font-size: 12px;
   color: var(--text-muted);
@@ -2045,6 +2056,14 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   box-shadow: var(--shadow-soft);
 }
 .sweep-card--unpriced { opacity: 0.86; }
+.sweep-card--owned {
+  opacity: 0.58;
+  background:
+    linear-gradient(135deg, rgba(19, 29, 48, 0.9), rgba(8, 10, 18, 0.92)),
+    var(--bg-card);
+}
+.sweep-card--owned .sweep-rank { background: rgba(34, 197, 94, 0.08); color: var(--pos); border-color: rgba(34, 197, 94, 0.2); }
+.sweep-card--partial { border-color: rgba(255, 179, 71, 0.34); }
 .sweep-rank {
   width: 34px;
   height: 34px;
@@ -2080,6 +2099,13 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   color: var(--text-muted);
   font-size: 12px;
 }
+.sweep-gain-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .sweep-gain {
   flex-shrink: 0;
   padding: 6px 10px;
@@ -2095,6 +2121,28 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   font-size: 13px;
   line-height: 1.55;
 }
+.sweep-owned-note {
+  margin: 10px 0 -2px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.sweep-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-line);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sweep-status-owned { color: var(--pos); background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.28); }
+.sweep-status-partial { color: var(--ember-light); background: rgba(255,179,71,0.1); border-color: rgba(255,179,71,0.3); }
+.sweep-status-next { color: var(--info); background: rgba(90,185,255,0.1); border-color: rgba(90,185,255,0.24); }
 .sweep-cost-line {
   display: flex;
   flex-wrap: wrap;
@@ -2132,5 +2180,6 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 @media (max-width: 700px) {
   .sweep-card { grid-template-columns: 1fr; }
   .sweep-card-head { flex-direction: column; }
+  .sweep-gain-wrap { align-items: flex-start; }
   .sweep-gain { align-self: flex-start; }
 }

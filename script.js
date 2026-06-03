@@ -51,6 +51,7 @@ const CONFIG = {
   /* Player profile preferences. */
   USERNAME_STORAGE:    "shardmarket.username",
   PROFILE_ID_STORAGE:  "shardmarket.profileId",
+  SWEEP_SHOW_COMPLETED_STORAGE: "shardmarket.sweep.showCompleted",
 
   /* Cache TTLs. */
   CACHE_TTL_BAZAAR_MS:  60_000,
@@ -120,6 +121,7 @@ const state = {
     accessoryAnalysis: null, // {currentMP, maxMP, missing, upgrades}
     attributeStacks: null,   // raw {attrId: shards} from profile
     attributeAnalysis: null, // {rows, totalShardsNeeded, totalCost, ...}
+    sweepAnalysis: null,     // profile-aware Sweep ownership/completion map
     loading:       false,
     error:         null,
   },
@@ -138,6 +140,7 @@ const state = {
   bazaarMode: localStorage.getItem(CONFIG.BAZAAR_MODE_STORAGE) || "instaBuy",
   preferMax:  localStorage.getItem(CONFIG.PREFER_MAX_STORAGE) !== "0",
   accSortKey: localStorage.getItem(CONFIG.ACC_SORT_STORAGE) || "mp",
+  sweepShowCompleted: localStorage.getItem(CONFIG.SWEEP_SHOW_COMPLETED_STORAGE) === "1",
 
   /* Active page: "shards" | "missing" | "upgrades" | "attributes" | "sweep" */
   view: "shards",
@@ -436,6 +439,174 @@ async function extractOwnedAccessories(member, catalog) {
   return owned;
 }
 
+function sweepInventorySlices(member) {
+  const inv = member?.inventory || {};
+  const bag = inv.bag_contents || {};
+  return [
+    inv.inv_contents,
+    inv.ender_chest_contents,
+    inv.equipment_contents,
+    inv.inv_armor,
+    inv.wardrobe_contents,
+    inv.personal_vault_contents,
+    ...Object.values(inv.backpack_contents || {}),
+    ...Object.values(bag || {}),
+  ].filter((slice) => slice?.data);
+}
+
+async function extractSweepProfileItems(member) {
+  const items = [];
+  const ids = new Set();
+  for (const slice of sweepInventorySlices(member)) {
+    try {
+      for (const it of await decodeInventory(slice.data)) {
+        items.push(it);
+        ids.add(it.skyblockId);
+      }
+    } catch (e) {
+      console.warn("[Hypixie] Sweep inventory decode failed for a slice:", e.message);
+    }
+  }
+  return { items, ids };
+}
+
+const SWEEP_ATTR_BY_SOURCE_ID = {
+  "crow-attribute": "fig_sharpening",
+  "heron-attribute": "mangrove_sharpening",
+  "phanpyre-attribute": "nocturnal_animal",
+  "bambuleaf-attribute": "strong_arms",
+  "mochibear-attribute": "strong_legs",
+  "tadgang-attribute": "unity_is_strength",
+};
+
+const SWEEP_ARMOR_IDS = new Set(["CANOPY_HELMET", "CANOPY_CHESTPLATE", "CANOPY_LEGGINGS", "CANOPY_BOOTS", "FIG_HELMET", "FIG_CHESTPLATE", "FIG_LEGGINGS", "FIG_BOOTS"]);
+const SWEEP_EQUIPMENT_IDS = new Set(["DAVIDS_CLOAK", "MANGROVE_GRIPPERS", "MANGROVE_LOCKET", "MANGROVE_VINE"]);
+const SWEEP_AXE_ID_RE = /(AXE|TREECAPITATOR)/i;
+
+function hasSweepBooster(it) {
+  return (it?.rawTag?.ExtraAttributes?.boosters || []).includes("sweep");
+}
+function firstImpressionLevel(it) {
+  return Number(it?.rawTag?.ExtraAttributes?.enchantments?.ultimate_first_impression || 0);
+}
+function countWithSweepBooster(items, predicate) {
+  return items.filter((it) => predicate(it.skyblockId) && hasSweepBooster(it)).length;
+}
+function countUniqueWithSweepBooster(items, predicate) {
+  const ids = new Set();
+  for (const it of items) if (predicate(it.skyblockId) && hasSweepBooster(it)) ids.add(it.skyblockId);
+  return ids.size;
+}
+function countOwnedUnique(ids, wanted) {
+  return wanted.filter((id) => ids.has(id)).length;
+}
+function sweepDone(done, reason, current = null, max = null) {
+  return { completed: !!done, reason, current, max };
+}
+function sweepPartial(reason, current = null, max = null) {
+  return { completed: false, partial: true, reason, current, max };
+}
+
+function sweepSourceCompletion(src, ctx) {
+  const { ids, items, member } = ctx;
+  const foraging = member?.foraging || {};
+  const treeGifts = foraging.tree_gifts || {};
+  const personalBests = foraging.starlyn?.personal_bests || {};
+  const taskProgress = foraging.hina?.tasks?.task_progress || {};
+  const nodes = member?.skill_tree?.nodes?.foraging || {};
+  const stacks = member?.attributes?.stacks || {};
+
+  if (src.id === "jade-dragon-pet") {
+    const has = (member?.pets_data?.pets || []).some((p) => p.type === "JADE_DRAGON");
+    return sweepDone(has, has ? "Jade Dragon pet found in profile pets." : "Not found in profile pets.");
+  }
+  if (src.id === "monkey-pet") {
+    const has = (member?.pets_data?.pets || []).some((p) => p.type === "MONKEY");
+    return sweepDone(has, has ? "Monkey pet found in profile pets." : "Not found in profile pets.");
+  }
+  if (src.costKind === "auction-bundle" && src.itemIds?.length) {
+    const have = countOwnedUnique(ids, src.itemIds);
+    if (have >= src.itemIds.length) return sweepDone(true, `All ${src.itemIds.length}/${src.itemIds.length} pieces found.`, have, src.itemIds.length);
+    if (have > 0) return sweepPartial(`${have}/${src.itemIds.length} pieces found; still missing pieces.`, have, src.itemIds.length);
+    return sweepDone(false, "No pieces found in decoded inventory.", 0, src.itemIds.length);
+  }
+  if (src.costKind === "auction" && src.itemIds?.length) {
+    const has = src.itemIds.some((id) => ids.has(id));
+    return sweepDone(has, has ? "Item found in decoded inventory." : "Item not found in decoded inventory.");
+  }
+  if (src.id === "first-impression-v") {
+    const max = Math.max(0, ...items.map(firstImpressionLevel));
+    return max >= 5 ? sweepDone(true, "First Impression V found on a decoded item.", max, 5) : (max > 0 ? sweepPartial(`First Impression ${max} found; level V still recommended.`, max, 5) : sweepDone(false, "First Impression V not found on decoded items.", 0, 5));
+  }
+  if (src.id === "sweep-booster-axe") {
+    const boosted = countWithSweepBooster(items, (id) => SWEEP_AXE_ID_RE.test(id));
+    return boosted > 0 ? sweepDone(true, "Sweep booster already found on an axe.", boosted, 1) : sweepDone(false, "No Sweep-boosted axe found.", 0, 1);
+  }
+  if (src.id === "sweep-booster-armor") {
+    const boosted = countUniqueWithSweepBooster(items, (id) => SWEEP_ARMOR_IDS.has(id));
+    if (boosted >= 4) return sweepDone(true, "At least 4 armor pieces already have Sweep booster.", boosted, 4);
+    if (boosted > 0) return sweepPartial(`${boosted}/4 armor Sweep boosters found.`, boosted, 4);
+    return sweepDone(false, "No Sweep-boosted armor pieces found.", 0, 4);
+  }
+  if (src.id === "sweep-booster-equipment") {
+    const boosted = countUniqueWithSweepBooster(items, (id) => SWEEP_EQUIPMENT_IDS.has(id));
+    if (boosted >= 4) return sweepDone(true, "All 4 equipment slots already have Sweep booster.", boosted, 4);
+    if (boosted > 0) return sweepPartial(`${boosted}/4 equipment Sweep boosters found.`, boosted, 4);
+    return sweepDone(false, "No Sweep-boosted equipment found.", 0, 4);
+  }
+  const attrId = SWEEP_ATTR_BY_SOURCE_ID[src.id];
+  if (attrId) {
+    const current = Number(stacks[attrId] || 0);
+    const max = 512;
+    if (current >= max) return sweepDone(true, `${attrId.replaceAll("_", " ")} is already Tier X/maxed.`, current, max);
+    if (current > 0) return sweepPartial(`${current}/${max} shard stacks invested in ${attrId.replaceAll("_", " ")}.`, current, max);
+    return sweepDone(false, `${attrId.replaceAll("_", " ")} not started.`, 0, max);
+  }
+  if (src.id === "fig-tree-gifts") {
+    const current = Number(treeGifts.FIG || taskProgress.FIG_GIFTS || 0);
+    return current >= 1000 ? sweepDone(true, "Fig Tree Gift milestones appear complete.", current, 1000) : (current > 0 ? sweepPartial(`${fmtInt(current)} Fig gifts tracked; more milestones may remain.`, current, 1000) : sweepDone(false, "No Fig Tree Gift progress found.", 0, 1000));
+  }
+  if (src.id === "mangrove-tree-gifts") {
+    const current = Number(treeGifts.MANGROVE || taskProgress.MANGROVE_GIFTS || 0);
+    return current >= 1000 ? sweepDone(true, "Mangrove Tree Gift milestones appear complete.", current, 1000) : (current > 0 ? sweepPartial(`${fmtInt(current)} Mangrove gifts tracked; more milestones may remain.`, current, 1000) : sweepDone(false, "No Mangrove Tree Gift progress found.", 0, 1000));
+  }
+  if (src.id === "fig-personal-best") {
+    const current = Number(personalBests.FIG_LOG || 0);
+    return current >= 100000 ? sweepDone(true, "Fig personal best is at the 100k cap.", current, 100000) : (current > 0 ? sweepPartial(`${fmtInt(current)}/100k Fig personal best.`, current, 100000) : sweepDone(false, "No Fig personal best found.", 0, 100000));
+  }
+  if (src.id === "mangrove-personal-best") {
+    const current = Number(personalBests.MANGROVE_LOG || 0);
+    return current >= 100000 ? sweepDone(true, "Mangrove personal best is at the 100k cap.", current, 100000) : (current > 0 ? sweepPartial(`${fmtInt(current)}/100k Mangrove personal best.`, current, 100000) : sweepDone(false, "No Mangrove personal best found.", 0, 100000));
+  }
+  if (src.id === "hotf-sweep") {
+    const current = Number(nodes.sweep || 0);
+    return current >= 50 ? sweepDone(true, "Heart of the Forest Sweep perk is maxed.", current, 50) : (current > 0 ? sweepPartial(`HOTF Sweep perk is ${current}/50.`, current, 50) : sweepDone(false, "HOTF Sweep perk not found.", 0, 50));
+  }
+  return null;
+}
+
+async function loadSweepAnalysis(rawProfile) {
+  try {
+    const member = rawProfile?.members?.[state.player.uuid];
+    if (!member || !Array.isArray(window.SWEEP_SOURCES)) {
+      state.player.sweepAnalysis = null;
+      return;
+    }
+    const { items, ids } = await extractSweepProfileItems(member);
+    const bySource = {};
+    for (const src of window.SWEEP_SOURCES) {
+      const completion = sweepSourceCompletion(src, { member, items, ids });
+      if (completion) bySource[src.id] = completion;
+    }
+    state.player.sweepAnalysis = { bySource, itemCount: items.length };
+  } catch (e) {
+    console.error("[Hypixie] Sweep analysis failed:", e);
+    state.player.sweepAnalysis = { bySource: {}, itemCount: 0, error: e.message };
+  } finally {
+    if (state.view === "sweep") renderActiveView();
+  }
+}
+
 function selectProfile(profileId) {
   const prof = state.player.profiles.find((p) => p.profile_id === profileId);
   if (!prof) return;
@@ -453,8 +624,10 @@ function selectProfile(profileId) {
   state.player.ownedAccessories  = null;
   state.player.accessoryAnalysis = null;
   state.player.attributeAnalysis = null;
+  state.player.sweepAnalysis = null;
   loadAccessoryAnalysis(prof._raw);
   loadAttributeAnalysis();
+  loadSweepAnalysis(prof._raw);
   rebuildRows();
 }
 
@@ -525,7 +698,7 @@ function clearPlayer() {
     username: "", uuid: null, profiles: [], selectedId: null,
     coinPurse: null, huntingLevel: null, huntingXp: null, extra: {},
     ownedAccessories: null, accessoryAnalysis: null,
-    attributeStacks: null, attributeAnalysis: null,
+    attributeStacks: null, attributeAnalysis: null, sweepAnalysis: null,
     loading: false, error: null,
   };
   localStorage.removeItem(CONFIG.USERNAME_STORAGE);
@@ -1937,8 +2110,15 @@ function resolveSweepSource(src) {
 
 function getSweepRows() {
   return (window.SWEEP_SOURCES || [])
-    .map(resolveSweepSource)
+    .map((src) => {
+      const row = resolveSweepSource(src);
+      const completion = state.player.sweepAnalysis?.bySource?.[src.id] || null;
+      return { ...row, completion };
+    })
     .sort((a, b) => {
+      const ac = a.completion?.completed ? 1 : 0;
+      const bc = b.completion?.completed ? 1 : 0;
+      if (ac !== bc) return ac - bc;
       const ap = Number.isFinite(a.totalCost) ? 0 : 1;
       const bp = Number.isFinite(b.totalCost) ? 0 : 1;
       if (ap !== bp) return ap - bp;
@@ -1960,6 +2140,12 @@ function sweepToolbarHTML() {
         <span class="sweep-source-note">Sorted by known live coin cost, cheapest → highest. Bazaar uses your current ${state.bazaarMode === "buyOrder" ? "buy-order" : "insta-buy"} setting.</span>
       </div>
       <div class="acc-toolbar-right">
+        <div class="acc-toolbar-group sweep-owned-toggle">
+          <label class="acc-toggle-inline">
+            <input type="checkbox" id="sweep-show-completed" ${state.sweepShowCompleted ? "checked" : ""}>
+            <span>Show completed</span>
+          </label>
+        </div>
         <div class="segmented" role="group" aria-label="Bazaar price mode">
           <button class="seg-btn ${state.bazaarMode === "instaBuy" ? "active" : ""}" data-sweep-bz="instaBuy">Insta-buy</button>
           <button class="seg-btn ${state.bazaarMode === "buyOrder" ? "active" : ""}" data-sweep-bz="buyOrder">Buy order</button>
@@ -1971,12 +2157,21 @@ function sweepToolbarHTML() {
 
 function renderSweepCard(row, index) {
   const priced = Number.isFinite(row.totalCost);
+  const completed = row.completion?.completed === true;
+  const partial = row.completion?.partial === true;
   const unit = Number.isFinite(row.costPerSweep) ? `${fmtCoins(row.costPerSweep)}/Sweep` : "—";
   const marketLabel = row.costKind === "progression" ? "progression" : row.market;
   const cmd = row.command;
+  const status = completed
+    ? `<span class="sweep-status sweep-status-owned">Already have</span>`
+    : partial
+      ? `<span class="sweep-status sweep-status-partial">Partly done</span>`
+      : state.player.sweepAnalysis
+        ? `<span class="sweep-status sweep-status-next">Recommended</span>`
+        : "";
 
   return `
-    <article class="sweep-card ${priced ? "" : "sweep-card--unpriced"}">
+    <article class="sweep-card ${priced ? "" : "sweep-card--unpriced"} ${completed ? "sweep-card--owned" : ""} ${partial ? "sweep-card--partial" : ""}">
       <div class="sweep-rank">${priced ? index + 1 : "—"}</div>
       <div class="sweep-main">
         <div class="sweep-card-head">
@@ -1990,8 +2185,12 @@ function renderSweepCard(row, index) {
               <span>${escapeHtml(row.source || marketLabel)}</span>
             </div>
           </div>
-          <div class="sweep-gain">${escapeHtml(sweepValueLabel(row))}</div>
+          <div class="sweep-gain-wrap">
+            ${status}
+            <div class="sweep-gain">${escapeHtml(sweepValueLabel(row))}</div>
+          </div>
         </div>
+        ${row.completion?.reason ? `<p class="sweep-owned-note">Profile: ${escapeHtml(row.completion.reason)}</p>` : ""}
         <p class="sweep-note">${escapeHtml(row.note || "")}</p>
         <div class="sweep-cost-line">
           <span class="sweep-cost ${priced ? "" : "sweep-cost-muted"}">${priced ? fmtCoins(row.totalCost) : "Not directly priceable"}</span>
@@ -2017,7 +2216,10 @@ function renderSweepView() {
   }
 
   const rows = getSweepRows();
-  const priced = rows.filter((r) => Number.isFinite(r.totalCost));
+  const completedRows = rows.filter((r) => r.completion?.completed);
+  const recommendedRows = rows.filter((r) => !r.completion?.completed);
+  const visibleRows = state.sweepShowCompleted ? rows : recommendedRows;
+  const priced = recommendedRows.filter((r) => Number.isFinite(r.totalCost));
   const totalKnownSweep = priced.reduce((s, r) => s + (typeof r.sweep === "number" ? r.sweep : 0), 0);
   const cheapest = priced[0];
 
@@ -2027,22 +2229,28 @@ function renderSweepView() {
         <h2 class="acc-page-title">Sweep Optimizer</h2>
         <p class="acc-page-sub">
           Every Sweep source from the Hypixel Wiki page, priced from the official Bazaar and Auction House where possible.
+          ${state.player.sweepAnalysis ? `Completed sources are hidden by default for ${escapeHtml(state.player.username || "the linked profile")}.` : "Link a player to hide sources they already have."}
           Cheapest known next method: <strong>${cheapest ? `${escapeHtml(cheapest.name)} (${fmtCoins(cheapest.totalCost)})` : "load prices first"}</strong>.
         </p>
       </div>
     </div>
     <section class="stats-grid sweep-stats" aria-label="Sweep overview">
-      <div class="stat-card"><div class="stat-label">Sources tracked</div><div class="stat-value">${fmtInt(rows.length)}</div></div>
-      <div class="stat-card"><div class="stat-label">Live-priced methods</div><div class="stat-value">${fmtInt(priced.length)}</div></div>
-      <div class="stat-card"><div class="stat-label">Known priced Sweep</div><div class="stat-value">${fmtInt(totalKnownSweep)}</div></div>
+      <div class="stat-card"><div class="stat-label">Recommended sources</div><div class="stat-value">${fmtInt(recommendedRows.length)}</div></div>
+      <div class="stat-card"><div class="stat-label">Hidden completed</div><div class="stat-value">${fmtInt(completedRows.length)}</div></div>
+      <div class="stat-card"><div class="stat-label">Live-priced next methods</div><div class="stat-value">${fmtInt(priced.length)}</div></div>
       <div class="stat-card"><div class="stat-label">Best cost / Sweep</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${cheapest?.costPerSweep ? fmtCoins(cheapest.costPerSweep) : "—"}</span></div></div>
     </section>
     ${sweepToolbarHTML()}
     <div class="sweep-grid">
-      ${rows.map(renderSweepCard).join("")}
+      ${visibleRows.map(renderSweepCard).join("")}
     </div>`;
 
   pane.querySelector("#load-sweep-bins-btn")?.addEventListener("click", () => loadLowestBinsIfNeeded(true));
+  pane.querySelector("#sweep-show-completed")?.addEventListener("change", (e) => {
+    state.sweepShowCompleted = e.target.checked;
+    localStorage.setItem(CONFIG.SWEEP_SHOW_COMPLETED_STORAGE, state.sweepShowCompleted ? "1" : "0");
+    renderSweepView();
+  });
   pane.querySelectorAll("[data-sweep-bz]").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.bazaarMode = btn.dataset.sweepBz;

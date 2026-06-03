@@ -22,7 +22,7 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
   - **Accessory Path** combines missing accessories, family upgrades, and recombobulates into one ranked checklist with `/bz` & `/ahs` copy commands and live prices.
   - **Attribute maxing** — shards remaining and live bazaar cost per attribute.
   - **Personalized craft flips** — your Hunting level is pulled from the profile API and fusion opportunities above your level are locked out of profit rankings.
-- **Sweep Optimizer** lists permanent, pet, armor, tool, equipment, enchantment, attribute, booster, and Heart of the Forest Sweep sources. Bazaar-tradable methods use live Bazaar prices; gear/pets use live lowest-BIN Auction House scans; progression-only sources are clearly marked as not directly priceable.
+- **Sweep Optimizer** lists permanent, pet, armor, tool, equipment, enchantment, attribute, booster, and Heart of the Forest Sweep sources. Bazaar-tradable methods use live Bazaar prices; gear/pets use live lowest-BIN Auction House scans; progression-only sources are clearly marked as not directly priceable. When a profile is linked, completed/owned Sweep sources are hidden from recommendations by default and can be reviewed with **Show completed**.
 - Every item links to the **Hypixel Wiki**; **soulbound** items are flagged (can't be bought on the AH).
 - Player panel shows coin purse, bank, SkyBlock level, Hunting/Combat levels, slayer XP, and fairy souls.
 - Stores responses in `localStorage` with short TTLs so quick reloads don't hammer the API.
@@ -96,6 +96,8 @@ A cost-ranked checklist for increasing **Sweep**. It uses the Sweep wiki source 
 - **Progression / situational sources**: Tree Gift milestones, Heart of the Forest perks, David's Cloak milestones, and other sources that do not have a direct coin price.
 
 Attribute entries assume the Tier X target shown on the wiki and estimate maxing from Tier I shards (`512×` Tier I shards). The page sorts live-priced methods from cheapest to most expensive and also shows cost per Sweep where the source has a numeric Sweep gain.
+
+With a linked profile, the page decodes inventory/armor/equipment/wardrobe/backpacks, pets, attributes, collections/personal bests, Tree Gift progress, and Heart of the Forest nodes to mark sources as **Recommended**, **Partly done**, or **Already have**. Already-completed sources are hidden by default so the checklist focuses on ways to gain more Sweep.
 
 ### Hunting-level craft flips
 
