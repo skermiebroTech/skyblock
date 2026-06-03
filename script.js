@@ -406,6 +406,7 @@ async function loadPlayerProfiles(username) {
     rebuildRows();   // re-evaluate Hunting-gated fusion eligibility
     renderTable();
     renderBestFusionsPanel();
+    renderActiveView();
   }
 }
 
@@ -637,7 +638,7 @@ async function loadSweepAnalysis(rawProfile) {
     console.error("[Hypixie] Sweep analysis failed:", e);
     state.player.sweepAnalysis = { bySource: {}, itemCount: 0, error: e.message };
   } finally {
-    if (state.view === "sweep") renderActiveView();
+    if (state.view === "sweep" || state.view === "profile") renderActiveView();
   }
 }
 
@@ -685,7 +686,7 @@ async function loadAccessoryAnalysis(rawProfile) {
     state.player.accessoryAnalysis = { currentMP: 0, maxMP: 0, missing: [], upgrades: [], error: e.message };
   } finally {
     renderPlayerPanel();
-    if (state.view === "missing" || state.view === "upgrades") renderActiveView();
+    if (state.view === "missing" || state.view === "upgrades" || state.view === "profile") renderActiveView();
   }
 }
 
@@ -1294,6 +1295,7 @@ function renderPlayerPanel() {
     renderPlayerPanel();
     renderTable();
     renderBestFusionsPanel();
+    renderActiveView();
   });
 }
 
@@ -1430,6 +1432,7 @@ function setView(view) {
   $("#view-attributes").hidden = view !== "attributes";
   $("#view-sweep").hidden      = view !== "sweep";
   $("#view-minions").hidden    = view !== "minions";
+  $("#view-profile").hidden    = view !== "profile";
 
   /* Accessory and Sweep pages benefit from real AH prices — start a scan on first visit
    * (uses cache on subsequent visits; never blocks the UI). */
@@ -1447,6 +1450,7 @@ function renderActiveView() {
   if (state.view === "attributes") renderAttributesView();
   if (state.view === "sweep")      renderSweepView();
   if (state.view === "minions")    renderMinionsView();
+  if (state.view === "profile")    renderProfileView();
   if (state.view === "shards")     renderTable();
 }
 
@@ -2785,6 +2789,16 @@ function renderHomeView() {
         <p class="home-card-desc">Identify the cheapest slots and copy smart, consolidated bazaar shopping lists to max your minions to T11.</p>
         <button class="btn-secondary btn-small home-card-btn">Open Minion Calculator →</button>
       </article>
+
+      <article class="home-card" data-go="profile">
+        <div class="home-card-header">
+          <div class="home-card-icon" style="background: rgba(230, 138, 0, 0.1); color: var(--ember-light);">👤</div>
+          <span class="home-card-badge">${state.player?.username ? "Active" : "Link Profile"}</span>
+        </div>
+        <h3 class="home-card-title">SkyCrypt Profile</h3>
+        <p class="home-card-desc">Inspect your skills, slayer boss progress, catacombs dungeon classes, and active pets in a rich, animated dashboard.</p>
+        <button class="btn-secondary btn-small home-card-btn">Open Profile Viewer →</button>
+      </article>
     </div>
   `;
 
@@ -3124,6 +3138,433 @@ function init() {
 
   /* Auto-refresh every minute. Hits cache silently if data is fresh. */
   setInterval(() => loadData(false), CONFIG.CACHE_TTL_BAZAAR_MS);
+}
+
+document.addEventListener("DOMContentLoaded", init);
+
+/* =========================================================================
+ * SKYCRYPT STYLE PROFILE VIEWER
+ * ======================================================================= */
+
+function getSkillXpAndProgress(xp) {
+  if (xp == null || !Number.isFinite(xp) || xp <= 0) {
+    return { level: 0, progress: 0, currentXp: 0, nextLevelXp: 50, xpInLevel: 0, xpNeeded: 50 };
+  }
+  let level = 0;
+  for (let i = 0; i < SKILL_XP_TABLE.length; i++) {
+    if (xp >= SKILL_XP_TABLE[i]) {
+      level = i;
+    } else {
+      break;
+    }
+  }
+  
+  if (level >= SKILL_XP_TABLE.length - 1) {
+    return { level, progress: 1.0, currentXp: xp, nextLevelXp: null, xpInLevel: 0, xpNeeded: 0 };
+  }
+  
+  const currentLevelXp = SKILL_XP_TABLE[level];
+  const nextLevelXp = SKILL_XP_TABLE[level + 1];
+  const xpNeeded = nextLevelXp - currentLevelXp;
+  const xpInLevel = xp - currentLevelXp;
+  const progress = Math.min(1.0, Math.max(0.0, xpInLevel / xpNeeded));
+  
+  return { level, progress, currentXp: xp, nextLevelXp, xpInLevel, xpNeeded };
+}
+
+function getSlayerLvlAndProgress(xp, isVampire = false) {
+  const table = isVampire ? 
+    [0, 20, 75, 240, 840, 3400, 15000, 50000, 140000, 300000] :
+    [0, 10, 50, 250, 1500, 5000, 20000, 100000, 400000, 1000000];
+    
+  if (xp == null || !Number.isFinite(xp) || xp <= 0) {
+    return { level: 0, progress: 0, xpInLevel: 0, xpNeeded: table[1] };
+  }
+  
+  let level = 0;
+  for (let i = 0; i < table.length; i++) {
+    if (xp >= table[i]) {
+      level = i;
+    } else {
+      break;
+    }
+  }
+  
+  if (level >= table.length - 1) {
+    return { level, progress: 1.0, xpInLevel: xp - table[level], xpNeeded: null };
+  }
+  
+  const currentLevelXp = table[level];
+  const nextLevelXp = table[level + 1];
+  const xpNeeded = nextLevelXp - currentLevelXp;
+  const xpInLevel = xp - currentLevelXp;
+  const progress = Math.min(1.0, Math.max(0.0, xpInLevel / xpNeeded));
+  
+  return { level, progress, xpInLevel, xpNeeded };
+}
+
+function getDungeonLvlAndProgress(xp) {
+  const table = [0, 50, 125, 235, 395, 625, 955, 1425, 2095, 3045, 4385, 6275, 8940, 12700, 17960, 25340, 35640, 50040, 70040, 97640, 135640, 188140, 259640, 356640, 488640, 668640, 911640, 1239640, 1684640, 2284640, 3084640, 4149640, 5559640, 7419640, 9859640, 13039640, 17139640, 22439640, 29189640, 37789640, 48689640, 62389640, 79389640, 100389640, 126389640, 158389640, 197389640, 244389640, 301389640, 369389640, 449389640];
+  
+  if (xp == null || !Number.isFinite(xp) || xp <= 0) {
+    return { level: 0, progress: 0, xpInLevel: 0, xpNeeded: table[1] };
+  }
+  
+  let level = 0;
+  for (let i = 0; i < table.length; i++) {
+    if (xp >= table[i]) {
+      level = i;
+    } else {
+      break;
+    }
+  }
+  
+  if (level >= table.length - 1) {
+    return { level, progress: 1.0, xpInLevel: xp - table[level], xpNeeded: null };
+  }
+  
+  const currentLevelXp = table[level];
+  const nextLevelXp = table[level + 1];
+  const xpNeeded = nextLevelXp - currentLevelXp;
+  const xpInLevel = xp - currentLevelXp;
+  const progress = Math.min(1.0, Math.max(0.0, xpInLevel / xpNeeded));
+  
+  return { level, progress, xpInLevel, xpNeeded };
+}
+
+function getPetLevel(xp, rarity) {
+  if (xp == null || !Number.isFinite(xp) || xp <= 0) return 1;
+  const r = rarity?.toUpperCase() || "LEGENDARY";
+  let maxXP = 25353230;
+  if (r === "COMMON") maxXP = 5624785;
+  else if (r === "UNCOMMON") maxXP = 8644475;
+  else if (r === "RARE") maxXP = 12624785;
+  else if (r === "EPIC") maxXP = 18624785;
+  
+  if (xp >= maxXP) return 100;
+  const ratio = xp / maxXP;
+  let level = Math.floor(100 * Math.pow(ratio, 0.28));
+  return Math.max(1, Math.min(99, level));
+}
+
+function getPetEmoji(type) {
+  const map = {
+    SHEEP: "🐑", DRAGON: "🐉", ENDERMAN: "👁️", MONKEY: "🐒", WOLF: "🐺",
+    CAT: "🐱", ELEPHANT: "🐘", TIGER: "🐯", LION: "🦁", RABBIT: "🐇",
+    SQUID: "🦑", BEE: "🐝", CHICKEN: "🐔", COW: "🐄", PIG: "🐷",
+    RAT: "🐀", BAT: "🦇", SPIDER: "🕷️", GOLEM: "🗿", YETI: "❄️"
+  };
+  return map[type?.toUpperCase()] || "🐾";
+}
+
+function renderProfileView() {
+  const pane = $("#view-profile");
+  if (!pane) return;
+  
+  const p = state.player;
+  
+  if (!p.username) {
+    pane.innerHTML = accessoryGateHTML("The Profile Viewer");
+    return;
+  }
+  
+  if (p.loading) {
+    pane.innerHTML = accessoryLoadingHTML("Loading profile data...");
+    return;
+  }
+  
+  const prof = p.profiles.find((pr) => pr.profile_id === p.selectedId);
+  const member = prof?._raw?.members?.[p.uuid];
+  
+  if (!member) {
+    pane.innerHTML = `
+      <div class="acc-gate">
+        <div class="acc-gate-icon">⚠️</div>
+        <h2>No member data found</h2>
+        <p>Could not find active profile data for this member. Please try switching profiles or re-linking.</p>
+      </div>`;
+    return;
+  }
+  
+  const stats = p.extra || {};
+  const coinPurse = p.coinPurse;
+  const bank = stats.bank;
+  const sbLevel = stats.sbLevel;
+  const gameMode = prof?.game_mode || "Normal";
+  
+  // Format numbers nicely
+  const formatNum = (num) => num != null ? num.toLocaleString() : "—";
+  const formatCoinsShort = (num) => {
+    if (num == null) return "—";
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
+    if (num >= 1e3) return (num / 1e3).toFixed(1) + "k";
+    return num.toFixed(0);
+  };
+
+  // 1. Skill progress rendering
+  const SKILLS_META = [
+    { key: "SKILL_COMBAT", name: "Combat", icon: "⚔️", color: "#ff3333" },
+    { key: "SKILL_MINING", name: "Mining", icon: "⛏️", color: "#5c85d6" },
+    { key: "SKILL_FARMING", name: "Farming", icon: "🌾", color: "#47d147" },
+    { key: "SKILL_FORAGING", name: "Foraging", icon: "🪓", color: "#e68a00" },
+    { key: "SKILL_FISHING", name: "Fishing", icon: "🎣", color: "#33ccff" },
+    { key: "SKILL_ALCHEMY", name: "Alchemy", icon: "🧪", color: "#b347ff" },
+    { key: "SKILL_ENCHANTING", name: "Enchanting", icon: "🔮", color: "#ff47b3" },
+    { key: "SKILL_TAMING", name: "Taming", icon: "🐾", color: "#ffd24d" },
+    { key: "SKILL_CARPENTRY", name: "Carpentry", icon: "🪚", color: "#a67c52" },
+    { key: "SKILL_RUNECRAFTING", name: "Runecrafting", icon: "✨", color: "#ff99ff" },
+  ];
+  
+  const skillExp = member.player_data?.experience || {};
+  const skillsHTML = SKILLS_META.map(skill => {
+    const xp = skillExp[skill.key] || 0;
+    const { level, progress, xpInLevel, xpNeeded } = getSkillXpAndProgress(xp);
+    const pct = (progress * 100).toFixed(0);
+    const isMax = level >= 60 || xpNeeded === 0;
+    
+    return `
+      <div class="profile-skill-row" title="${skill.name} Skill Details">
+        <div class="profile-skill-icon" style="background: rgba(${skill.color === "#ff3333" ? "255,51,51" : skill.color === "#5c85d6" ? "92,133,214" : skill.color === "#47d147" ? "71,209,71" : skill.color === "#e68a00" ? "230,138,0" : "51,204,255"}, 0.1); color: ${skill.color}">
+          ${skill.icon}
+        </div>
+        <div class="profile-skill-info">
+          <div class="profile-skill-name-row">
+            <span class="profile-skill-name">${skill.name}</span>
+            <span class="profile-skill-level">Lvl ${level}</span>
+          </div>
+          <div class="profile-progress-bg">
+            <div class="profile-progress-bar" style="width: ${pct}%; background: ${skill.color};"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <span style="font-size: 10px; color: var(--text-muted);">${isMax ? "Max Level" : `${pct}% to next`}</span>
+            <span class="profile-skill-tooltip-text">${isMax ? formatNum(xp) : `${formatNum(xpInLevel)} / ${formatNum(xpNeeded)}`}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  // 2. Slayer rendering
+  const SLAYERS_META = [
+    { key: "zombie", name: "Revenant Horror", icon: "🧟" },
+    { key: "spider", name: "Tarantula", icon: "🕷️" },
+    { key: "wolf", name: "Sven Packmaster", icon: "🐺" },
+    { key: "enderman", name: "Voidgloom Seraph", icon: "👁️" },
+    { key: "blaze", name: "Infernum Demonlord", icon: "🔥" },
+    { key: "vampire", name: "Riftstalker", icon: "🧛", isVampire: true },
+  ];
+  
+  const slayersHTML = SLAYERS_META.map(sl => {
+    const sData = member.slayer?.slayer_bosses?.[sl.key] || {};
+    const xp = sData.xp || 0;
+    const { level, progress, xpInLevel, xpNeeded } = getSlayerLvlAndProgress(xp, sl.isVampire);
+    const pct = xpNeeded ? (progress * 100).toFixed(0) : "100";
+    const isMax = level >= 9 || xpNeeded === null;
+    
+    return `
+      <div class="profile-skill-row" title="${sl.name} Slayer Details">
+        <div class="profile-skill-icon" style="background: rgba(255, 51, 51, 0.05); color: #ff3333;">
+          ${sl.icon}
+        </div>
+        <div class="profile-skill-info">
+          <div class="profile-skill-name-row">
+            <span class="profile-skill-name">${sl.name}</span>
+            <span class="profile-skill-level">Lvl ${level}</span>
+          </div>
+          <div class="profile-progress-bg">
+            <div class="profile-progress-bar" style="width: ${pct}%; background: linear-gradient(90deg, #ff3333, #b30000);"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <span style="font-size: 10px; color: var(--text-muted);">${isMax ? "Max Level" : `${pct}% to next`}</span>
+            <span class="profile-skill-tooltip-text">${isMax ? `${formatNum(xp)} XP` : `${formatNum(xpInLevel)} / ${formatNum(xpNeeded)} XP`}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  // 3. Dungeon level rendering
+  const dungeonExp = member.dungeons?.dungeon_types?.catacombs?.experience || 0;
+  const cata = getDungeonLvlAndProgress(dungeonExp);
+  const cataPct = cata.xpNeeded ? (cata.progress * 100).toFixed(0) : "100";
+  
+  const CLASSES_META = [
+    { key: "mage", name: "Mage", icon: "🧙", color: "#33ccff" },
+    { key: "archer", name: "Archer", icon: "🏹", color: "#ff3333" },
+    { key: "berserk", name: "Berserk", icon: "🩸", color: "#ff9933" },
+    { key: "tank", name: "Tank", icon: "🛡️", color: "#47d147" },
+    { key: "healer", name: "Healer", icon: "💖", color: "#ff99ff" },
+  ];
+  
+  const classesHTML = CLASSES_META.map(cl => {
+    const xp = member.dungeons?.player_classes?.[cl.key]?.experience || 0;
+    const { level, progress, xpInLevel, xpNeeded } = getDungeonLvlAndProgress(xp);
+    const pct = xpNeeded ? (progress * 100).toFixed(0) : "100";
+    const isMax = level >= 50 || xpNeeded === null;
+    
+    return `
+      <div class="profile-skill-row" title="${cl.name} Class Details">
+        <div class="profile-skill-icon" style="background: rgba(255, 255, 255, 0.05); color: ${cl.color};">
+          ${cl.icon}
+        </div>
+        <div class="profile-skill-info">
+          <div class="profile-skill-name-row">
+            <span class="profile-skill-name">${cl.name}</span>
+            <span class="profile-skill-level">Lvl ${level}</span>
+          </div>
+          <div class="profile-progress-bg">
+            <div class="profile-progress-bar" style="width: ${pct}%; background: ${cl.color};"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <span style="font-size: 10px; color: var(--text-muted);">${isMax ? "Max Level" : `${pct}% to next`}</span>
+            <span class="profile-skill-tooltip-text">${isMax ? `${formatNum(xp)} XP` : `${formatNum(xpInLevel)} / ${formatNum(xpNeeded)} XP`}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  // 4. Pets rendering
+  const petsList = member.pets || [];
+  let petsHTML = "";
+  if (petsList.length === 0) {
+    petsHTML = `<div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 13px;">No pets found on this profile.</div>`;
+  } else {
+    const rarityWeights = { MYTHIC: 6, LEGENDARY: 5, EPIC: 4, RARE: 3, UNCOMMON: 2, COMMON: 1 };
+    const sortedPets = [...petsList].sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      const rA = rarityWeights[a.tier?.toUpperCase()] || 0;
+      const rB = rarityWeights[b.tier?.toUpperCase()] || 0;
+      if (rA !== rB) return rB - rA;
+      return (b.exp || 0) - (a.exp || 0);
+    });
+    
+    petsHTML = `
+      <div class="profile-pets-container">
+        ${sortedPets.map(pet => {
+          const petLvl = getPetLevel(pet.exp, pet.tier);
+          const emoji = getPetEmoji(pet.type);
+          const rarityClass = `pet-rarity-${pet.tier?.toLowerCase() || "common"}`;
+          const cleanName = pet.type?.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) || "Pet";
+          
+          return `
+            <div class="profile-pet-card ${rarityClass}" title="${pet.tier || "COMMON"} ${cleanName} - Exp: ${formatNum(pet.exp || 0)}">
+              ${pet.active ? `<span class="profile-pet-active-badge"></span>` : ""}
+              <div class="profile-pet-icon">${emoji}</div>
+              <div class="profile-pet-level">Lvl ${petLvl}</div>
+              <div class="profile-pet-name">${cleanName}</div>
+            </div>`;
+        }).join("")}
+      </div>`;
+  }
+
+  // Combine everything into pane inner HTML
+  pane.innerHTML = `
+    <div class="profile-view-container">
+      
+      <!-- General Header Profile Info -->
+      <header class="profile-header-card">
+        <div class="profile-header-left">
+          <div class="profile-avatar-wrapper">
+            <img class="profile-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(p.uuid)}/64" alt="${escapeHtml(p.username)}">
+            <span class="profile-sb-level-badge" title="SkyBlock Level">${sbLevel || "0"}</span>
+          </div>
+          <div class="profile-meta-info">
+            <h2 class="profile-username">
+              ${escapeHtml(p.username)}
+              <span class="profile-mode-badge ${gameMode.toLowerCase() === "ironman" ? "ironman" : ""}">${gameMode}</span>
+            </h2>
+            <div class="profile-selected-name">
+              <span style="color: #47d147;">★</span> Active Profile: <strong style="color: #fff;">${escapeHtml(prof?.cute_name || "Unknown")}</strong>
+            </div>
+          </div>
+        </div>
+        
+        <div class="profile-header-right">
+          <div class="profile-header-stat-box" title="Available cash in purse">
+            <span class="profile-header-stat-label">Purse Coins</span>
+            <span class="profile-header-stat-value" style="color: #ffd700;">${coinPurse != null ? formatCoinsShort(coinPurse) : "0"}</span>
+          </div>
+          <div class="profile-header-stat-box" title="Cash stored in banking">
+            <span class="profile-header-stat-label">Bank Coins</span>
+            <span class="profile-header-stat-value" style="color: #5c85d6;">${bank != null ? formatCoinsShort(bank) : "—"}</span>
+          </div>
+          <div class="profile-header-stat-box" title="Total Slayer Boss Points">
+            <span class="profile-header-stat-label">Slayer XP</span>
+            <span class="profile-header-stat-value" style="color: #ff3333;">${stats.slayerXp ? formatCoinsShort(stats.slayerXp) : "0"}</span>
+          </div>
+          <div class="profile-header-stat-box" title="Magical Power from Accessory Bag">
+            <span class="profile-header-stat-label">Magical Power</span>
+            <span class="profile-header-stat-value" style="color: #33ccff;">${p.accessoryAnalysis ? p.accessoryAnalysis.currentMP : "—"}</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main grids of visual statistics -->
+      <div class="profile-grid-layout">
+        
+        <!-- Skills List Section -->
+        <section class="profile-section-card" aria-label="Skills progress">
+          <h3 class="profile-section-title">
+            <span style="color: var(--ember);">📊</span> Skills Collection
+          </h3>
+          <div class="profile-items-grid">
+            ${skillsHTML}
+          </div>
+        </section>
+
+        <!-- Slayers List Section -->
+        <section class="profile-section-card" aria-label="Slayers progress">
+          <h3 class="profile-section-title">
+            <span style="color: #ff3333;">⚔️</span> Slayer Bosses
+          </h3>
+          <div class="profile-items-grid">
+            ${slayersHTML}
+          </div>
+        </section>
+
+      </div>
+
+      <div class="profile-grid-layout">
+        
+        <!-- Catacombs and Dungeons Section -->
+        <section class="profile-section-card" aria-label="Dungeon info">
+          <h3 class="profile-section-title">
+            <span style="color: #33ccff;">💀</span> Dungeon &amp; Classes
+          </h3>
+          <div class="profile-items-grid">
+            <!-- Catacombs Primary -->
+            <div class="profile-skill-row" style="border-color: rgba(90, 185, 255, 0.15);" title="Catacombs Progression Details">
+              <div class="profile-skill-icon" style="background: rgba(90, 185, 255, 0.1); color: #33ccff;">💀</div>
+              <div class="profile-skill-info">
+                <div class="profile-skill-name-row">
+                  <span class="profile-skill-name" style="color: #fff; font-weight: 800;">Catacombs Level</span>
+                  <span class="profile-skill-level" style="color: #33ccff;">Lvl ${cata.level}</span>
+                </div>
+                <div class="profile-progress-bg">
+                  <div class="profile-progress-bar" style="width: ${cataPct}%; background: #33ccff;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                  <span style="font-size: 10px; color: var(--text-muted);">${cata.xpNeeded ? `${cataPct}% to next` : "Max Level"}</span>
+                  <span class="profile-skill-tooltip-text">${cata.xpNeeded ? `${formatNum(cata.xpInLevel)} / ${formatNum(cata.xpNeeded)} XP` : `${formatNum(dungeonExp)} XP`}</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Class list -->
+            ${classesHTML}
+          </div>
+        </section>
+
+        <!-- Pets List Section -->
+        <section class="profile-section-card" aria-label="Pets collection">
+          <h3 class="profile-section-title">
+            <span style="color: #ffd24d;">🐾</span> Pets Collection (${petsList.length})
+          </h3>
+          ${petsHTML}
+        </section>
+
+      </div>
+
+    </div>`;
 }
 
 document.addEventListener("DOMContentLoaded", init);

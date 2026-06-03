@@ -2337,5 +2337,333 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   background: rgba(255, 115, 0, 0.1);
 }
 
+/* =========================================================================
+ * SKYCRYPT STYLE PROFILE VIEWER
+ * ======================================================================= */
+.profile-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.profile-header-card {
+  background: linear-gradient(135deg, rgba(16, 22, 42, 0.8), rgba(10, 14, 26, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-md);
+  padding: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  backdrop-filter: blur(12px);
+  position: relative;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.profile-header-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--ember), #ff8c00);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+}
+
+.profile-header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.profile-avatar-wrapper {
+  position: relative;
+}
+
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.profile-sb-level-badge {
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  background: linear-gradient(135deg, #ffd700, #ffaa00);
+  color: #000;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 900;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 2px solid #0a0e1a;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.profile-meta-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-username {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-mode-badge {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 115, 0, 0.15);
+  border: 1px solid rgba(255, 115, 0, 0.3);
+  color: var(--ember-light);
+  letter-spacing: 0.05em;
+}
+
+.profile-mode-badge.ironman {
+  background: rgba(192, 192, 192, 0.15);
+  border-color: rgba(192, 192, 192, 0.3);
+  color: #e0e0e0;
+}
+
+.profile-selected-name {
+  font-size: 14px;
+  color: var(--text-soft);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.profile-header-right {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.profile-header-stat-box {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-header-stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.profile-header-stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.profile-grid-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 24px;
+}
+
+.profile-section-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.profile-section-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-items-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-skill-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-skill-icon {
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.profile-skill-info {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-skill-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.profile-skill-name {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--text-soft);
+}
+
+.profile-skill-level {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+}
+
+.profile-progress-bg {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.profile-skill-tooltip-text {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  text-align: right;
+}
+
+/* Pets visual card grid */
+.profile-pets-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.profile-pet-card {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.profile-pet-card:hover {
+  transform: scale(1.03);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.profile-pet-icon {
+  font-size: 24px;
+}
+
+.profile-pet-level {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.profile-pet-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.profile-pet-active-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #47d147;
+  box-shadow: 0 0 8px #47d147;
+}
+
+/* Pet rarity background borders */
+.pet-rarity-common { border-color: rgba(150, 150, 150, 0.25) !important; }
+.pet-rarity-uncommon { border-color: rgba(71, 209, 71, 0.25) !important; }
+.pet-rarity-rare { border-color: rgba(90, 185, 255, 0.25) !important; }
+.pet-rarity-epic { border-color: rgba(179, 71, 255, 0.25) !important; }
+.pet-rarity-legendary { border-color: rgba(255, 179, 71, 0.25) !important; }
+.pet-rarity-mythic { border-color: rgba(255, 71, 179, 0.25) !important; }
+
+/* Scrollbar tuning for cards */
+.profile-pets-container::-webkit-scrollbar {
+  width: 4px;
+}
+.profile-pets-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+.profile-pets-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
 
 
