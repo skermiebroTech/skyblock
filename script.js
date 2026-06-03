@@ -23,7 +23,7 @@
  * 1. CONFIG
  * ======================================================================= */
 const CONFIG = {
-  API_BASE: "https://api.hypixel.net/v2",
+  API_BASE: "https://hypixie.skermiebro.workers.dev",
   BAZAAR_ENDPOINT: "/skyblock/bazaar",
   PROFILES_ENDPOINT: "/skyblock/profiles",
   ITEMS_ENDPOINT: "/resources/skyblock/items",
@@ -382,10 +382,7 @@ async function loadPlayerProfiles(username) {
   renderPlayerPanel();
 
   try {
-    if (!localStorage.getItem(CONFIG.API_KEY_STORAGE)) {
-      throw new Error("An API key is required for profile lookups. Add one in Settings.");
-    }
-
+    // API key check is bypassed since the secure Cloudflare proxy handles key injection!
     const { uuid, username: canonical } = await api.resolveUsername(username);
     state.player.uuid = uuid;
     state.player.username = canonical;
@@ -3224,8 +3221,8 @@ function init() {
   startTimeAgoTicker();
   loadData(false);
 
-  /* If the user previously linked an account and has an API key, auto-load. */
-  if (state.player.username && localStorage.getItem(CONFIG.API_KEY_STORAGE)) {
+  /* If the user previously linked an account, auto-load. */
+  if (state.player.username) {
     loadPlayerProfiles(state.player.username);
   }
 
