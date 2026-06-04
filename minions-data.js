@@ -114,15 +114,25 @@ function calculateUpgradeCost(minion, currentTier, targetTier, prices, bazaarMod
   return { totalCost, items };
 }
 
+const MINION_GENERATOR_ALIASES = {
+  /* Hypixel crafted_generators uses these compact/legacy ids. */
+  CAVESPIDER: "CAVE_SPIDER",
+  ENDER_STONE: "END_STONE",
+};
+
+function normalizeCraftedMinionId(baseId) {
+  return MINION_GENERATOR_ALIASES[baseId] || baseId;
+}
+
 /* Parse profile crafted_generators into a current minion level map: { [id]: maxCraftedLevel } */
 function parseCraftedMinions(craftedGenerators) {
   const levels = {};
   for (const gen of craftedGenerators || []) {
-    const parts = gen.split("_");
+    const parts = String(gen || "").split("_");
     const levelStr = parts.pop();
     const level = parseInt(levelStr, 10);
-    const baseId = parts.join("_"); // e.g. COBBLESTONE, DARK_OAK
-    if (!isNaN(level)) {
+    const baseId = normalizeCraftedMinionId(parts.join("_")); // e.g. COBBLESTONE, DARK_OAK, CAVE_SPIDER
+    if (!isNaN(level) && baseId) {
       levels[baseId] = Math.max(levels[baseId] || 0, level);
     }
   }
