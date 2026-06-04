@@ -3247,6 +3247,64 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   box-shadow: 0 0 16px rgba(255, 107, 53, 0.15);
 }
 
+.p2w-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 18px 0 20px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-md);
+  flex-wrap: wrap;
+}
+
+.p2w-tab {
+  min-width: 170px;
+}
+
+.p2w-fire-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.p2w-fire-head {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.p2w-fire-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.p2w-fire-stats {
+  margin-top: 0;
+}
+
+.p2w-fire-table-section {
+  margin-top: 0;
+}
+
+.p2w-fire-table .cell-shard {
+  min-width: 220px;
+}
+
+.p2w-fire-note {
+  padding: 12px 14px;
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.025);
+}
+
+@media (max-width: 720px) {
+  .p2w-tab { flex: 1; min-width: 0; }
+  .p2w-fire-actions { justify-content: flex-start; }
+}
+
 /* ==========================================================================
    Mutations tab
    ========================================================================== */

@@ -7,6 +7,7 @@ A browser-based **Hypixel SkyBlock optimizer**. Reads the official Hypixel API s
 - **max your attributes** — exactly how many shards each one needs and the coin cost
 - optimize **Sweep** — all known Sweep sources sorted from lowest to highest live coin cost
 - track and calculate **SkyBlock Mutations** — collection progress, recursive recipe requirements, Greenhouse slot planning, and a static profit leaderboard
+- compare **P2W routes** — Booster Cookie purchases and Fire Sales valued against live Bazaar / Auction House prices
 
 No backend. No build step. No tracking. Static files you can host on GitHub Pages.
 
@@ -24,6 +25,7 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
   - **Attribute maxing** — shards remaining and live bazaar cost per attribute, sorted by cheapest remaining cost to max first.
   - **Personalized craft flips** — your Hunting level is pulled from the profile API and fusion opportunities above your level are locked out of profit rankings.
 - **Sweep Optimizer** lists permanent, pet, armor, tool, equipment, enchantment, attribute, booster, and Heart of the Forest Sweep sources. Bazaar-tradable methods use live Bazaar prices; gear/pets use live lowest-BIN Auction House scans; progression-only sources are clearly marked as not directly priceable. When a profile is linked, completed/owned Sweep sources are hidden from recommendations by default and can be reviewed with **Show completed**.
+- **P2W Calculator** has a Booster Cookies tab plus a Fire Sales tab. Fire Sales are fetched from Hypixel's `/v2/skyblock/firesales` API for current/upcoming cosmetics, then priced from the live Auction House lowest-BIN scan to estimate coins per USD.
 - Every item links to the **Hypixel Wiki**; **soulbound** items are flagged (can't be bought on the AH).
 - Player panel shows coin purse, bank, SkyBlock level, Hunting/Combat levels, slayer XP, and fairy souls.
 - Stores responses in `localStorage` with short TTLs so quick reloads don't hammer the API.
@@ -41,7 +43,7 @@ shard-market/
 ├── sweep-data.js           ← Static Sweep source list from the Hypixel Wiki Sweep page
 ├── mutations-data.js       ← Static SkyBlock Mutation recipes/effects/costs from the public SkyMutations dataset
 ├── nbt.js                  ← Minimal NBT parser (decodes the gzipped inventory blob)
-├── prices.js               ← Unified price resolver: bazaar + AH lowest-BIN scan
+├── prices.js               ← Unified price resolver: bazaar + AH lowest-BIN scan (used by accessories, Sweep, P2W)
 ├── accessories.js          ← Accessory catalog, upgrade families, Magical Power math
 ├── attributes.js           ← Attribute catalog + shards-to-max calculation
 ├── data/

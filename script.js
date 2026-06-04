@@ -27,6 +27,7 @@ const CONFIG = {
   BAZAAR_ENDPOINT: "/skyblock/bazaar",
   PROFILES_ENDPOINT: "/skyblock/profiles",
   ITEMS_ENDPOINT: "/resources/skyblock/items",
+  FIRESALES_PUBLIC_URL: "https://api.hypixel.net/v2/skyblock/firesales",
 
   /* CORS-friendly Mojang proxy for username → UUID resolution. */
   USERNAME_LOOKUP_URL: "https://api.ashcon.app/mojang/v2/user/",
@@ -63,8 +64,10 @@ const CONFIG = {
   CACHE_KEY_ITEMS:         "shardmarket.cache.items.v1",
   CACHE_KEY_ATTR_DESC:     "shardmarket.cache.attrDesc.v1",
   CACHE_KEY_BINS:          "shardmarket.cache.lowestBins.v2",
+  CACHE_KEY_FIRESALES:     "shardmarket.cache.fireSales.v1",
   CACHE_KEY_PROFILE_PREFIX: "shardmarket.cache.profile.",  // + uuid
   CACHE_TTL_BINS_MS:       300_000,   // 5 min — AH moves but a full scan is heavy
+  CACHE_TTL_FIRESALES_MS:  60_000,    // Fire Sales are public and can update around start/end times
 
   /* Accessory page preferences. */
   BAZAAR_MODE_STORAGE: "shardmarket.bazaarMode",  // "instaBuy" | "buyOrder"
@@ -176,7 +179,12 @@ const state = {
     cookieMethod: "instantSell",
     currency: "USD",
     exchangeRate: 1.5,
-    searchQuery: ""
+    searchQuery: "",
+    activeTab: "cookies",
+    fireSales: null,
+    fireSalesLoading: false,
+    fireSalesError: null,
+    fireSalesFetchedAt: null
   },
 };
 
@@ -1517,6 +1525,9 @@ function setView(view) {
    * (uses cache on subsequent visits; never blocks the UI). */
   if ((view === "missing" || view === "upgrades" || view === "sweep" || view === "p2w") && !state.lowestBins) {
     loadLowestBinsIfNeeded(false);
+  }
+  if (view === "p2w" && state.p2w.activeTab === "firesales") {
+    loadFireSalesIfNeeded(false);
   }
 
   renderActiveView();
@@ -4580,6 +4591,212 @@ function optimizeGems(targetGems) {
   };
 }
 
+async function fetchFireSalesPublic() {
+  const cached = cache.read(CONFIG.CACHE_KEY_FIRESALES, CONFIG.CACHE_TTL_FIRESALES_MS);
+  if (cached) return { sales: cached.data.sales || [], cached: true, fetchedAt: cached.ts };
+
+  const res = await fetch(CONFIG.FIRESALES_PUBLIC_URL);
+  if (!res.ok) throw new Error(`Fire Sales API error ${res.status}`);
+  const data = await res.json();
+  if (data?.success === false) throw new Error(data.cause || "Fire Sales API failed");
+  const payload = { sales: Array.isArray(data?.sales) ? data.sales : [] };
+  cache.write(CONFIG.CACHE_KEY_FIRESALES, payload);
+  return { sales: payload.sales, cached: false, fetchedAt: Date.now() };
+}
+
+async function loadFireSalesIfNeeded(force = false) {
+  if (state.p2w.fireSalesLoading) return;
+  if (state.p2w.fireSales && !force) return;
+  if (force) cache.clear(CONFIG.CACHE_KEY_FIRESALES);
+
+  state.p2w.fireSalesLoading = true;
+  state.p2w.fireSalesError = null;
+  if (state.view === "p2w") renderP2wView();
+
+  try {
+    const { sales, fetchedAt } = await fetchFireSalesPublic();
+    state.p2w.fireSales = sales;
+    state.p2w.fireSalesFetchedAt = fetchedAt;
+  } catch (e) {
+    state.p2w.fireSalesError = e.message || String(e);
+    state.p2w.fireSales = [];
+    state.p2w.fireSalesFetchedAt = Date.now();
+    console.error("[Hypixie] Fire Sales fetch failed:", e);
+  } finally {
+    state.p2w.fireSalesLoading = false;
+    if (state.view === "p2w") renderP2wView();
+  }
+}
+
+function normalizeFireSaleTimestamp(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n < 1_000_000_000_000 ? n * 1000 : n; // tolerate seconds or ms
+}
+
+function fireSaleTimeLabel(sale) {
+  const start = normalizeFireSaleTimestamp(sale.start || sale.start_time || sale.startTime || sale.start_at || sale.startAt);
+  const end = normalizeFireSaleTimestamp(sale.end || sale.end_time || sale.endTime || sale.end_at || sale.endAt);
+  const now = Date.now();
+  const fmt = (ms) => ms ? new Date(ms).toLocaleString() : "—";
+  if (start && start > now) return { status: "Upcoming", when: `Starts ${fmt(start)}`, start, end };
+  if (end && end > now) return { status: "Live", when: `Ends ${fmt(end)}`, start, end };
+  return { status: "Past/unknown", when: end ? `Ended ${fmt(end)}` : (start ? `Started ${fmt(start)}` : "No time provided"), start, end };
+}
+
+function getFireSaleItemId(sale) {
+  return sale.item_id || sale.itemId || sale.item || sale.id || "";
+}
+
+function getFireSaleItemName(sale) {
+  const id = getFireSaleItemId(sale);
+  return state.allItemsById?.get(id)?.name || sale.item_name || sale.itemName || sale.name || id || "Unknown cosmetic";
+}
+
+function getFireSaleGemPrice(sale) {
+  const raw = sale.price ?? sale.gem_price ?? sale.gemPrice ?? sale.cost ?? 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getFireSaleRows() {
+  const sales = state.p2w.fireSales || [];
+  return sales.map((sale) => {
+    const id = getFireSaleItemId(sale);
+    const name = getFireSaleItemName(sale);
+    const gems = getFireSaleGemPrice(sale);
+    const ahPrice = state.lowestBins?.get(id) ?? null;
+    const opt = optimizeGems(gems);
+    const usdCost = opt.cost;
+    const coinPerUsd = usdCost > 0 && ahPrice != null ? ahPrice / usdCost : null;
+    const sold = Number(sale.sold || sale.amount_sold || sale.amountSold || 0);
+    const amount = Number(sale.amount || sale.total || sale.stock || 0);
+    const time = fireSaleTimeLabel(sale);
+    return { sale, id, name, gems, ahPrice, opt, usdCost, coinPerUsd, sold, amount, time };
+  }).sort((a, b) => {
+    const sr = fireSaleStatusRank(a.time.status) - fireSaleStatusRank(b.time.status);
+    if (sr) return sr;
+    const vr = (b.coinPerUsd || -1) - (a.coinPerUsd || -1);
+    if (vr) return vr;
+    return (a.time.start || Infinity) - (b.time.start || Infinity);
+  });
+}
+
+
+function fireSaleStatusRank(status) {
+  if (status === "Live") return 0;
+  if (status === "Upcoming") return 1;
+  return 2;
+}
+
+function fireSaleStockLabel(row) {
+  if (!row.amount && !row.sold) return "—";
+  if (row.amount && row.sold) return `${fmtInt(row.sold)} / ${fmtInt(row.amount)} sold`;
+  if (row.amount) return `${fmtInt(row.amount)} stock`;
+  return `${fmtInt(row.sold)} sold`;
+}
+
+function fireSaleFreshnessLabel() {
+  if (!state.p2w.fireSalesFetchedAt) return "not fetched yet";
+  const sec = Math.max(0, Math.floor((Date.now() - state.p2w.fireSalesFetchedAt) / 1000));
+  if (sec < 5) return "updated just now";
+  if (sec < 60) return `updated ${sec}s ago`;
+  if (sec < 3600) return `updated ${Math.floor(sec / 60)}m ago`;
+  return `updated ${Math.floor(sec / 3600)}h ago`;
+}
+
+function renderP2wTabsHTML() {
+  return `
+    <div class="p2w-tabs" role="tablist" aria-label="P2W calculator modes">
+      <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "cookies" ? "active" : ""}" data-p2w-tab="cookies" role="tab" aria-selected="${state.p2w.activeTab === "cookies"}">🍪 Booster Cookies</button>
+      <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "firesales" ? "active" : ""}" data-p2w-tab="firesales" role="tab" aria-selected="${state.p2w.activeTab === "firesales"}">🔥 Fire Sales</button>
+    </div>`;
+}
+
+function renderFireSalesTabHTML() {
+  if (state.p2w.fireSalesLoading && !state.p2w.fireSales) {
+    return `<div class="acc-loading"><span class="spinner"></span> Loading current and upcoming Fire Sales from Hypixel…</div>`;
+  }
+
+  const rows = getFireSaleRows();
+  const live = rows.filter((r) => r.time.status === "Live");
+  const upcoming = rows.filter((r) => r.time.status === "Upcoming");
+  const priced = rows.filter((r) => r.ahPrice != null && r.usdCost > 0);
+  const best = priced[0] || null;
+  const totalPotential = priced.reduce((sum, r) => sum + (r.ahPrice || 0), 0);
+  const binsState = state.binsLoading
+    ? `<span class="ah-status">Scanning AH… ${Math.round(state.binsProgress * 100)}%</span>`
+    : state.lowestBins
+      ? `<span class="ah-status ah-status-ok">AH prices loaded (${state.lowestBins.size})</span>`
+      : `<button class="btn-secondary btn-small" id="p2w-load-bins-btn">Load AH prices</button>`;
+  const refreshText = state.p2w.fireSalesLoading ? "Refreshing…" : "Refresh Fire Sales";
+
+  const empty = !rows.length ? `
+    <div class="acc-gate p2w-fire-empty">
+      <div class="acc-gate-icon">🔥</div>
+      <h2>No current or upcoming Fire Sales</h2>
+      <p>Hypixel's Fire Sales endpoint is live, but it returned an empty sale list right now. Use <b>Refresh Fire Sales</b> when a new sale is announced.</p>
+    </div>` : "";
+
+  const rowHTML = rows.map((row, idx) => {
+    const realCost = state.p2w.currency === "AUD" ? row.usdCost * state.p2w.exchangeRate : row.usdCost;
+    const currencySymbol = state.p2w.currency === "AUD" ? "AUD $" : "USD $";
+    const coinPerUsd = row.coinPerUsd != null ? `${fmtCoins(row.coinPerUsd)}/USD` : "—";
+    const ahText = row.ahPrice != null ? fmtCoins(row.ahPrice) : (state.binsLoading ? "Scanning…" : "No BIN found");
+    const profitClass = row.coinPerUsd != null ? "pos" : "num-muted";
+    return `
+      <tr>
+        <td class="th-rank">${idx + 1}</td>
+        <td>
+          <div class="cell-shard">
+            <img src="${getUniversalItemIconUrl(row.id)}" alt="" class="shard-icon" onerror="${fallbackToSkyCryptItemOnError(row.id)}">
+            <div><strong>${escapeHtml(row.name)}</strong><div class="meta-attr">${escapeHtml(row.id || "unknown id")}</div></div>
+          </div>
+        </td>
+        <td><span class="pill">${row.time.status}</span><div class="meta-attr">${escapeHtml(row.time.when)}</div></td>
+        <td class="num">${fmtInt(row.gems)} 💎</td>
+        <td class="num">${currencySymbol}${realCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td class="num">${ahText}<div class="meta-attr">${fireSaleStockLabel(row)}</div></td>
+        <td class="num ${profitClass}">${coinPerUsd}</td>
+      </tr>`;
+  }).join("");
+
+  return `
+    <section class="p2w-fire-tab">
+      <div class="acc-page-head p2w-fire-head">
+        <div>
+          <h2 class="acc-page-title">Fire Sales P2W Calculator</h2>
+          <p class="acc-page-sub">Uses Hypixel's Fire Sales API for current/upcoming cosmetics, then values each item from live Auction House lowest BIN prices. Gem package optimization is shared with the Booster Cookie calculator.</p>
+        </div>
+        <div class="p2w-fire-actions">
+          ${binsState}
+          <button class="btn-secondary btn-small" id="p2w-refresh-firesales" ${state.p2w.fireSalesLoading ? "disabled" : ""}>${refreshText}</button>
+        </div>
+      </div>
+
+      ${state.p2w.fireSalesError ? `<div class="error-box">Fire Sales API error: ${escapeHtml(state.p2w.fireSalesError)}</div>` : ""}
+
+      <section class="stats-grid p2w-fire-stats" aria-label="Fire Sale overview">
+        <div class="stat-card"><div class="stat-label">Live sales</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${live.length}</span><span class="stat-value-minor">${upcoming.length} upcoming · ${fireSaleFreshnessLabel()}</span></div></div>
+        <div class="stat-card"><div class="stat-label">Priced from AH</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${priced.length} / ${rows.length}</span><span class="stat-value-minor">lowest BIN scan powers prices</span></div></div>
+        <div class="stat-card"><div class="stat-label">Best coins / USD</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${best?.coinPerUsd ? fmtCoins(best.coinPerUsd) : "—"}</span><span class="stat-value-minor">${best ? escapeHtml(best.name) : "no AH-priced sale yet"}</span></div></div>
+        <div class="stat-card"><div class="stat-label">AH value tracked</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${totalPotential ? fmtCoins(totalPotential) : "—"}</span><span class="stat-value-minor">gross lowest-BIN value</span></div></div>
+      </section>
+
+      ${empty || `
+        <section class="table-section p2w-fire-table-section">
+          <div class="table-scroll">
+            <table class="shard-table p2w-fire-table">
+              <thead><tr><th class="th-rank">#</th><th>Fire Sale Item</th><th>Status</th><th class="th-num">Gem Price</th><th class="th-num">Real Cost</th><th class="th-num">AH Lowest BIN</th><th class="th-num">Coins / USD</th></tr></thead>
+              <tbody>${rowHTML}</tbody>
+            </table>
+          </div>
+        </section>`}
+
+      <div class="p2w-help-text p2w-fire-note">Note: Auction values are gross lowest-BIN prices from the current AH scan. Fire Sale API responses can be empty between sales, and upcoming cosmetics may not have an AH price until players receive and list them.</div>
+    </section>`;
+}
+
 async function fetchExchangeRate() {
   try {
     const res = await fetch("https://open.er-api.com/v6/latest/USD");
@@ -4695,6 +4912,9 @@ function renderP2wView() {
       </div>
     </header>
 
+    ${renderP2wTabsHTML()}
+
+    ${state.p2w.activeTab === "firesales" ? renderFireSalesTabHTML() : `
     <div class="p2w-container">
       <!-- Left Column: Controls -->
       <div class="p2w-controls-column">
@@ -4817,7 +5037,7 @@ function renderP2wView() {
 
           <div class="result-total-cost-box">
             <div class="total-cost-label">Estimated Real-World Cost</div>
-            <div class="total-cost-value">${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div class="total-cost-value" id="result-real-cost">${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             <div class="total-cost-subtitle" style="font-weight: 500;">Optimal real-money gem packages combination to yield ${fmtInt(gemsNeeded)} gems.</div>
           </div>
 
@@ -4850,10 +5070,23 @@ function renderP2wView() {
           </div>
         </div>
       </div>
-    </div>
+    </div>`}
   `;
 
+  if (state.p2w.activeTab === "firesales") {
+    loadFireSalesIfNeeded(false);
+  }
+
   // Bind UI Event Listeners
+  pane.querySelectorAll("[data-p2w-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.p2w.activeTab = btn.dataset.p2wTab;
+      if (state.p2w.activeTab === "firesales") loadFireSalesIfNeeded(false);
+      renderP2wView();
+    });
+  });
+  pane.querySelector("#p2w-refresh-firesales")?.addEventListener("click", () => loadFireSalesIfNeeded(true));
+
   const searchInput = pane.querySelector("#p2w-item-search");
   if (searchInput) {
     searchInput.addEventListener("input", (e) => {
