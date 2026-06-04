@@ -46,6 +46,7 @@ shard-market/
 ├── prices.js               ← Unified price resolver: bazaar + AH lowest-BIN scan (used by accessories, Sweep, P2W)
 ├── accessories.js          ← Accessory catalog, upgrade families, Magical Power math
 ├── attributes.js           ← Attribute catalog + shards-to-max calculation
+├── CHANGELOG.md            ← Release notes and contributor credits
 ├── data/
 │   ├── fusion-properties.json   ← Per-shard metadata (179 shards, from SkyShards)
 │   ├── fusion-data.json         ← Full fusion recipe graph (~2 MB, from SkyShards)

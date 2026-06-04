@@ -7,7 +7,7 @@
  * attribute belongs to a rarity (derived from its source shard) which sets
  * how many shards are needed to reach the max level (level 10):
  *
- *   Common    96   Uncommon  64   Rare 32   Epic 16   Legendary 8
+ *   Common    96   Uncommon  64   Rare 48   Epic 32   Legendary 24
  *
  * The player's profile stores progress in members[uuid].attributes.stacks
  * as { attribute_id: shards_invested }. We compare that to the per-rarity
@@ -29,7 +29,7 @@
 const ATTR_RARITY_FROM_CODE = { C: "COMMON", U: "UNCOMMON", R: "RARE", E: "EPIC", L: "LEGENDARY" };
 
 const ATTR_MAX_SHARDS_BY_RARITY = {
-  COMMON: 96, UNCOMMON: 64, RARE: 32, EPIC: 16, LEGENDARY: 8,
+  COMMON: 96, UNCOMMON: 64, RARE: 48, EPIC: 32, LEGENDARY: 24,
 };
 
 /* Build attribute_id → metadata from the bundled desc.json.

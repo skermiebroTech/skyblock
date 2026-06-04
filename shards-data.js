@@ -27,9 +27,9 @@
 const SHARDS_MAX_LEVEL_BY_RARITY = {
   COMMON:    96,
   UNCOMMON:  64,
-  RARE:      32,
-  EPIC:      16,
-  LEGENDARY: 8,
+  RARE:      48,
+  EPIC:      32,
+  LEGENDARY: 24,
   UNKNOWN:   null,
 };
 
