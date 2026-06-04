@@ -24,12 +24,12 @@ const MINIONS_DATA = [
   { id: "GLOWSTONE", name: "Glowstone", category: "Mining", rawId: "GLOWSTONE_DUST", enchId: "ENCHANTED_GLOWSTONE_DUST", maxTier: 12 },
   { id: "MITHRIL", name: "Mithril", category: "Mining", rawId: "MITHRIL_ORE", enchId: "ENCHANTED_MITHRIL", maxTier: 12 },
   { id: "HARD_STONE", name: "Hard Stone", category: "Mining", rawId: "HARD_STONE", enchId: "ENCHANTED_HARD_STONE", maxTier: 12 },
-  { id: "GRAVEL", name: "Gravel", category: "Mining", rawId: "FLINT", enchId: "ENCHANTED_FLINT", maxTier: 12 },
-  { id: "END_STONE", name: "End Stone", category: "Mining", rawId: "END_STONE", enchId: "ENCHANTED_END_STONE", maxTier: 12 },
+  { id: "GRAVEL", name: "Gravel", category: "Mining", rawId: "FLINT", enchId: "ENCHANTED_FLINT", maxTier: 11 },
+  { id: "END_STONE", name: "End Stone", category: "Mining", rawId: "END_STONE", enchId: "ENCHANTED_END_STONE", maxTier: 11 },
   { id: "MYCELIUM", name: "Mycelium", category: "Mining", rawId: "MYCEL", enchId: "ENCHANTED_MYCELIUM", maxTier: 12 },
   { id: "SAND", name: "Sand", category: "Mining", rawId: "SAND", enchId: "ENCHANTED_SAND", maxTier: 11 },
-  { id: "ICE", name: "Ice", category: "Mining", rawId: "ICE", enchId: "ENCHANTED_ICE", maxTier: 11 },
-  { id: "SNOW", name: "Snow", category: "Mining", rawId: "SNOW_BALL", enchId: "ENCHANTED_SNOW_BLOCK", maxTier: 11 },
+  { id: "ICE", name: "Ice", category: "Mining", rawId: "ICE", enchId: "ENCHANTED_ICE", maxTier: 12 },
+  { id: "SNOW", name: "Snow", category: "Mining", rawId: "SNOW_BALL", enchId: "ENCHANTED_SNOW_BLOCK", maxTier: 12 },
   { id: "RED_SAND", name: "Red Sand", category: "Mining", rawId: "RED_SAND", enchId: "ENCHANTED_RED_SAND", maxTier: 12 },
 
   // Foraging (7)
@@ -39,7 +39,7 @@ const MINIONS_DATA = [
   { id: "JUNGLE", name: "Jungle", category: "Foraging", rawId: "LOG:3", enchId: "ENCHANTED_JUNGLE_LOG", maxTier: 11 },
   { id: "ACACIA", name: "Acacia", category: "Foraging", rawId: "LOG_2", enchId: "ENCHANTED_ACACIA_LOG", maxTier: 11 },
   { id: "DARK_OAK", name: "Dark Oak", category: "Foraging", rawId: "LOG_2:1", enchId: "ENCHANTED_DARK_OAK_LOG", maxTier: 11 },
-  { id: "FLOWER", name: "Flower", category: "Foraging", rawId: null, enchId: null, maxTier: 11, specialRecipe: true },
+  { id: "FLOWER", name: "Flower", category: "Foraging", rawId: null, enchId: null, maxTier: 12, specialRecipe: true },
 
   // Combat (15)
   { id: "ZOMBIE", name: "Zombie", category: "Combat", rawId: "ROTTEN_FLESH", enchId: "ENCHANTED_ROTTEN_FLESH", maxTier: 11 },
@@ -50,12 +50,12 @@ const MINIONS_DATA = [
   { id: "ENDERMAN", name: "Enderman", category: "Combat", rawId: "ENDER_PEARL", enchId: "ENCHANTED_ENDER_PEARL", maxTier: 11 },
   { id: "SLIME", name: "Slime", category: "Combat", rawId: "SLIME_BALL", enchId: "ENCHANTED_SLIME_BALL", maxTier: 11 },
   { id: "MAGMA_CUBE", name: "Magma Cube", category: "Combat", rawId: "MAGMA_CREAM", enchId: "ENCHANTED_MAGMA_CREAM", maxTier: 12 },
-  { id: "BLAZE", name: "Blaze", category: "Combat", rawId: "BLAZE_ROD", enchId: "ENCHANTED_BLAZE_ROD", maxTier: 11 },
+  { id: "BLAZE", name: "Blaze", category: "Combat", rawId: "BLAZE_ROD", enchId: "ENCHANTED_BLAZE_ROD", maxTier: 12 },
   { id: "GHAST", name: "Ghast", category: "Combat", rawId: "GHAST_TEAR", enchId: "ENCHANTED_GHAST_TEAR", maxTier: 12 },
-  { id: "REVENANT", name: "Revenant", category: "Combat", rawId: null, enchId: null, maxTier: 11, specialRecipe: true },
-  { id: "TARANTULA", name: "Tarantula", category: "Combat", rawId: null, enchId: null, maxTier: 11, specialRecipe: true },
+  { id: "REVENANT", name: "Revenant", category: "Combat", rawId: null, enchId: null, maxTier: 12, specialRecipe: true },
+  { id: "TARANTULA", name: "Tarantula", category: "Combat", rawId: null, enchId: null, maxTier: 12, specialRecipe: true },
   { id: "VOIDLING", name: "Voidling", category: "Combat", rawId: null, enchId: null, maxTier: 11, specialRecipe: true },
-  { id: "VAMPIRE", name: "Vampire", category: "Combat", rawId: null, enchId: null, maxTier: 12, specialRecipe: true },
+  { id: "VAMPIRE", name: "Vampire", category: "Combat", rawId: null, enchId: null, maxTier: 11, specialRecipe: true },
   { id: "INFERNO", name: "Inferno", category: "Combat", rawId: null, enchId: null, maxTier: 11, specialRecipe: true },
 
   // Farming (16)
