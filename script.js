@@ -2956,8 +2956,9 @@ function renderHomeView() {
       const manualTier = state.minionManualTiers[minion.id];
       const currentTier = manualTier !== undefined ? manualTier : profileTier;
       const startFromLvl1 = state.minionStartFromLvl1;
-      const nextTier = startFromLvl1 ? 1 : Math.min(11, currentTier + 1);
-      const isMaxed = !startFromLvl1 && currentTier >= 11;
+      const maxTier = minion.maxTier || 11;
+      const nextTier = startFromLvl1 ? 1 : Math.min(maxTier, currentTier + 1);
+      const isMaxed = !startFromLvl1 && currentTier >= maxTier;
       let totalCost = null;
       if (!isMaxed) {
         const upgrade = calculateUpgradeCost(minion, startFromLvl1 ? 0 : currentTier, nextTier, state.raw?.products, state.bazaarMode);
@@ -3471,8 +3472,9 @@ function renderMinionsView() {
     const currentTier = manualTier !== undefined ? manualTier : profileTier;
 
     const startFromLvl1 = state.minionStartFromLvl1;
-    const nextTier = startFromLvl1 ? 1 : Math.min(11, currentTier + 1);
-    const isMaxed = !startFromLvl1 && currentTier >= 11;
+    const maxTier = minion.maxTier || 11;
+    const nextTier = startFromLvl1 ? 1 : Math.min(maxTier, currentTier + 1);
+    const isMaxed = !startFromLvl1 && currentTier >= maxTier;
 
     let totalCost = null;
     let items = [];
@@ -3501,12 +3503,12 @@ function renderMinionsView() {
   // Compute aggregate minion statistics
   const totalMinions = list.length;
   const craftedCount = list.filter((x) => x.currentTier >= 1).length;
-  const maxedCount = list.filter((x) => x.currentTier === 11).length;
+  const maxedCount = list.filter((x) => x.currentTier >= (x.minion.maxTier || 11)).length;
 
   let totalCostToMax = 0;
   list.forEach((x) => {
-    if (x.currentTier >= 11) return;
-    const upgrade = calculateUpgradeCost(x.minion, x.currentTier, 11, state.raw?.products, state.bazaarMode);
+    if (x.currentTier >= (x.minion.maxTier || 11)) return;
+    const upgrade = calculateUpgradeCost(x.minion, x.currentTier, x.minion.maxTier || 11, state.raw?.products, state.bazaarMode);
     if (upgrade && upgrade.totalCost != null) {
       totalCostToMax += upgrade.totalCost;
     }
@@ -3525,7 +3527,7 @@ function renderMinionsView() {
         <div class="stat-label">Cost to Max All</div>
         <div class="stat-value stat-value-stacked">
           <span class="stat-value-major">${totalCostToMax > 0 ? fmtCoins(totalCostToMax) : "0"}</span>
-          <span class="stat-value-minor">T${state.minionStartFromLvl1 ? "0" : "current"} ➔ T11 from bazaar</span>
+          <span class="stat-value-minor">T${state.minionStartFromLvl1 ? "0" : "current"} ➔ max tier from bazaar</span>
         </div>
       </div>
       <div class="stat-card">
@@ -3539,7 +3541,7 @@ function renderMinionsView() {
         <div class="stat-label">Maxed Minions</div>
         <div class="stat-value stat-value-stacked">
           <span class="stat-value-major" style="color: var(--pos);">${maxedCount} / ${totalMinions}</span>
-          <span class="stat-value-minor">${((maxedCount / totalMinions) * 100).toFixed(1)}% maxed (T11)</span>
+          <span class="stat-value-minor">${((maxedCount / totalMinions) * 100).toFixed(1)}% maxed</span>
         </div>
       </div>
     </section>
@@ -3592,13 +3594,13 @@ function renderMinionCard(item, idx) {
   const minionItemId = `${minion.id}_GENERATOR_${currentTier || 1}`;
 
   let selectOpts = `<option value="0" ${currentTier === 0 ? "selected" : ""}>Uncrafted (T0)</option>`;
-  for (let t = 1; t <= 11; t++) {
+  for (let t = 1; t <= (minion.maxTier || 11); t++) {
     selectOpts += `<option value="${t}" ${currentTier === t ? "selected" : ""}>Tier ${t}</option>`;
   }
 
   let cardStatus = "";
   if (isMaxed) {
-    cardStatus = `<span class="sweep-status sweep-status-owned">MAXED (T11)</span>`;
+    cardStatus = `<span class="sweep-status sweep-status-owned">MAXED (T${minion.maxTier || 11})</span>`;
   } else {
     cardStatus = `<span class="sweep-status sweep-status-next">Next: T${nextTier}</span>`;
   }
@@ -3613,7 +3615,7 @@ function renderMinionCard(item, idx) {
   if (isMaxed) {
     bodyHTML = `
       <div class="sweep-owned-note">
-        All standard upgrades complete. You have crafted this minion to Tier 11.
+        All standard upgrades complete. You have crafted this minion to its max tier.
       </div>`;
   } else {
     const itemsHTML = items.map((it) => {
@@ -3640,8 +3642,8 @@ function renderMinionCard(item, idx) {
   const isExpanded = !!state.expandedMinions[minion.id];
 
   let maxUpgradeHTML = "";
-  if (currentLevelForMax < 11) {
-    const maxUpgrade = calculateUpgradeCost(minion, currentLevelForMax, 11, state.raw?.products, state.bazaarMode);
+  if (currentLevelForMax < (minion.maxTier || 11)) {
+    const maxUpgrade = calculateUpgradeCost(minion, currentLevelForMax, minion.maxTier || 11, state.raw?.products, state.bazaarMode);
     if (maxUpgrade && maxUpgrade.items && maxUpgrade.items.length > 0) {
       const maxItemsHTML = maxUpgrade.items.map((it) => {
         const bzCmd = sweepBazaarCommand(it.id);
@@ -3661,7 +3663,7 @@ function renderMinionCard(item, idx) {
         <div class="minion-max-section">
           <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <button class="btn-secondary btn-small btn-max-toggle ${isExpanded ? "active" : ""}" data-target="max-details-${minion.id}" data-minion-id="${minion.id}" style="flex-grow: 1; text-align: center; justify-content: center; font-size: 11.5px; height: 28px;">
-              Max to T11 Shopping List
+              Max to T${minion.maxTier || 11} Shopping List
             </button>
             <button class="btn-secondary btn-small btn-copy" data-copy="${escapeHtml(allBzCmds)}" title="Copy all /bz commands to clipboard" style="height: 28px; font-size: 11.5px;">
               Copy All

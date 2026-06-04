@@ -110,12 +110,12 @@ With a linked profile, the page decodes inventory/armor/equipment/wardrobe/backp
 
 An interactive, live-priced minion upgrade planner designed to help you unlock maximum minion slots for the absolute lowest coin cost.
 
-- **Automated Profile Syncing**: When an account is linked, the calculator decodes the active profile's `crafted_generators` array to automatically import your exact crafted level for all 38 standard minions.
-- **Cheapest Next Upgrade Sorting**: Computes the exact crafting ingredients and coin cost to take each of your minions to its next tier (e.g. T4 -> T5). It then ranks the entire minion list ascending, showing you the absolute cheapest minion upgrades available on your profile.
+- **Automated Profile Syncing**: When an account is linked, the calculator decodes the active profile's `crafted_generators` array to automatically import your exact crafted level for the 60 current SkyCrypt minion families.
+- **Cheapest Next Upgrade Sorting**: Computes the exact crafting ingredients and coin cost to take each standard bazaar-material minion to its next tier (e.g. T4 -> T5). It then ranks the entire minion list ascending, showing you the absolute cheapest minion upgrades available on your profile. Special/non-bazaar minions stay visible for progress tracking without invented costs.
 - **Start from Scratch Toggle**: Want to plan minion crafting from the ground up? Toggle **Start upgrades from Level 1 (T0)** to calculate the upgrade cost assuming you have zero levels, ignoring your profile.
-- **Interactive Level Override**: Every minion card features a manual dropdown level selector (T0 to T11). This allows you to manually mock up other setups, modify levels, or simulate progress in real-time.
-- **One-click /bz Copy Shortcuts**: Displays precise quantities and unit prices for all raw or enchanted materials required for the next upgrade, paired with instant clipboard copy buttons for official Hypixel Bazaar commands (e.g., `/bz Spawn Egg`, `/bz Enchanted Rotten Flesh`).
-- **Smart "Max to T11" Shopping List**: Features a **Max to T11 Shopping List** button on each minion card. Clicking it calculates the exact combined materials needed to upgrade from its current level all the way to Tier 11, grouping multiple levels of the same materials together so you only have to buy each type once. It includes a **Copy All** button to copy all required `/bz` commands at once, plus individual copy buttons for each aggregated ingredient.
+- **Interactive Level Override**: Every minion card features a manual dropdown level selector from T0 to that minion family's real max tier (T11 or T12). This allows you to manually mock up other setups, modify levels, or simulate progress in real-time.
+- **One-click /bz Copy Shortcuts**: Displays precise quantities and unit prices for all raw or enchanted materials required for priced upgrades, paired with instant clipboard copy buttons for official Hypixel Bazaar commands (e.g., `/bz Spawn Egg`, `/bz Enchanted Rotten Flesh`).
+- **Smart "Max to Tier" Shopping List**: Features a **Max to T{max} Shopping List** button on each priced minion card. Clicking it calculates the exact combined materials needed to upgrade from its current level all the way to that family’s max tier, grouping multiple levels of the same materials together so you only have to buy each type once. It includes a **Copy All** button to copy all required `/bz` commands at once, plus individual copy buttons for each aggregated ingredient.
 
 ### Mutations
 
