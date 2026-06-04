@@ -511,6 +511,50 @@ input[type="number"]:focus,
   border-color: var(--rarity-color);
 }
 
+.skill-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.skill-filters--inline {
+  max-width: 680px;
+}
+.skill-pill {
+  --skill-color: #78a6ff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  background: transparent;
+  border: 1px solid var(--surface-line);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.skill-pill .skill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--skill-color);
+  box-shadow: 0 0 6px var(--skill-color);
+}
+.skill-pill.active {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--skill-color) 48%, var(--surface-line));
+  background: color-mix(in srgb, var(--skill-color) 10%, transparent);
+}
+.skill-pill:not(.active) .skill-dot {
+  opacity: 0.35;
+  box-shadow: none;
+}
+.skill-pill:hover {
+  border-color: var(--skill-color);
+}
+
 .sort-wrap {
   display: flex;
   align-items: center;
@@ -1934,6 +1978,16 @@ input[type="number"]:focus,
   font-weight: 700;
   font-size: 13.5px;
   color: var(--text);
+}
+.attr-skill-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #b8ccff;
+  background: rgba(120, 166, 255, 0.12);
+  border: 1px solid rgba(120, 166, 255, 0.28);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
 }
 .attr-rarity {
   font-size: 10.5px;

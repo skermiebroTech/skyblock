@@ -102,6 +102,7 @@ const state = {
   /* Filters & sorting */
   search: "",
   selectedRarities: new Set(["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "UNKNOWN"]),
+  selectedSkills: new Set(window.ATTRIBUTE_SKILLS || ["Unknown"]),
   sortKey: "profitPerUnit",
   sortDir: "desc",
   fusionOnly: false,
@@ -1018,6 +1019,7 @@ function getShardMeta(id) {
     rarity:    "UNKNOWN",
     family:    "—",
     category:  "—",
+    attributeSkill: "Unknown",
     code:      null,
     known:     false,
   };
@@ -1082,12 +1084,14 @@ function applyFilters(rows) {
   const q = state.search.trim().toLowerCase();
   return rows.filter((r) => {
     if (!state.selectedRarities.has(r.rarity)) return false;
+    if (!state.selectedSkills.has(r.attributeSkill || "Unknown")) return false;
     if (state.fusionOnly && !r.hasFusion) return false;
     if (state.profitableFusionsOnly && !(r.fusionProfitPerUnit > 0)) return false;
     if (!q) return true;
     return (
       r.name.toLowerCase().includes(q) ||
       r.attribute.toLowerCase().includes(q) ||
+      (r.attributeSkill || "").toLowerCase().includes(q) ||
       r.family.toLowerCase().includes(q) ||
       r.id.toLowerCase().includes(q)
     );
@@ -1099,12 +1103,12 @@ function applySort(rows) {
   const key = state.sortKey;
   return [...rows].sort((a, b) => {
     if (key === "attributeSkill") {
-      /* Group attribute shards by their skill/category first (Combat, Forest,
-       * Water), then put cheapest max-level cost first inside each skill. */
-      const aSkill = a.category || a.family || "—";
-      const bSkill = b.category || b.family || "—";
-      const aUnknown = aSkill === "—";
-      const bUnknown = bSkill === "—";
+      /* Group attribute shards by their wiki skill first, then put cheapest
+       * max-level cost first inside each skill. */
+      const aSkill = a.attributeSkill || "Unknown";
+      const bSkill = b.attributeSkill || "Unknown";
+      const aUnknown = aSkill === "Unknown";
+      const bUnknown = bSkill === "Unknown";
       if (aUnknown !== bUnknown) return aUnknown ? 1 : -1;
       const skill = String(aSkill).localeCompare(String(bSkill));
       if (skill !== 0) return skill * dir;
@@ -1410,6 +1414,35 @@ function renderRarityFilters() {
       if (state.selectedRarities.has(r)) state.selectedRarities.delete(r);
       else state.selectedRarities.add(r);
       renderTable();
+    });
+    wrap.appendChild(btn);
+  }
+}
+
+function renderSkillFilters(container = "#skill-filters", onChange = null) {
+  const wrap = $(container);
+  if (!wrap || wrap.children.length) return;
+
+  for (const skill of (window.ATTRIBUTE_SKILLS || ["Unknown"])) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `skill-pill ${state.selectedSkills.has(skill) ? "active" : ""}`;
+    btn.dataset.skill = skill;
+    btn.innerHTML = `
+      <span class="skill-dot"></span>
+      <span class="skill-label">${escapeHtml(skill)}</span>`;
+    btn.addEventListener("click", () => {
+      btn.classList.toggle("active");
+      if (state.selectedSkills.has(skill)) state.selectedSkills.delete(skill);
+      else state.selectedSkills.add(skill);
+      $$(`.skill-pill[data-skill="${CSS.escape(skill)}"]`).forEach((pill) => {
+        pill.classList.toggle("active", state.selectedSkills.has(skill));
+      });
+      if (onChange) onChange();
+      else {
+        renderTable();
+        if (state.view === "attributes") renderActiveView();
+      }
     });
     wrap.appendChild(btn);
   }
@@ -2134,6 +2167,7 @@ function renderAttributesView() {
     return;
   }
 
+  const visibleRows = a.rows.filter((r) => state.selectedSkills.has(r.skill || "Unknown"));
   const unmaxed = a.rows.filter((r) => !r.maxed);
   const missing = a.rows.filter((r) => r.missing);
   updateTabBadge("badge-attributes", unmaxed.length);
@@ -2157,6 +2191,8 @@ function renderAttributesView() {
           ${a.totalCost > 0 ? `(≈ <strong>${fmtCoins(a.totalCost)}</strong> coins)` : ""}
           to max ${unmaxed.length} attribute${unmaxed.length === 1 ? "" : "s"};
           <strong>${missing.length}</strong> are missing entirely.${huntingNote}
+          Showing <strong>${visibleRows.length}</strong> attribute${visibleRows.length === 1 ? "" : "s"}
+          after the skill filter.
         </p>
       </div>
     </div>
@@ -2191,10 +2227,16 @@ function renderAttributesView() {
           <button class="seg-btn ${state.bazaarMode === "buyOrder" ? "active" : ""}" data-bzmode="buyOrder">Buy order</button>
         </div>
       </div>
+      <div class="acc-toolbar-group acc-toolbar-group--wrap">
+        <span class="acc-toolbar-label">Skill:</span>
+        <div id="attr-skill-filters" class="skill-filters skill-filters--inline" role="group" aria-label="Filter attributes by skill"></div>
+      </div>
     </div>
 
     <div class="attr-grid">
-      ${a.rows.map(renderAttributeRow).join("")}
+      ${visibleRows.length
+        ? visibleRows.map(renderAttributeRow).join("")
+        : `<div class="state-empty attr-filter-empty">No usable attributes match the selected skills.</div>`}
     </div>`;
 
   /* Wire the bazaar-mode segmented control (re-prices shards, re-renders). */
@@ -2208,6 +2250,8 @@ function renderAttributesView() {
     });
   });
 
+  renderSkillFilters("#attr-skill-filters", () => renderActiveView());
+
   bindCopyButtons(pane);
 }
 
@@ -2215,6 +2259,7 @@ function renderAttributeRow(r) {
   const color = RARITY_COLORS[r.rarity] || RARITY_COLORS.UNKNOWN;
   const progPct = Math.round((r.current / r.max) * 100);
   const shardBazaarId = state.codeToBazaar?.[r.code];
+  const skillText = r.skill || "Unknown";
 
   if (r.maxed) {
     return `
@@ -2222,6 +2267,7 @@ function renderAttributeRow(r) {
         <div class="attr-card-head" style="display: flex; align-items: center; gap: 8px;">
           <img src="${iconUrl(shardBazaarId)}" alt="" style="width: 18px; height: 18px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0;" onerror="this.style.display='none';">
           <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
+          <span class="attr-skill-badge">${escapeHtml(skillText)}</span>
           <span class="attr-maxed-badge">✓ MAX</span>
         </div>
         <div class="attr-progress"><div class="attr-progress-fill" style="width:100%;background:${color}"></div></div>
@@ -2245,6 +2291,7 @@ function renderAttributeRow(r) {
       <div class="attr-card-head" style="display: flex; align-items: center; gap: 8px;">
         <img src="${iconUrl(shardBazaarId)}" alt="" style="width: 18px; height: 18px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0;" onerror="this.style.display='none';">
         <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
+        <span class="attr-skill-badge">${escapeHtml(skillText)}</span>
         ${statusBadge}
       </div>
       <div class="attr-progress"><div class="attr-progress-fill" style="width:${progPct}%;background:${color}"></div></div>
@@ -2664,6 +2711,8 @@ function renderTable() {
         </div>
         <div class="shard-meta">
           <span class="meta-rarity" style="color:${RARITY_COLORS[r.rarity]}">${r.rarity.toLowerCase()}</span>
+          <span class="meta-sep">·</span>
+          <span class="meta-skill">${escapeHtml(r.attributeSkill || "Unknown")}</span>
           <span class="meta-sep">·</span>
           <span class="meta-family">${escapeHtml(r.family)}</span>
           ${r.attribute !== "—" ? `<span class="meta-sep">·</span><span class="meta-attr">${escapeHtml(r.attribute)}</span>` : ""}
@@ -3725,6 +3774,7 @@ function flashStatus(msg) {
 
 function init() {
   renderRarityFilters();
+  renderSkillFilters();
   renderPlayerPanel();
   bindUI();
   startTimeAgoTicker();

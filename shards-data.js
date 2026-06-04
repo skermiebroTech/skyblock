@@ -53,6 +53,81 @@ const RARITY_COLORS = {
   UNKNOWN:   "#666c80",
 };
 
+/* ---------- Attribute skill filters ----------
+ *
+ * SkyBlock's in-game Attribute Menu has a "Filter by SkyBlock Skill" control
+ * with these exact choices. The wiki Attributes page exposes the per-attribute
+ * Skill column; keep this map keyed by SkyShards code so both the market table
+ * and profile maxing report can share one source of truth.
+ */
+const ATTRIBUTE_SKILLS = [
+  "Combat",
+  "Fishing",
+  "Farming",
+  "Foraging",
+  "Mining",
+  "Taming",
+  "Enchanting",
+  "Hunting",
+  "Global",
+  "Unknown",
+];
+
+const ATTRIBUTE_SKILL_BY_CODE = {
+  // Common
+  C1: "Global", C2: "Global", C3: "Global", C4: "Foraging", C5: "Fishing",
+  C7: "Foraging", C9: "Enchanting", C10: "Mining", C11: "Fishing", C12: "Combat",
+  C14: "Fishing", C15: "Combat", C16: "Global", C17: "Foraging", C18: "Combat",
+  C19: "Foraging", C20: "Hunting", C21: "Combat", C23: "Fishing", C24: "Hunting",
+  C25: "Farming", C26: "Fishing", C27: "Global", C29: "Combat", C30: "Combat",
+  C32: "Fishing", C33: "Global", C34: "Taming", C35: "Hunting", C36: "Mining",
+  C39: "Combat",
+
+  // Uncommon
+  U1: "Global", U2: "Global", U3: "Global", U4: "Foraging", U5: "Fishing",
+  U6: "Mining", U7: "Global", U8: "Hunting", U9: "Hunting", U10: "Farming",
+  U11: "Hunting", U12: "Combat", U15: "Combat", U16: "Foraging", U18: "Global",
+  U20: "Fishing", U21: "Hunting", U22: "Farming", U23: "Foraging", U24: "Combat",
+  U25: "Foraging", U27: "Combat", U28: "Foraging", U29: "Combat", U30: "Combat",
+  U31: "Foraging", U32: "Fishing", U33: "Combat", U34: "Taming", U36: "Combat",
+  U38: "Combat", U39: "Taming", U40: "Farming", U41: "Hunting", U59: "Foraging",
+
+  // Rare
+  R1: "Global", R2: "Global", R3: "Global", R4: "Foraging", R5: "Hunting",
+  R6: "Global", R7: "Foraging", R8: "Hunting", R9: "Hunting", R10: "Farming",
+  R11: "Global", R13: "Global", R15: "Enchanting", R16: "Farming", R18: "Combat",
+  R21: "Combat", R22: "Global", R23: "Global", R24: "Global", R25: "Global",
+  R27: "Global", R29: "Global", R30: "Combat", R31: "Combat", R32: "Hunting",
+  R33: "Mining", R34: "Global", R35: "Global", R36: "Combat", R38: "Global",
+  R39: "Combat", R42: "Combat", R43: "Farming", R44: "Global", R45: "Hunting",
+  R46: "Foraging", R49: "Global", R50: "Global", R51: "Combat", R52: "Combat",
+  R53: "Hunting", R54: "Hunting", R56: "Fishing", R57: "Global", R58: "Taming",
+  R59: "Global", R60: "Global", R61: "Hunting", R63: "Combat", R64: "Foraging",
+
+  // Epic
+  E1: "Global", E2: "Global", E3: "Global", E4: "Foraging", E5: "Hunting",
+  E6: "Hunting", E7: "Hunting", E9: "Hunting", E10: "Hunting", E11: "Hunting",
+  E13: "Farming", E14: "Fishing", E15: "Mining", E16: "Global", E17: "Fishing",
+  E18: "Combat", E20: "Fishing", E21: "Global", E22: "Hunting", E24: "Combat",
+  E26: "Global", E27: "Combat", E28: "Taming", E29: "Combat", E30: "Hunting",
+  E31: "Farming", E32: "Hunting", E33: "Combat", E34: "Global", E35: "Hunting",
+  E36: "Mining", E37: "Farming", E39: "Combat", E42: "Combat", E45: "Mining",
+
+  // Legendary
+  L1: "Global", L2: "Global", L3: "Global", L4: "Hunting", L5: "Fishing",
+  L6: "Hunting", L7: "Hunting", L8: "Hunting", L9: "Combat", L11: "Hunting",
+  L12: "Combat", L13: "Farming", L14: "Foraging", L15: "Global", L17: "Combat",
+  L18: "Global", L20: "Global", L23: "Combat", L24: "Combat", L25: "Global",
+  L26: "Fishing", L27: "Combat", L28: "Global", L29: "Hunting", L30: "Combat",
+  L31: "Taming", L32: "Global", L33: "Combat", L34: "Taming", L36: "Global",
+  L39: "Global", L41: "Global", L42: "Global", L44: "Global", L46: "Farming",
+  L47: "Fishing", L48: "Combat", L51: "Combat",
+};
+
+function attributeSkillForCode(code) {
+  return ATTRIBUTE_SKILL_BY_CODE[code] || "Unknown";
+}
+
 /* ---------- Spelling-difference overrides ----------
  *
  * Most SkyShards entries map cleanly to bazaar IDs:
@@ -186,6 +261,7 @@ function buildShardsDbFromProperties(fusionProps) {
       rarity,
       family:    info.category || "—",  // "Forest", "Water", "Combat", etc.
       category:  info.category || "—",
+      attributeSkill: attributeSkillForCode(code),
       code,
       huntLevel: null,
     };
@@ -196,3 +272,7 @@ function buildShardsDbFromProperties(fusionProps) {
 
   return { shardsDb, codeToBazaar, bazaarToCode };
 }
+
+window.ATTRIBUTE_SKILL_BY_CODE = ATTRIBUTE_SKILL_BY_CODE;
+window.ATTRIBUTE_SKILLS = ATTRIBUTE_SKILLS;
+window.attributeSkillForCode = attributeSkillForCode;

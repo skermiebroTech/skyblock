@@ -46,6 +46,7 @@ function buildAttributeCatalog(descJson) {
       description: info.description || "",
       rarity,
       maxShards:   ATTR_MAX_SHARDS_BY_RARITY[rarity] ?? null,
+      skill:       window.attributeSkillForCode ? window.attributeSkillForCode(code) : "Unknown",
       code,
       /* Source shard bazaar id, e.g. "Nature Elemental" granted by Grove Shard.
        * The shard NAME is the desc title's source — but desc.title IS the
@@ -66,7 +67,7 @@ function buildAttributeCatalog(descJson) {
  *
  * Returns:
  *   {
- *     rows: [ {attrId, title, rarity, current, max, remaining, maxed,
+ *     rows: [ {attrId, title, rarity, skill, current, max, remaining, maxed,
  *              missing, usable, requiredHuntingLevel, shardUnitPrice,
  *              remainingCost} ]  sorted: cheapest remainingCost to max first
  *     totalShardsNeeded, totalCost, maxedCount, totalCount
@@ -114,6 +115,7 @@ function analyseAttributes(catalog, stacks, shardPriceFor = null, opts = {}) {
       title: meta.title,
       description: meta.description,
       rarity: meta.rarity,
+      skill: meta.skill || "Unknown",
       code: meta.code,
       current: capped,
       max,
