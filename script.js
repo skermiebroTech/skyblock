@@ -53,6 +53,9 @@ const CONFIG = {
   USERNAME_STORAGE:    "shardmarket.username",
   PROFILE_ID_STORAGE:  "shardmarket.profileId",
   SWEEP_SHOW_COMPLETED_STORAGE: "shardmarket.sweep.showCompleted",
+  GARDEN_CHIP_RARITY_STORAGE: "hypixie.gardenChips.targetRarity",
+  GARDEN_CHIP_LEVEL_STORAGE: "hypixie.gardenChips.targetLevel",
+  GARDEN_CHIP_SORT_STORAGE: "hypixie.gardenChips.sort",
 
   /* Cache TTLs. */
   CACHE_TTL_BAZAAR_MS:  60_000,
@@ -168,7 +171,15 @@ const state = {
     manualCycleHours: 4,
   },
 
-  /* Active page: "home" | "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" | "mutations" */
+  /* Garden Chips planner. Profile API support for consumed chips is not
+   * documented, so this page is a live-priced manual target planner. */
+  gardenChips: {
+    targetRarity: localStorage.getItem(CONFIG.GARDEN_CHIP_RARITY_STORAGE) || "LEGENDARY",
+    targetLevel: getNumberFromStorage(CONFIG.GARDEN_CHIP_LEVEL_STORAGE, 20),
+    sortKey: localStorage.getItem(CONFIG.GARDEN_CHIP_SORT_STORAGE) || "legendaryCost",
+  },
+
+  /* Active page: "home" | "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" | "mutations" | "garden-chips" */
   view: "home",
   profileSubTab: "overview",
 
@@ -1551,6 +1562,7 @@ function setView(view) {
   $("#view-sweep").hidden      = view !== "sweep";
   $("#view-minions").hidden    = view !== "minions";
   $("#view-mutations").hidden  = view !== "mutations";
+  $("#view-garden-chips").hidden = view !== "garden-chips";
   $("#view-profile").hidden    = view !== "profile";
   $("#view-p2w").hidden        = view !== "p2w";
 
@@ -1574,6 +1586,7 @@ function renderActiveView() {
   if (state.view === "sweep")      renderSweepView();
   if (state.view === "minions")    renderMinionsView();
   if (state.view === "mutations")  renderMutationsView();
+  if (state.view === "garden-chips") renderGardenChipsView();
   if (state.view === "profile")    renderProfileView();
   if (state.view === "p2w")        renderP2wView();
   if (state.view === "shards")     renderTable();
@@ -2938,6 +2951,54 @@ function bindUI() {
   });
 }
 
+function gardenChipRows() {
+  const rarities = window.GARDEN_CHIP_RARITIES || {};
+  const target = rarities[state.gardenChips.targetRarity] || rarities.LEGENDARY;
+  const targetLevel = Math.min(Number(state.gardenChips.targetLevel) || target.maxLevel, target.maxLevel);
+  const sowdust = window.GARDEN_CHIP_CUMULATIVE_SOWDUST || [];
+
+  return (window.GARDEN_CHIPS || []).map((chip) => {
+    const product = state.raw?.products?.[chip.id];
+    const quick = product?.quick_status || {};
+    const buyPrice = Number(quick.buyPrice);
+    const sellPrice = Number(quick.sellPrice);
+    const copies = target?.copies || 16;
+    const copyCost = Number.isFinite(buyPrice) ? buyPrice * copies : null;
+    const legendaryCost = Number.isFinite(buyPrice) ? buyPrice * (rarities.LEGENDARY?.copies || 16) : null;
+    return {
+      ...chip,
+      targetRarity: target,
+      targetLevel,
+      copies,
+      copyCost,
+      legendaryCost,
+      buyPrice,
+      sellPrice,
+      spread: Number.isFinite(buyPrice) && Number.isFinite(sellPrice) ? buyPrice - sellPrice : null,
+      weeklyVolume: (quick.buyMovingWeek || 0) + (quick.sellMovingWeek || 0),
+      sowdustToTarget: sowdust[targetLevel] || 0,
+      command: `/bz ${chip.name}`,
+    };
+  });
+}
+
+function sortGardenChipRows(rows) {
+  const key = state.gardenChips.sortKey;
+  const byText = (a, b, prop) => String(a[prop] || "").localeCompare(String(b[prop] || ""));
+  const byNum = (a, b, prop) => {
+    const av = Number.isFinite(a[prop]) ? a[prop] : Infinity;
+    const bv = Number.isFinite(b[prop]) ? b[prop] : Infinity;
+    return av - bv;
+  };
+  return rows.slice().sort((a, b) => {
+    if (key === "price") return byNum(a, b, "buyPrice") || byText(a, b, "name");
+    if (key === "volume") return byNum(b, a, "weeklyVolume") || byText(a, b, "name");
+    if (key === "source") return byText(a, b, "sourceType") || byText(a, b, "name");
+    if (key === "name") return byText(a, b, "name");
+    return byNum(a, b, "legendaryCost") || byText(a, b, "name");
+  });
+}
+
 function renderHomeView() {
   const pane = $("#view-home");
   if (!pane) return;
@@ -3039,6 +3100,16 @@ function renderHomeView() {
         <button class="btn-secondary btn-small home-card-btn">Open Mutations →</button>
       </article>
 
+      <article class="home-card" data-go="garden-chips">
+        <div class="home-card-header">
+          <div class="home-card-icon" style="background: rgba(85, 255, 255, 0.1); color: #55ffff;">🌿</div>
+          <span class="home-card-badge">10 Chips</span>
+        </div>
+        <h3 class="home-card-title">Garden Chips</h3>
+        <p class="home-card-desc">Plan Garden Chip rarity copies and Sowdust levels with live Bazaar prices, source notes, and one-click /bz commands.</p>
+        <button class="btn-secondary btn-small home-card-btn">Open Garden Chips →</button>
+      </article>
+
       <article class="home-card" data-go="profile">
         <div class="home-card-header">
           <div class="home-card-icon" style="background: rgba(230, 138, 0, 0.1); color: var(--ember-light);">👤</div>
@@ -3068,6 +3139,121 @@ function renderHomeView() {
       setView(targetView);
     });
   });
+}
+
+function renderGardenChipsView() {
+  const pane = $("#view-garden-chips");
+  if (!pane) return;
+  if (typeof GARDEN_CHIPS === "undefined") {
+    pane.innerHTML = `<div class="acc-loading">Garden Chips data is not loaded.</div>`;
+    return;
+  }
+
+  const rarities = window.GARDEN_CHIP_RARITIES || {};
+  const targetRarityKey = rarities[state.gardenChips.targetRarity] ? state.gardenChips.targetRarity : "LEGENDARY";
+  const target = rarities[targetRarityKey] || { label: "Legendary", copies: 16, maxLevel: 20 };
+  state.gardenChips.targetRarity = targetRarityKey;
+  state.gardenChips.targetLevel = Math.min(Math.max(1, Number(state.gardenChips.targetLevel) || target.maxLevel), target.maxLevel);
+
+  const rows = sortGardenChipRows(gardenChipRows());
+  const pricedRows = rows.filter((r) => Number.isFinite(r.buyPrice));
+  const cheapest = pricedRows.reduce((best, r) => !best || r.legendaryCost < best.legendaryCost ? r : best, null);
+  const totalTarget = pricedRows.reduce((sum, r) => sum + (r.copyCost || 0), 0);
+  const totalSowdust = (window.GARDEN_CHIP_CUMULATIVE_SOWDUST?.[state.gardenChips.targetLevel] || 0) * rows.length;
+
+  pane.innerHTML = `
+    <header class="view-header garden-chip-header">
+      <div>
+        <h2 class="view-title">Garden Chips Planner</h2>
+        <p class="view-subtitle">Live Bazaar prices for all 10 Garden Chips, plus rarity-copy and Sowdust targets from the Garden Chips wiki. Profile chip progress is not exposed reliably by Hypixel, so this planner uses manual targets.</p>
+      </div>
+      <a class="btn-ghost" href="https://hypixel-skyblock.fandom.com/wiki/Garden_Chips" target="_blank" rel="noopener noreferrer">Wiki source ↗</a>
+    </header>
+
+    <section class="stats-grid garden-chip-stats" aria-label="Garden Chips overview">
+      <div class="stat-card"><div class="stat-label">Chips tracked</div><div class="stat-value">${rows.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Cheapest Legendary</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${cheapest ? fmtCoins(cheapest.legendaryCost) : "—"}</span><span class="stat-value-minor">${cheapest ? escapeHtml(cheapest.name) : "No Bazaar data"}</span></div></div>
+      <div class="stat-card"><div class="stat-label">All to ${escapeHtml(target.label)}</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${fmtCoins(totalTarget)}</span><span class="stat-value-minor">${target.copies}× copies each</span></div></div>
+      <div class="stat-card"><div class="stat-label">All to Level ${state.gardenChips.targetLevel}</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${fmtCoins(totalSowdust)}</span><span class="stat-value-minor">Sowdust total</span></div></div>
+    </section>
+
+    <section class="acc-toolbar garden-chip-toolbar" aria-label="Garden Chips controls">
+      <div class="acc-toolbar-group">
+        <span class="acc-toolbar-label">Target rarity</span>
+        <select id="garden-chip-rarity" class="select-native">
+          ${Object.entries(rarities).map(([key, r]) => `<option value="${key}" ${key === targetRarityKey ? "selected" : ""}>${escapeHtml(r.label)} (${r.copies} copies)</option>`).join("")}
+        </select>
+      </div>
+      <div class="acc-toolbar-group">
+        <span class="acc-toolbar-label">Target level</span>
+        <select id="garden-chip-level" class="select-native">
+          ${Array.from({ length: target.maxLevel }, (_, i) => i + 1).map((lvl) => `<option value="${lvl}" ${lvl === state.gardenChips.targetLevel ? "selected" : ""}>Level ${lvl}</option>`).join("")}
+        </select>
+      </div>
+      <div class="acc-toolbar-group">
+        <span class="acc-toolbar-label">Sort by</span>
+        <select id="garden-chip-sort" class="select-native">
+          <option value="legendaryCost" ${state.gardenChips.sortKey === "legendaryCost" ? "selected" : ""}>Legendary coin cost</option>
+          <option value="price" ${state.gardenChips.sortKey === "price" ? "selected" : ""}>Live chip price</option>
+          <option value="volume" ${state.gardenChips.sortKey === "volume" ? "selected" : ""}>Weekly volume</option>
+          <option value="source" ${state.gardenChips.sortKey === "source" ? "selected" : ""}>Source type</option>
+          <option value="name" ${state.gardenChips.sortKey === "name" ? "selected" : ""}>Name</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="garden-chip-grid">
+      ${rows.map((r) => {
+        const rarityColor = r.targetRarity?.color || "var(--ember-light)";
+        return `
+          <article class="garden-chip-card">
+            <div class="garden-chip-card-head">
+              <img class="garden-chip-icon" src="${getUniversalItemIconUrl(r.id)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.id)}">
+              <div>
+                <a class="garden-chip-name wiki-link" href="${wikiUrl(r.name)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.name)}</a>
+                <div class="garden-chip-ability">${escapeHtml(r.ability)} · <span>${escapeHtml(r.sourceType)}</span></div>
+              </div>
+            </div>
+            <p class="garden-chip-summary">${escapeHtml(r.summary)} <span>${escapeHtml(r.maxSummary)}</span></p>
+            <div class="garden-chip-metrics">
+              <div><span>Live price</span><strong>${fmtCoins(r.buyPrice)}</strong></div>
+              <div><span>Target copies</span><strong style="color:${rarityColor}">${fmtCoins(r.copyCost)}</strong></div>
+              <div><span>Legendary copies</span><strong>${fmtCoins(r.legendaryCost)}</strong></div>
+              <div><span>Level ${r.targetLevel} Sowdust</span><strong>${fmtCoins(r.sowdustToTarget)}</strong></div>
+              <div><span>Spread</span><strong>${fmtCoins(r.spread)}</strong></div>
+              <div><span>Vol / wk</span><strong>${fmtInt(r.weeklyVolume)}</strong></div>
+            </div>
+            <div class="garden-chip-source">${escapeHtml(r.source)}</div>
+            <div class="acc-card-cmd">
+              <code class="acc-cmd-text">${escapeHtml(r.command)}</code>
+              <button class="btn-copy" data-copy="${escapeHtml(r.command)}" title="Copy command">Copy</button>
+            </div>
+          </article>`;
+      }).join("")}
+    </section>
+  `;
+
+  pane.querySelector("#garden-chip-rarity")?.addEventListener("change", (e) => {
+    state.gardenChips.targetRarity = e.target.value;
+    localStorage.setItem(CONFIG.GARDEN_CHIP_RARITY_STORAGE, state.gardenChips.targetRarity);
+    const nextMax = rarities[state.gardenChips.targetRarity]?.maxLevel || 20;
+    if (state.gardenChips.targetLevel > nextMax) {
+      state.gardenChips.targetLevel = nextMax;
+      localStorage.setItem(CONFIG.GARDEN_CHIP_LEVEL_STORAGE, String(nextMax));
+    }
+    renderGardenChipsView();
+  });
+  pane.querySelector("#garden-chip-level")?.addEventListener("change", (e) => {
+    state.gardenChips.targetLevel = Number(e.target.value) || target.maxLevel;
+    localStorage.setItem(CONFIG.GARDEN_CHIP_LEVEL_STORAGE, String(state.gardenChips.targetLevel));
+    renderGardenChipsView();
+  });
+  pane.querySelector("#garden-chip-sort")?.addEventListener("change", (e) => {
+    state.gardenChips.sortKey = e.target.value;
+    localStorage.setItem(CONFIG.GARDEN_CHIP_SORT_STORAGE, state.gardenChips.sortKey);
+    renderGardenChipsView();
+  });
+  bindCopyButtons(pane);
 }
 
 const MUTATION_TRACKER_EXCLUDES = new Set(["CONDENSED_HELIANTHUS", "FERMENTO", "FERTILIZED_JERRYSEED"]);

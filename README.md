@@ -7,6 +7,7 @@ A browser-based **Hypixel SkyBlock optimizer**. Reads the official Hypixel API s
 - **max your attributes** — exactly how many shards each one needs and the coin cost
 - optimize **Sweep** — all known Sweep sources sorted from lowest to highest live coin cost
 - track and calculate **SkyBlock Mutations** — collection progress, recursive recipe requirements, Greenhouse slot planning, and a static profit leaderboard
+- plan **Garden Chips** — live Bazaar copy costs, rarity targets, Sowdust level totals, source notes, and `/bz` shortcuts
 - compare **P2W routes** — Booster Cookie purchases and Fire Sales valued against live Bazaar / Auction House prices
 
 No backend. No build step. No tracking. Static files you can host on GitHub Pages.
@@ -36,12 +37,14 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
 
 ```
 shard-market/
-├── index.html              ← Markup & shell (4 pages: Shards / Accessory Path / Attributes / Sweep)
+├── index.html              ← Markup & shell for the multi-page optimizer
 ├── style.css               ← Obsidian + ember dashboard styling
 ├── script.js               ← API client, caching, profit + fusion math, page renderers
 ├── shards-data.js          ← Static lookups (rarity, colors, texture-pack registry, ID overrides)
 ├── sweep-data.js           ← Static Sweep source list from the Hypixel Wiki Sweep page
+├── minions-data.js         ← Static minion catalog + bazaar-material upgrade recipes
 ├── mutations-data.js       ← Static SkyBlock Mutation recipes/effects/costs from the public SkyMutations dataset
+├── garden-chips-data.js    ← Static Garden Chip abilities, source notes, rarity thresholds, and Sowdust costs
 ├── nbt.js                  ← Minimal NBT parser (decodes the gzipped inventory blob)
 ├── prices.js               ← Unified price resolver: bazaar + AH lowest-BIN scan (used by accessories, Sweep, P2W)
 ├── accessories.js          ← Accessory catalog, upgrade families, Magical Power math
@@ -127,6 +130,17 @@ A static companion for the new SkyBlock Mutations system, modeled after the publ
 - **Profit leaderboard** ranking mutations by static coin value, recursive ingredient cost, profit per harvest, and profit per hour for a configurable cycle length.
 
 The bundled data lives in `mutations-data.js`; refresh it when the upstream mutation list or recipes change.
+
+### Garden Chips
+
+A live-priced companion for the Garden Chips system:
+
+- Tracks all 10 Garden Chips from the Hypixel Wiki/Fandom page.
+- Uses live Bazaar prices for chip copy costs and `/bz <chip>` copy buttons.
+- Lets you choose a target rarity (Rare/Epic/Legendary) and target level, then shows the copy cost and Sowdust requirement per chip.
+- Sorts by Legendary cost, live price, weekly volume, source type, or name.
+
+The static ability/source/level data lives in `garden-chips-data.js`. Chip progress is currently a manual planning target because Hypixel does not reliably expose consumed Garden Chip state in a stable public profile field.
 
 ### Hunting-level craft flips
 
