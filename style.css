@@ -3630,6 +3630,42 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   font-size: 13px;
   color: var(--text);
 }
+.garden-chip-progress {
+  display: grid;
+  grid-template-columns: 1.4fr 0.9fr 0.9fr;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid rgba(85, 255, 255, 0.12);
+  border-radius: var(--r-sm);
+  background: rgba(85, 255, 255, 0.035);
+}
+.garden-chip-progress label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.garden-chip-progress label span,
+.garden-chip-owned-summary {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.garden-chip-progress input,
+.garden-chip-progress select {
+  width: 100%;
+}
+.garden-chip-progress input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.garden-chip-owned-summary {
+  grid-column: 1 / -1;
+  padding-top: 2px;
+  color: var(--text-soft);
+}
 .garden-chip-source {
   margin-bottom: 10px;
   font-size: 12px;
@@ -3638,5 +3674,6 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 @media (max-width: 720px) {
   .garden-chip-header { flex-direction: column; }
   .garden-chip-metrics { grid-template-columns: 1fr; }
+  .garden-chip-progress { grid-template-columns: 1fr; }
 }
 

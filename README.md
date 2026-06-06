@@ -137,10 +137,11 @@ A live-priced companion for the Garden Chips system:
 
 - Tracks all 10 Garden Chips from the Hypixel Wiki/Fandom page.
 - Uses live Bazaar prices for chip copy costs and `/bz <chip>` copy buttons.
-- Lets you choose a target rarity (Rare/Epic/Legendary) and target level, then shows the copy cost and Sowdust requirement per chip.
-- Sorts by Legendary cost, live price, weekly volume, source type, or name.
+- Lets you choose a target rarity (Rare/Epic/Legendary) and target level, then shows the remaining copy cost and Sowdust requirement per chip.
+- Lets you enter what you already own for each chip: owned rarity, current level, and any spare copies. This progress is saved locally in `localStorage` and subtracted from the remaining plan.
+- Sorts by remaining target cost, live price, weekly volume, source type, or name.
 
-The static ability/source/level data lives in `garden-chips-data.js`. Chip progress is currently a manual planning target because Hypixel does not reliably expose consumed Garden Chip state in a stable public profile field.
+The static ability/source/level data lives in `garden-chips-data.js`. Chip progress is manual and browser-local because Hypixel does not reliably expose consumed Garden Chip state in a stable public profile field.
 
 ### Hunting-level craft flips
 
