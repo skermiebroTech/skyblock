@@ -3462,19 +3462,80 @@ async function loadEliteContestSummary(force = false) {
   if (state.view === "farming") renderFarmingView();
 }
 
+
+function farmingPct(value, max) {
+  if (!Number.isFinite(Number(max)) || Number(max) <= 0) return 0;
+  return Math.max(0, Math.min(100, (Number(value) || 0) / Number(max) * 100));
+}
+
+function farmingMiniBar(value, max, label = "") {
+  const pct = farmingPct(value, max);
+  const text = label || `${fmtInt(value)} / ${fmtInt(max)}`;
+  return `<div class="elite-progress"><span style="width:${pct.toFixed(2)}%"></span><strong>${escapeHtml(text)}</strong></div>`;
+}
+
+function farmingStatBadge(value, label = "") {
+  return `<span class="elite-badge"><span>☘</span>${escapeHtml(String(value))}${label ? ` <small>${escapeHtml(label)}</small>` : ""}</span>`;
+}
+
+function farmingCropIconRail(rows, activeId = null) {
+  return `<div class="elite-crop-rail" aria-label="Farming crops">
+    ${rows.map((r) => `<button class="elite-crop-btn ${activeId === r.id ? "active" : ""}" type="button" title="${escapeHtml(r.name)}">
+      <img src="${getUniversalItemIconUrl(r.icon)}" alt="${escapeHtml(r.name)}" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}">
+    </button>`).join("")}
+  </div>`;
+}
+
+function farmingHeroHTML(weight, garden, fortune) {
+  const profileName = state.player.profiles.find((p) => p.profile_id === state.player.selectedId)?.cute_name || "Selected profile";
+  const player = state.player.username || "Linked player";
+  return `
+    <section class="elite-farming-hero" aria-label="Farming profile summary">
+      <div class="elite-avatar-stack">
+        <img class="elite-player-head" src="https://mc-heads.net/head/${encodeURIComponent(state.player.uuid || player)}/96" alt="${escapeHtml(player)} head" loading="lazy">
+        <span class="elite-rank-pill">Hypixie</span>
+      </div>
+      <div class="elite-hero-main">
+        <div class="elite-name-chip"><span class="elite-mvp">MVP++</span> ${escapeHtml(player)}</div>
+        <div class="elite-weight-number">${weight.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</div>
+        <div class="elite-weight-label">Farming Weight</div>
+      </div>
+      <div class="elite-hero-side">
+        <div class="elite-mini-stat"><span>Profile</span><strong>${escapeHtml(profileName)}</strong></div>
+        <div class="elite-mini-stat"><span>Farming</span><strong>${fmtInt(weight.level)}</strong></div>
+        <div class="elite-mini-stat"><span>Garden</span><strong>${fmtInt(garden.level.level)}</strong></div>
+        <div class="elite-mini-stat"><span>Fortune est.</span><strong>${fmtInt(fortune.estimated)}</strong></div>
+      </div>
+    </section>
+    <div class="elite-profile-pills">
+      <span>${escapeHtml(profileName)}</span>
+      <span class="cyan">${fmtInt(weight.level + garden.level.level + 100)}</span>
+      <span>Noticed <small>NOTICE</small></span>
+      <span>🎮 ${escapeHtml(player)}</span>
+      <span>◎</span>
+    </div>
+    <nav class="elite-farming-nav" aria-label="Elite Farming sections">
+      <a href="#elite-stats">Stats</a>
+      <a href="#elite-garden">Garden</a>
+      <a href="#elite-fortune">Fortune</a>
+      <a href="#elite-pests">Pest Farming</a>
+      <a href="#elite-rates">Ranks</a>
+    </nav>`;
+}
+
 function renderEliteContestCard() {
   const c = state.eliteContest;
   if (!c) {
     setTimeout(() => loadEliteContestSummary(false), 0);
-    return `<article class="farming-card farming-card-wide"><h3>Current Jacob contest</h3><div class="acc-loading"><span class="spinner"></span> Loading Elite contest summary…</div></article>`;
+    return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><div class="acc-loading"><span class="spinner"></span> Loading Elite contest summary…</div></article>`;
   }
-  if (c.loading) return `<article class="farming-card farming-card-wide"><h3>Current Jacob contest</h3><div class="acc-loading"><span class="spinner"></span> Loading Elite contest summary…</div></article>`;
+  if (c.loading) return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><div class="acc-loading"><span class="spinner"></span> Loading Elite contest summary…</div></article>`;
   if (c.error) {
-    return `<article class="farming-card farming-card-wide"><h3>Current Jacob contest</h3><p class="farming-muted">Elite's public API is reachable from command-line checks, but this browser could not read it directly (${escapeHtml(c.error)}). Static GitHub Pages may need a CORS-friendly proxy for live Elite API widgets.</p><button class="btn-secondary btn-small" id="farming-retry-contest">Retry</button> <a class="btn-ghost btn-small" href="https://elitebot.dev/" target="_blank" rel="noopener noreferrer">Open Elite ↗</a></article>`;
+    return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><p class="farming-muted">Elite's public API is reachable from command-line checks, but this browser could not read it directly (${escapeHtml(c.error)}). Static GitHub Pages may need a CORS-friendly proxy for live Elite API widgets.</p><button class="btn-secondary btn-small" id="farming-retry-contest">Retry</button></article>`;
   }
   const contests = c.data?.contests || {};
   const rows = Object.entries(contests).flatMap(([ts, crops]) => (crops || []).map((crop) => ({ ts: Number(ts) * 1000, crop })));
-  return `<article class="farming-card farming-card-wide"><h3>Current Jacob contest</h3><div class="farming-contest-list">${rows.length ? rows.map((r) => `<span class="farming-pill">${escapeHtml(r.crop)} <small>${new Date(r.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></span>`).join("") : "No active contest listed."}</div><button class="btn-secondary btn-small" id="farming-retry-contest">Refresh</button></article>`;
+  return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><div class="farming-contest-list">${rows.length ? rows.map((r) => `<span class="farming-pill">${escapeHtml(r.crop)} <small>${new Date(r.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></span>`).join("") : "No active contest listed."}</div><button class="btn-secondary btn-small" id="farming-retry-contest">Refresh</button></article>`;
 }
 
 function renderFarmingView() {
@@ -3488,12 +3549,7 @@ function renderFarmingView() {
   const rawProfile = farmingSelectedProfile();
   const member = farmingMember(rawProfile);
   if (!member) {
-    pane.innerHTML = `
-      <div class="acc-gate">
-        <div class="acc-gate-icon">🌾</div>
-        <h2>Link your account first</h2>
-        <p>Elite-style Farming needs your selected SkyBlock profile. Enter your Minecraft username in the panel above, then choose a profile.</p>
-      </div>`;
+    pane.innerHTML = `<div class="elite-farming-shell"><div class="acc-gate"><div class="acc-gate-icon">🌾</div><h2>Link your account first</h2><p>Elite-style Farming needs your selected SkyBlock profile. Enter your Minecraft username in the panel above, then choose a profile.</p></div></div>`;
     return;
   }
 
@@ -3505,77 +3561,78 @@ function renderFarmingView() {
   const upgrades = farmingUpgradeRows(weight, garden, pests);
   const topCrop = weight.rows[0];
   const topRate = rates[0];
+  const cropRows = weight.rows;
+  const cropMaxWeight = Math.max(1, ...cropRows.map((r) => r.weight));
+  const cropMaxCollection = Math.max(1, ...cropRows.map((r) => r.collection));
+  const gardenLevelMax = garden.level.next ? garden.level.progress + garden.level.next : Math.max(1, garden.exp || 1);
+  const gardenLevelLabel = garden.level.next ? `${fmtInt(garden.level.progress)} / ${fmtInt(garden.level.next)}` : "Maxed / unknown cap";
+  const fortuneTotal = Math.max(1, fortune.sources.reduce((sum, s) => sum + (Number(s.current) || 0), 0));
+  const profileName = state.player.profiles.find((p) => p.profile_id === state.player.selectedId)?.cute_name || "Profile";
 
   pane.innerHTML = `
-    <header class="view-header farming-header">
-      <div>
-        <h2 class="view-title">Elite Farming Dashboard</h2>
-        <p class="view-subtitle">Farming Weight, Farming Fortune, Garden progress, Pest farming, crop-rate estimates, and Jacob contest context adapted into Hypixie's static UI from EliteFarmers concepts.</p>
-      </div>
-      <a class="btn-ghost" href="https://github.com/EliteFarmers/Website" target="_blank" rel="noopener noreferrer">EliteFarmers source ↗</a>
-    </header>
+    <div class="elite-farming-shell">
+      ${farmingHeroHTML(weight, garden, fortune)}
+      ${farmingCropIconRail(cropRows, topCrop?.id)}
 
-    <section class="stats-grid farming-stats" aria-label="Farming overview">
-      <div class="stat-card"><div class="stat-label">Farming Weight</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${fmtInt(weight.totalWeight)}</span><span class="stat-value-minor">${fmtInt(weight.cropWeight)} crop · ${fmtInt(weight.bonusWeight)} bonus</span></div></div>
-      <div class="stat-card"><div class="stat-label">Farming level</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${weight.level}</span><span class="stat-value-minor">${fmtInt(weight.exp)} XP</span></div></div>
-      <div class="stat-card"><div class="stat-label">Estimated Fortune</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${fmtInt(fortune.estimated)}</span><span class="stat-value-minor">profile-visible baseline</span></div></div>
-      <div class="stat-card"><div class="stat-label">Best crop weight</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${topCrop ? escapeHtml(topCrop.name) : "—"}</span><span class="stat-value-minor">${topCrop ? fmtInt(topCrop.weight) + " weight" : "No collection"}</span></div></div>
-    </section>
+      <section class="elite-two" id="elite-stats">
+        <article class="elite-panel elite-panel-flat">
+          <div class="elite-panel-title-row"><h3>Farming ${fmtInt(weight.level)}</h3><span class="elite-chip">Weight ↓</span></div>
+          ${farmingMiniBar(weight.exp, 111672425, `${fmtInt(weight.exp)} XP`)}
+          <div class="elite-crop-list">
+            ${cropRows.map((r) => `<div class="elite-crop-row">
+              <img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}">
+              <div class="elite-crop-info"><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)}</span></div>
+              <div class="elite-crop-bars"><b>${r.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</b>${farmingMiniBar(r.weight, cropMaxWeight, `${fmtInt(r.milestone.level)} · ${fmtInt(r.collection)}`)}</div>
+            </div>`).join("")}
+          </div>
+        </article>
 
-    <section class="farming-grid">
-      <article class="farming-card farming-card-wide">
-        <h3>Crop Weight & Milestones</h3>
-        <div class="farming-table-wrap"><table class="farming-table"><thead><tr><th>Crop</th><th class="th-num">Collection</th><th class="th-num">Milestone</th><th class="th-num">Weight</th><th class="th-num">NPC / h est.</th></tr></thead><tbody>
-          ${weight.rows.map((r) => {
-            const rate = rates.find((x) => x.id === r.id);
-            return `<tr><td><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"> ${escapeHtml(r.name)}</td><td class="th-num">${fmtInt(r.collection)}</td><td class="th-num">${fmtInt(r.milestone.level)}</td><td class="th-num">${r.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })}</td><td class="th-num">${fmtCoins(rate?.coinsPerHourNpc)}</td></tr>`;
-          }).join("")}
-        </tbody></table></div>
-      </article>
+        <article class="elite-panel elite-panel-flat">
+          <div class="elite-panel-title-row"><h3>Crop Rates</h3>${topRate ? farmingStatBadge(fmtCoins(topRate.coinsPerHourNpc), "/h") : ""}</div>
+          <div class="elite-rate-list">
+            ${rates.slice(0, 10).map((r) => `<div class="elite-rate-row">
+              <img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}">
+              <div><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.itemsPerMinute)} items/min · NPC</span></div><em>${fmtCoins(r.coinsPerHourNpc)}/h</em>
+            </div>`).join("")}
+          </div>
+          <p class="farming-muted">Rates are estimates using profile-visible fortune, default break rates, crop NPC values, and crop drops.</p>
+        </article>
+      </section>
 
-      <article class="farming-card">
-        <h3>Farming Fortune Breakdown</h3>
-        <div class="farming-source-list">
-          ${fortune.sources.map((s) => `<div class="farming-source-row"><span>${escapeHtml(s.name)}<small>${escapeHtml(s.confidence)}</small></span><strong>${typeof s.current === "number" ? fmtInt(s.current) : escapeHtml(s.current)}</strong><em>${escapeHtml(s.next || "")}</em></div>`).join("")}
-        </div>
-        <p class="farming-muted">This is a profile-visible estimate. Full Elite-grade gear/effect parsing requires more item stat modeling, but detected armor/equipment/hotbar hints are shown when inventory API data is available.</p>
-      </article>
+      <section class="elite-two" id="elite-garden">
+        <article class="elite-panel elite-panel-flat">
+          <div class="elite-panel-title-row"><h3>Garden ${fmtInt(garden.level.level)}</h3><span class="elite-chip green">${escapeHtml(profileName)}</span></div>
+          ${farmingMiniBar(garden.level.progress || garden.exp, garden.level.next || gardenLevelMax, gardenLevelLabel)}
+          <div class="elite-garden-layout">
+            <div><h4>Crop Milestones</h4><div class="elite-crop-list compact">
+              ${cropRows.slice().sort((a,b) => b.milestone.level - a.milestone.level || b.collection - a.collection).map((r) => `<div class="elite-crop-row"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div class="elite-crop-info"><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)}</span></div><div class="elite-crop-bars"><b>${fmtInt(r.milestone.level)}</b>${farmingMiniBar(r.collection, cropMaxCollection, fmtInt(r.collection))}</div></div>`).join("")}
+            </div></div>
+            <div><h4>Unlocked Plots</h4><div class="elite-plot-grid">${Array.from({length: 25}, (_, i) => `<span class="${i < garden.unlockedPlots.length ? "on" : ""}"></span>`).join("")}<strong>${fmtInt(garden.unlockedPlots.length)}</strong></div><div class="elite-chip-row"><span>Copper · <b>${fmtInt(garden.copper)}</b></span><span>Compost · <b>${fmtInt(garden.compost)}</b></span><span>Organic · <b>${fmtInt(garden.organicMatter)}</b></span></div><h4>Visitors</h4><div class="elite-chip-cloud"><span>Visits · ${fmtInt(garden.visitors.totalVisits)}</span><span>Accepted · ${fmtInt(garden.visitors.accepted)}</span><span>Unique · ${fmtInt(garden.visitors.count)}</span>${garden.visitors.top.map((v) => `<span>${escapeHtml(v.id)} · ${fmtInt(v.accepted || v.visits)}</span>`).join("")}</div></div>
+          </div>
+        </article>
 
-      <article class="farming-card">
-        <h3>Cheapest / Next Upgrades</h3>
-        <div class="farming-source-list">
-          ${upgrades.map((u) => `<div class="farming-source-row"><span>${escapeHtml(u.title)}<small>${escapeHtml(u.detail)}</small></span><strong>${escapeHtml(u.status)}</strong></div>`).join("")}
-        </div>
-      </article>
+        <article class="elite-panel elite-panel-flat" id="elite-fortune">
+          <div class="elite-panel-title-row"><h3>Farming Fortune</h3>${farmingStatBadge(fmtInt(fortune.estimated))}</div>
+          <div class="elite-fortune-grid">
+            ${fortune.sources.map((s) => { const current = Number(s.current) || 0; const max = Number(s.max) || Math.max(fortuneTotal, current || 1); return `<div class="elite-progress-card"><div><strong>${escapeHtml(s.name)}</strong><small>${escapeHtml(s.confidence)}</small></div>${farmingMiniBar(current, max, `${fmtInt(current)} / ${s.max ? fmtInt(max) : "—"} ☘`)}<em>${escapeHtml(s.next || "")}</em></div>`; }).join("")}
+          </div>
+          <div class="elite-item-stack"><h4>Available Upgrades</h4>${upgrades.map((u) => `<div class="elite-upgrade-row"><div><strong>${escapeHtml(u.title)}</strong><span>${escapeHtml(u.detail)}</span></div><em>${escapeHtml(u.status)}</em></div>`).join("")}</div>
+        </article>
+      </section>
 
-      <article class="farming-card">
-        <h3>Garden Profile</h3>
-        <div class="farming-metric-grid">
-          <div><span>Garden level</span><strong>${fmtInt(garden.level.level)}</strong></div>
-          <div><span>Copper</span><strong>${fmtInt(garden.copper)}</strong></div>
-          <div><span>Unlocked plots</span><strong>${fmtInt(garden.unlockedPlots.length)}</strong></div>
-          <div><span>Visitors accepted</span><strong>${fmtInt(garden.visitors.accepted)}</strong></div>
-          <div><span>Compost</span><strong>${fmtInt(garden.compost)}</strong></div>
-          <div><span>Organic matter</span><strong>${fmtInt(garden.organicMatter)}</strong></div>
-        </div>
-      </article>
+      <section class="elite-two" id="elite-pests">
+        <article class="elite-panel elite-panel-flat">
+          <div class="elite-panel-title-row"><h3>Pest Farming</h3>${farmingStatBadge(pests.reduce((sum, p) => sum + p.fortune, 0).toFixed(1))}</div>
+          <div class="elite-pest-icons">${pests.map((p) => `<div class="elite-pest-tile"><strong>${escapeHtml(p.name)}</strong><span>${fmtInt(p.kills)} kills</span><small>${fmtInt(p.brackets)} brackets${p.next ? ` · next ${fmtInt(p.next)}` : ""}</small>${farmingMiniBar(p.brackets, 15, `+${p.fortune.toFixed(1)} FF`)}</div>`).join("")}</div>
+        </article>
+        ${renderEliteContestCard()}
+      </section>
 
-      <article class="farming-card">
-        <h3>Pest Farming</h3>
-        <div class="farming-pest-grid">
-          ${pests.slice(0, 10).map((p) => `<div class="farming-pest"><strong>${escapeHtml(p.name)}</strong><span>${fmtInt(p.kills)} kills</span><small>${fmtInt(p.brackets)} brackets · +${p.fortune.toFixed(1)} FF${p.next ? ` · next ${fmtInt(p.next)}` : ""}</small></div>`).join("")}
-        </div>
-      </article>
-
-      <article class="farming-card">
-        <h3>Rates / Profit Estimator</h3>
-        <p class="farming-big">${topRate ? escapeHtml(topRate.name) : "—"}</p>
-        <p class="farming-muted">Top NPC-rate estimate: ${topRate ? fmtCoins(topRate.coinsPerHourNpc) + "/h" : "—"}. Uses visible fortune estimate, default break rates, crop NPC values, and crop drops; bazaar/rng effects are not invented.</p>
-      </article>
-
-      ${renderEliteContestCard()}
-    </section>
-  `;
+      <section class="elite-panel elite-full" id="elite-rates">
+        <div class="elite-panel-title-row"><h3>Leaderboard-style Weight Breakdown</h3><span class="elite-chip">${weight.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })} Farming Weight</span></div>
+        <div class="elite-weight-breakdown"><div><h4>Crops <small>(${weight.cropWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })})</small></h4>${cropRows.map((r) => `<p><span>${escapeHtml(r.name)}</span><b>${r.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}</div><div><h4>Bonus <small>(${weight.bonusWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })})</small></h4>${Object.entries(weight.bonusSources).map(([name, val]) => `<p><span>${escapeHtml(name)}</span><b>${Number(val).toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}<h4>Questions?</h4><p class="farming-muted">Calculations are static-Hypixie estimates adapted from EliteFarmers concepts and profile-visible Hypixel fields.</p></div></div>
+      </section>
+    </div>`;
 
   pane.querySelector("#farming-retry-contest")?.addEventListener("click", () => loadEliteContestSummary(true));
 }
