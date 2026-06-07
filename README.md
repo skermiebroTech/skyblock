@@ -8,11 +8,12 @@ A browser-based **Hypixel SkyBlock optimizer**. Reads the official Hypixel API s
 - optimize **Sweep** — all known Sweep sources sorted from lowest to highest live coin cost
 - track and calculate **SkyBlock Mutations** — collection progress, recursive recipe requirements, Greenhouse slot planning, and a static profit leaderboard
 - plan **Garden Chips** — live Bazaar copy costs, rarity targets, Sowdust level totals, source notes, and `/bz` shortcuts
+- inspect **Farming / Garden progress** — Farming Weight, visible Farming Fortune sources, crop milestones, pest bestiary, and crop-rate estimates inspired by EliteFarmers
 - compare **P2W routes** — Booster Cookie purchases and Fire Sales valued against live Bazaar / Auction House prices
 
 No backend. No build step. No tracking. Static files you can host on GitHub Pages.
 
-![Stack](https://img.shields.io/badge/stack-HTML%20%2B%20CSS%20%2B%20JS-blueviolet) ![No build](https://img.shields.io/badge/build-none-success) ![License](https://img.shields.io/badge/license-MIT-blue) 
+![Stack](https://img.shields.io/badge/stack-HTML%20%2B%20CSS%20%2B%20JS-blueviolet) ![No build](https://img.shields.io/badge/build-none-success) ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 [Hypixie](https://skermiebrotech.github.io/skyblock/)
 
 ---
@@ -45,6 +46,7 @@ shard-market/
 ├── minions-data.js         ← Static minion catalog + bazaar-material upgrade recipes
 ├── mutations-data.js       ← Static SkyBlock Mutation recipes/effects/costs from the public SkyMutations dataset
 ├── garden-chips-data.js    ← Static Garden Chip abilities, source notes, rarity thresholds, and Sowdust costs
+├── farming-data.js         ← Elite-style Farming Weight, crop, Garden, pest, and upgrade constants
 ├── nbt.js                  ← Minimal NBT parser (decodes the gzipped inventory blob)
 ├── prices.js               ← Unified price resolver: bazaar + AH lowest-BIN scan (used by accessories, Sweep, P2W)
 ├── accessories.js          ← Accessory catalog, upgrade families, Magical Power math
@@ -58,6 +60,8 @@ shard-market/
 ```
 
 The two JSON files under `data/` come from the open-source [SkyShards](https://github.com/Campionnn/SkyShards) project (MIT) and bundle the community-maintained fusion recipes + per-shard metadata. They're loaded once and cached in `localStorage` for 24 h.
+
+The Farming dashboard is adapted from ideas and constants in [EliteFarmers/Website](https://github.com/EliteFarmers/Website), especially its `packages/farming-weight` package. Hypixie remains a static no-build app; Svelte components from EliteFarmers are not imported directly.
 
 No bundler, no `npm install`, no toolchain. Open `index.html` in any modern browser and it works.
 
@@ -142,6 +146,19 @@ A live-priced companion for the Garden Chips system:
 - Sorts by remaining target cost, live price, weekly volume, source type, or name.
 
 The static ability/source/level data lives in `garden-chips-data.js`. Chip progress is manual and browser-local because Hypixel does not reliably expose consumed Garden Chip state in a stable public profile field.
+
+### Farming
+
+An EliteFarmers-inspired Farming dashboard for linked SkyBlock profiles:
+
+- **Farming Weight** from crop collections plus visible bonus sources: Farming 50/60, Jacob medals, Anita bonus, and Tier 12 farming minions.
+- **Crop milestones and rate estimates** for every Garden crop, including Sunflower, Moonflower, and Wild Rose, using crop weight constants adapted from EliteFarmers' farming-weight logic.
+- **Farming Fortune breakdown** for profile-visible sources: Farming level, crop upgrades, Anita bonus, pest bestiary, and detected farming gear hints from decoded armor/equipment/hotbar data.
+- **Garden profile summary** for Garden level, copper, unlocked plots, composter-like resources, and visitor stats when exposed by Hypixel's profile payload.
+- **Pest Farming** bestiary brackets and next-kill targets based on EliteFarmers pest bracket constants.
+- **Current Jacob contest** widget that attempts to read Elite's public contest endpoint. If the browser blocks the request because of CORS, the page explains the limitation instead of inventing data.
+
+Some EliteFarmers features depend on its Svelte app and backend API. Hypixie reimplements the useful parts in static JavaScript and labels estimates where the browser-visible Hypixel profile payload is incomplete.
 
 ### Hunting-level craft flips
 
@@ -378,6 +395,6 @@ Tested on current Chrome / Firefox / Safari / Edge. Uses standard `fetch`, `asyn
 
 ## License
 
-MIT. Do what you want.
+GPL-3.0-or-later — see [`LICENSE`](LICENSE).
 
 This project is not affiliated with, endorsed by, or sponsored by Hypixel, Mojang, or Microsoft. All product names, logos, and brands are the property of their respective owners.
