@@ -3236,6 +3236,13 @@ function farmingObj(...values) {
   return values.find((v) => v && typeof v === "object") || {};
 }
 
+function farmingVisitorStat(visitor, ...keys) {
+  if (visitor && typeof visitor === "object") {
+    return farmingNum(...keys.map((key) => visitor[key]));
+  }
+  return farmingNum(visitor);
+}
+
 function farmingCollectionMap(member) {
   return farmingObj(member?.collection, member?.player_data?.collection, member?.collections);
 }
@@ -3401,10 +3408,19 @@ function farmingGardenSummary(member) {
   const level = farmingLevelFromSteps(exp, window.HYPIXIE_GARDEN_EXP_REQUIRED || []);
   const cropUpgrades = farmingObj(garden.crop_upgrades, garden.crop_upgrade_levels, garden.upgrades);
   const unlockedPlots = Array.isArray(garden.unlocked_plots) ? garden.unlocked_plots : Object.keys(farmingObj(garden.unlocked_plots, garden.plots)).filter((id) => garden.unlocked_plots?.[id] !== false || garden.plots?.[id] !== false);
-  const visitors = farmingObj(garden.commission_data?.visits, garden.visitors, garden.completed_visitors, garden.visitor_stats);
-  const visitorStats = Object.entries(visitors).map(([id, v]) => ({ id, visits: farmingNum(v?.visits, v?.seen, v), accepted: farmingNum(v?.accepted, v?.completed) }));
-  const accepted = visitorStats.reduce((sum, v) => sum + v.accepted, 0);
-  const totalVisits = visitorStats.reduce((sum, v) => sum + v.visits, 0);
+  const visitors = farmingObj(garden.commission_data?.visits, garden.visitors, garden.visitor_stats);
+  const visitorStats = Object.entries(visitors).map(([id, v]) => ({
+    id,
+    visits: farmingVisitorStat(v, "visits", "seen", "total", "count"),
+    accepted: farmingVisitorStat(v, "accepted", "completed", "offers_accepted"),
+  }));
+  const acceptedFromVisitors = visitorStats.reduce((sum, v) => sum + v.accepted, 0);
+  const visitsFromVisitors = visitorStats.reduce((sum, v) => sum + v.visits, 0);
+  const accepted = farmingNum(garden.completedVisitors, garden.completed_visitors, garden.acceptedVisitors, garden.accepted_visitors, garden.visitors_accepted, acceptedFromVisitors);
+  const totalVisits = farmingNum(garden.totalVisitors, garden.total_visitors, garden.visits, garden.visitor_visits, visitsFromVisitors, accepted);
+  const uniqueVisitors = farmingNum(garden.uniqueVisitors, garden.unique_visitors, garden.unique, garden.visitors_unique, visitorStats.filter((v) => v.visits > 0 || v.accepted > 0).length);
+  const rejected = Math.max(0, totalVisits - accepted);
+  const acceptanceRate = totalVisits > 0 ? accepted / totalVisits * 100 : 0;
   return {
     raw: garden,
     exp,
@@ -3416,7 +3432,7 @@ function farmingGardenSummary(member) {
     compost: farmingNum(garden.compost, garden.composter?.compost, garden.resources?.compost),
     organicMatter: farmingNum(garden.organic_matter, garden.composter?.organic_matter),
     fuel: farmingNum(garden.fuel, garden.composter?.fuel_units, garden.composter?.fuel),
-    visitors: { totalVisits, accepted, count: visitorStats.length, top: visitorStats.sort((a, b) => b.accepted - a.accepted).slice(0, 5) },
+    visitors: { totalVisits, accepted, rejected, acceptanceRate, count: uniqueVisitors, top: visitorStats.sort((a, b) => b.accepted - a.accepted || b.visits - a.visits).slice(0, 5) },
   };
 }
 
@@ -3502,11 +3518,11 @@ function farmingCropIconRail(rows, activeId = null) {
 }
 
 const FARMING_TABS = [
-  { id: "stats", label: "Stats" },
+  { id: "stats", label: "Stats & Rates" },
   { id: "garden", label: "Garden" },
-  { id: "fortune", label: "Fortune" },
+  { id: "fortune", label: "Farming Fortune" },
   { id: "pests", label: "Pest Farming" },
-  { id: "rates", label: "Weight Breakdown" },
+  { id: "rates", label: "Leaderboard Ranks" },
 ];
 
 function farmingTabPanelClass(tabId) {
@@ -3631,7 +3647,7 @@ function renderFarmingView() {
             <div><h4>Crop Milestones</h4><div class="elite-crop-list compact">
               ${cropRows.slice().sort((a,b) => b.milestone.level - a.milestone.level || b.collection - a.collection).map((r) => `<div class="elite-crop-row"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div class="elite-crop-info"><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)}</span></div><div class="elite-crop-bars"><b>${fmtInt(r.milestone.level)}</b>${farmingMiniBar(r.collection, cropMaxCollection, fmtInt(r.collection))}</div></div>`).join("")}
             </div></div>
-            <div><h4>Unlocked Plots</h4><div class="elite-plot-grid">${Array.from({length: 25}, (_, i) => `<span class="${i < garden.unlockedPlots.length ? "on" : ""}"></span>`).join("")}<strong>${fmtInt(garden.unlockedPlots.length)}</strong></div><div class="elite-chip-row"><span>Copper · <b>${fmtInt(garden.copper)}</b></span><span>Compost · <b>${fmtInt(garden.compost)}</b></span><span>Organic · <b>${fmtInt(garden.organicMatter)}</b></span></div><h4>Visitors</h4><div class="elite-chip-cloud"><span>Visits · ${fmtInt(garden.visitors.totalVisits)}</span><span>Accepted · ${fmtInt(garden.visitors.accepted)}</span><span>Unique · ${fmtInt(garden.visitors.count)}</span>${garden.visitors.top.map((v) => `<span>${escapeHtml(v.id)} · ${fmtInt(v.accepted || v.visits)}</span>`).join("")}</div></div>
+            <div><h4>Unlocked Plots</h4><div class="elite-plot-grid">${Array.from({length: 25}, (_, i) => `<span class="${i < garden.unlockedPlots.length ? "on" : ""}"></span>`).join("")}<strong>${fmtInt(garden.unlockedPlots.length)}</strong></div><div class="elite-chip-row"><span>Copper · <b>${fmtInt(garden.copper)}</b></span><span>Compost · <b>${fmtInt(garden.compost)}</b></span><span>Organic · <b>${fmtInt(garden.organicMatter)}</b></span><span>Fuel · <b>${fmtInt(garden.fuel)}</b></span></div><h4>Visitors</h4><div class="elite-chip-cloud"><span>Unique · ${fmtInt(garden.visitors.count)}</span><span>Total Visits · ${fmtInt(garden.visitors.totalVisits)}</span><span>Accepted · ${fmtInt(garden.visitors.accepted)}</span><span>Rejected · ${fmtInt(garden.visitors.rejected)}</span><span>Acceptance Rate · ${garden.visitors.acceptanceRate.toFixed(2)}%</span>${garden.visitors.top.map((v) => `<span>${escapeHtml(v.id)} · ${fmtInt(v.accepted || v.visits)}</span>`).join("")}</div><p class="farming-muted elite-garden-disclaimer">Garden data such as visitors, plots, and crop upgrades is profile-shared in Hypixel's API, matching EliteFarmers' treatment. Copper is shown from the selected member when available.</p></div>
           </div>
         </article>
 
@@ -3656,8 +3672,8 @@ function renderFarmingView() {
       </section>
 
       <section class="elite-panel elite-full ${farmingTabPanelClass("rates")}" id="elite-rates" role="tabpanel" aria-labelledby="elite-tab-rates" ${state.farmingActiveTab === "rates" ? "" : "hidden"}>
-        <div class="elite-panel-title-row"><h3>Leaderboard-style Weight Breakdown</h3><span class="elite-chip">${weight.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })} Farming Weight</span></div>
-        <div class="elite-weight-breakdown"><div><h4>Crops <small>(${weight.cropWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })})</small></h4>${cropRows.map((r) => `<p><span>${escapeHtml(r.name)}</span><b>${r.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}</div><div><h4>Bonus <small>(${weight.bonusWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })})</small></h4>${Object.entries(weight.bonusSources).map(([name, val]) => `<p><span>${escapeHtml(name)}</span><b>${Number(val).toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}<h4>Questions?</h4><p class="farming-muted">Calculations are static-Hypixie estimates adapted from EliteFarmers concepts and profile-visible Hypixel fields.</p></div></div>
+        <div class="elite-panel-title-row"><h3>Leaderboard Ranks & Weight Breakdown</h3><span class="elite-chip">${weight.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })} Farming Weight</span></div>
+        <div class="elite-weight-breakdown"><div><h4>Crops <small>(${weight.cropWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })})</small></h4>${cropRows.map((r) => `<p><span>${escapeHtml(r.name)}</span><b>${r.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}</div><div><h4>Bonus <small>(${weight.bonusWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })})</small></h4>${Object.entries(weight.bonusSources).map(([name, val]) => `<p><span>${escapeHtml(name)}</span><b>${Number(val).toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}<h4>Rank note</h4><p class="farming-muted">EliteFarmers shows official top-50k leaderboard ranks from its backend. Hypixie is static, so this panel shows the same breakdown categories but cannot claim a global rank without an external rank API.</p></div></div>
       </section>
     </div>`;
 
