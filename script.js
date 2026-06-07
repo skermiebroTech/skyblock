@@ -185,6 +185,7 @@ const state = {
   /* Active page: "home" | "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" | "mutations" | "garden-chips" | "farming" | "profile" | "p2w" */
   view: "home",
   farmingActiveTab: "stats",
+  farmingSelectedCropId: null,
   profileSubTab: "overview",
 
   /* P2W Calculator settings */
@@ -3407,7 +3408,7 @@ function farmingGardenSummary(member) {
   const exp = farmingNum(garden.experience, garden.garden_exp, garden.garden_experience);
   const level = farmingLevelFromSteps(exp, window.HYPIXIE_GARDEN_EXP_REQUIRED || []);
   const cropUpgrades = farmingObj(garden.crop_upgrades, garden.crop_upgrade_levels, garden.upgrades);
-  const unlockedPlots = Array.isArray(garden.unlocked_plots) ? garden.unlocked_plots : Object.keys(farmingObj(garden.unlocked_plots, garden.plots)).filter((id) => garden.unlocked_plots?.[id] !== false || garden.plots?.[id] !== false);
+  const unlockedPlots = farmingUnlockedPlotIds(garden);
   const visitors = farmingObj(garden.commission_data?.visits, garden.visitors, garden.visitor_stats);
   const visitorStats = Object.entries(visitors).map(([id, v]) => ({
     id,
@@ -3434,6 +3435,48 @@ function farmingGardenSummary(member) {
     fuel: farmingNum(garden.fuel, garden.composter?.fuel_units, garden.composter?.fuel),
     visitors: { totalVisits, accepted, rejected, acceptanceRate, count: uniqueVisitors, top: visitorStats.sort((a, b) => b.accepted - a.accepted || b.visits - a.visits).slice(0, 5) },
   };
+}
+
+function farmingUnlockedPlotIds(garden) {
+  const candidates = [garden.unlocked_plots, garden.plots, garden.plot_unlocked, garden.unlockedPlots];
+  for (const value of candidates) {
+    if (Array.isArray(value)) return value.map((id) => String(id));
+    if (value && typeof value === "object") {
+      return Object.entries(value)
+        .filter(([, v]) => v !== false && v !== 0 && v !== "false" && v != null)
+        .map(([id]) => String(id));
+    }
+  }
+  if (garden.farming_toolkit?.IS_UNLOCKED === true || garden.IS_UNLOCKED === true) return ["garden_unlocked_exact_plots_not_exposed"];
+  return [];
+}
+
+function farmingPlotMatchesCell(id, index) {
+  const raw = String(id || "").toLowerCase();
+  if (raw === "garden_unlocked_exact_plots_not_exposed") return index === 12;
+  const compact = raw.replace(/[^a-z0-9]/g, "");
+  const n0 = String(index);
+  const n1 = String(index + 1);
+  return raw === n0 || raw === n1
+    || compact === `plot${n0}` || compact === `plot${n1}`
+    || compact === `gardenplot${n0}` || compact === `gardenplot${n1}`
+    || compact.endsWith(`plot${n0}`) || compact.endsWith(`plot${n1}`);
+}
+
+function farmingPlotGridHTML(unlockedPlots) {
+  const ids = (unlockedPlots || []).map((id) => String(id));
+  const hasUnknownUnlocked = ids.includes("garden_unlocked_exact_plots_not_exposed");
+  const cells = Array.from({ length: 25 }, (_, i) => {
+    const matched = ids.filter((id) => farmingPlotMatchesCell(id, i));
+    const numericMatch = ids.some((id) => /^\d+$/.test(id) && (Number(id) === i || Number(id) === i + 1));
+    const isUnlocked = matched.length > 0 || numericMatch;
+    const label = matched[0] === "garden_unlocked_exact_plots_not_exposed" ? "Garden unlocked" : (matched[0] || (numericMatch ? `Plot ${i + 1}` : `Plot ${i + 1}`));
+    return `<span class="${isUnlocked ? "on" : ""}" title="${escapeHtml(label)}${isUnlocked ? " unlocked" : " not detected"}" aria-label="${escapeHtml(label)} ${isUnlocked ? "unlocked" : "not detected"}">${isUnlocked ? "✓" : ""}</span>`;
+  }).join("");
+  const list = ids.length
+    ? `<div class="elite-plot-list" aria-label="Unlocked plot ids">${hasUnknownUnlocked ? `<span class="farming-muted">Garden is unlocked, but Hypixel did not expose exact plot IDs for this profile.</span>` : ids.map((id) => `<code>${escapeHtml(id)}</code>`).join("")}</div>`
+    : `<p class="farming-muted">No unlocked plot IDs were exposed in this profile payload.</p>`;
+  return `<div class="elite-plot-grid">${cells}<strong>${hasUnknownUnlocked ? "Garden unlocked" : `${fmtInt(ids.length)} unlocked plots`}</strong></div>${list}`;
 }
 
 function farmingFortuneSummary(member, weight, garden, pests) {
@@ -3511,10 +3554,18 @@ function farmingStatBadge(value, label = "") {
 
 function farmingCropIconRail(rows, activeId = null) {
   return `<div class="elite-crop-rail" aria-label="Farming crops">
-    ${rows.map((r) => `<button class="elite-crop-btn ${activeId === r.id ? "active" : ""}" type="button" title="${escapeHtml(r.name)}">
+    ${rows.map((r) => `<button class="elite-crop-btn ${activeId === r.id ? "active" : ""}" type="button" title="${escapeHtml(r.name)}" aria-label="Show ${escapeHtml(r.name)} farming details" aria-pressed="${activeId === r.id ? "true" : "false"}" data-farming-crop="${escapeHtml(r.id)}">
       <img src="${getUniversalItemIconUrl(r.icon)}" alt="${escapeHtml(r.name)}" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}">
     </button>`).join("")}
   </div>`;
+}
+
+function farmingSelectedCrop(weight) {
+  if (!weight?.rows?.length) return null;
+  const selected = weight.rows.find((row) => row.id === state.farmingSelectedCropId);
+  if (selected) return selected;
+  state.farmingSelectedCropId = weight.rows[0]?.id || null;
+  return weight.rows[0] || null;
 }
 
 const FARMING_TABS = [
@@ -3598,9 +3649,11 @@ function renderFarmingView() {
   const fortune = farmingFortuneSummary(member, weight, garden, pests);
   const rates = farmingRateRows(weight.rows, fortune);
   const upgrades = farmingUpgradeRows(weight, garden, pests);
-  const topCrop = weight.rows[0];
-  const topRate = rates[0];
+  const selectedCrop = farmingSelectedCrop(weight);
+  const selectedRate = rates.find((r) => r.id === selectedCrop?.id) || rates[0] || null;
+  const topRate = selectedRate;
   const cropRows = weight.rows;
+  const ratesForDisplay = selectedRate ? [selectedRate, ...rates.filter((r) => r.id !== selectedRate.id)] : rates;
   const cropMaxWeight = Math.max(1, ...cropRows.map((r) => r.weight));
   const cropMaxCollection = Math.max(1, ...cropRows.map((r) => r.collection));
   const gardenLevelMax = garden.level.next ? garden.level.progress + garden.level.next : Math.max(1, garden.exp || 1);
@@ -3612,11 +3665,12 @@ function renderFarmingView() {
   pane.innerHTML = `
     <div class="elite-farming-shell">
       ${farmingHeroHTML(weight, garden, fortune)}
-      ${farmingCropIconRail(cropRows, topCrop?.id)}
+      ${farmingCropIconRail(cropRows, selectedCrop?.id)}
 
       <section class="elite-two ${farmingTabPanelClass("stats")}" id="elite-stats" role="tabpanel" aria-labelledby="elite-tab-stats" ${state.farmingActiveTab === "stats" ? "" : "hidden"}>
         <article class="elite-panel elite-panel-flat">
-          <div class="elite-panel-title-row"><h3>Farming ${fmtInt(weight.level)}</h3><span class="elite-chip">Weight ↓</span></div>
+          <div class="elite-panel-title-row"><h3>Farming ${fmtInt(weight.level)}</h3><span class="elite-chip">Selected: ${escapeHtml(selectedCrop?.name || "Crop")}</span></div>
+          ${selectedCrop ? `<div class="elite-selected-crop-card"><img src="${getUniversalItemIconUrl(selectedCrop.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(selectedCrop.icon)}"><div><strong>${escapeHtml(selectedCrop.name)}</strong><span>Collection ${fmtInt(selectedCrop.collection)} · Milestone ${fmtInt(selectedCrop.milestone.level)} · ${selectedCrop.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })} weight</span></div></div>` : ""}
           ${farmingMiniBar(weight.exp, 111672425, `${fmtInt(weight.exp)} XP`)}
           <div class="elite-crop-list">
             ${cropRows.map((r) => `<div class="elite-crop-row">
@@ -3628,9 +3682,9 @@ function renderFarmingView() {
         </article>
 
         <article class="elite-panel elite-panel-flat">
-          <div class="elite-panel-title-row"><h3>Crop Rates</h3>${topRate ? farmingStatBadge(fmtCoins(topRate.coinsPerHourNpc), "/h") : ""}</div>
+          <div class="elite-panel-title-row"><h3>${topRate ? `${escapeHtml(topRate.name)} Rates` : "Crop Rates"}</h3>${topRate ? farmingStatBadge(fmtCoins(topRate.coinsPerHourNpc), "/h") : ""}</div>
           <div class="elite-rate-list">
-            ${rates.slice(0, 10).map((r) => `<div class="elite-rate-row">
+            ${ratesForDisplay.slice(0, 10).map((r) => `<div class="elite-rate-row ${r.id === selectedCrop?.id ? "active" : ""}">
               <img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}">
               <div><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.itemsPerMinute)} items/min · NPC</span></div><em>${fmtCoins(r.coinsPerHourNpc)}/h</em>
             </div>`).join("")}
@@ -3647,7 +3701,7 @@ function renderFarmingView() {
             <div><h4>Crop Milestones</h4><div class="elite-crop-list compact">
               ${cropRows.slice().sort((a,b) => b.milestone.level - a.milestone.level || b.collection - a.collection).map((r) => `<div class="elite-crop-row"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div class="elite-crop-info"><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)}</span></div><div class="elite-crop-bars"><b>${fmtInt(r.milestone.level)}</b>${farmingMiniBar(r.collection, cropMaxCollection, fmtInt(r.collection))}</div></div>`).join("")}
             </div></div>
-            <div><h4>Unlocked Plots</h4><div class="elite-plot-grid">${Array.from({length: 25}, (_, i) => `<span class="${i < garden.unlockedPlots.length ? "on" : ""}"></span>`).join("")}<strong>${fmtInt(garden.unlockedPlots.length)}</strong></div><div class="elite-chip-row"><span>Copper · <b>${fmtInt(garden.copper)}</b></span><span>Compost · <b>${fmtInt(garden.compost)}</b></span><span>Organic · <b>${fmtInt(garden.organicMatter)}</b></span><span>Fuel · <b>${fmtInt(garden.fuel)}</b></span></div><h4>Visitors</h4><div class="elite-chip-cloud"><span>Unique · ${fmtInt(garden.visitors.count)}</span><span>Total Visits · ${fmtInt(garden.visitors.totalVisits)}</span><span>Accepted · ${fmtInt(garden.visitors.accepted)}</span><span>Rejected · ${fmtInt(garden.visitors.rejected)}</span><span>Acceptance Rate · ${garden.visitors.acceptanceRate.toFixed(2)}%</span>${garden.visitors.top.map((v) => `<span>${escapeHtml(v.id)} · ${fmtInt(v.accepted || v.visits)}</span>`).join("")}</div><p class="farming-muted elite-garden-disclaimer">Garden data such as visitors, plots, and crop upgrades is profile-shared in Hypixel's API, matching EliteFarmers' treatment. Copper is shown from the selected member when available.</p></div>
+            <div><h4>Unlocked Plots</h4>${farmingPlotGridHTML(garden.unlockedPlots)}<div class="elite-chip-row"><span>Copper · <b>${fmtInt(garden.copper)}</b></span><span>Compost · <b>${fmtInt(garden.compost)}</b></span><span>Organic · <b>${fmtInt(garden.organicMatter)}</b></span><span>Fuel · <b>${fmtInt(garden.fuel)}</b></span></div><h4>Visitors</h4><div class="elite-chip-cloud"><span>Unique · ${fmtInt(garden.visitors.count)}</span><span>Total Visits · ${fmtInt(garden.visitors.totalVisits)}</span><span>Accepted · ${fmtInt(garden.visitors.accepted)}</span><span>Rejected · ${fmtInt(garden.visitors.rejected)}</span><span>Acceptance Rate · ${garden.visitors.acceptanceRate.toFixed(2)}%</span>${garden.visitors.top.map((v) => `<span>${escapeHtml(v.id)} · ${fmtInt(v.accepted || v.visits)}</span>`).join("")}</div><p class="farming-muted elite-garden-disclaimer">Garden data such as visitors, plots, and crop upgrades is profile-shared in Hypixel's API, matching EliteFarmers' treatment. Copper is shown from the selected member when available.</p></div>
           </div>
         </article>
 
@@ -3680,6 +3734,13 @@ function renderFarmingView() {
   pane.querySelectorAll(".elite-farming-tab").forEach((button) => {
     button.addEventListener("click", () => {
       state.farmingActiveTab = button.dataset.farmingTab || "stats";
+      renderFarmingView();
+    });
+  });
+  pane.querySelectorAll(".elite-crop-btn[data-farming-crop]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.farmingSelectedCropId = button.dataset.farmingCrop || null;
+      state.farmingActiveTab = "stats";
       renderFarmingView();
     });
   });

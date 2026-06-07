@@ -3937,13 +3937,15 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 .elite-crop-rail { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 8px 0 22px; flex-wrap: wrap; }
 .elite-crop-btn {
   appearance: none;
-  border: 0;
+  border: 1px solid transparent;
   background: transparent;
   padding: 6px;
   border-radius: 8px;
-  cursor: default;
+  cursor: pointer;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
 }
-.elite-crop-btn.active { background: #2b2b31; }
+.elite-crop-btn:hover { transform: translateY(-1px); border-color: #3f3f46; background: #17171b; }
+.elite-crop-btn.active { background: #2b2b31; border-color: #22c55e; box-shadow: 0 0 0 1px rgba(34,197,94,.2); }
 .elite-crop-btn img { width: 34px; height: 34px; image-rendering: pixelated; display: block; }
 .elite-two { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; margin-bottom: 18px; align-items: start; }
 .elite-panel {
@@ -3995,15 +3997,31 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 .elite-rate-row span,
 .elite-upgrade-row span { display: block; color: #c4c4cc; font-size: 13px; }
 .elite-crop-bars b { display: block; text-align: right; font-family: var(--font-mono); font-size: 17px; color: #fff; margin-bottom: 3px; }
+.elite-selected-crop-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: #101c14;
+  border: 1px solid #225f36;
+  border-radius: 8px;
+}
+.elite-selected-crop-card img { width: 36px; height: 36px; image-rendering: pixelated; }
+.elite-selected-crop-card strong { display: block; color: #f4f4f5; }
+.elite-selected-crop-card span { display: block; color: #bbf7d0; font-size: 12px; }
 .elite-rate-list { display: grid; gap: 8px; }
 .elite-rate-row { grid-template-columns: 42px minmax(0,1fr) auto; }
+.elite-rate-row.active { border-color: #22c55e; background: #102015; }
 .elite-rate-row em,
 .elite-upgrade-row em { color: #eab308; font-style: normal; font-family: var(--font-mono); font-size: 12px; text-align: right; }
 .elite-garden-layout { display: grid; grid-template-columns: 1.05fr .95fr; gap: 16px; }
 .elite-plot-grid { display: grid; grid-template-columns: repeat(5, 22px); gap: 6px; align-items: center; margin-bottom: 12px; }
-.elite-plot-grid span { width: 22px; height: 22px; background: #0a0a0d; border-radius: 4px; border: 1px solid #141418; }
+.elite-plot-grid span { width: 22px; height: 22px; background: #0a0a0d; border-radius: 4px; border: 1px solid #141418; display: inline-flex; align-items: center; justify-content: center; color: #d8ffe1; font-size: 12px; font-weight: 900; }
 .elite-plot-grid span.on { background: #238348; border-color: #2aa956; }
 .elite-plot-grid strong { grid-column: 1 / -1; text-align: center; color: #fff; font-family: var(--font-mono); }
+.elite-plot-list { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+.elite-plot-list code { padding: 3px 6px; border-radius: 5px; background: #15151a; border: 1px solid #27272f; color: #bbf7d0; font-family: var(--font-mono); font-size: 11px; }
 .elite-chip-row,
 .elite-chip-cloud { display: flex; flex-wrap: wrap; gap: 6px; }
 .elite-chip-row span,
