@@ -3920,8 +3920,20 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   padding: 4px;
   overflow-x: auto;
 }
-.elite-farming-nav a { color: #f4f4f5; padding: 8px 13px; border-radius: 6px; font-size: 13px; font-weight: 700; }
-.elite-farming-nav a:hover { background: #2b2b31; color: #fff; }
+.elite-farming-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #f4f4f5;
+  padding: 8px 13px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.elite-farming-tab:hover,
+.elite-farming-tab.active { background: #2b2b31; color: #fff; }
+.farming-tab-panel[hidden] { display: none !important; }
 .elite-crop-rail { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 8px 0 22px; flex-wrap: wrap; }
 .elite-crop-btn {
   appearance: none;

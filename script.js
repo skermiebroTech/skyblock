@@ -184,6 +184,7 @@ const state = {
 
   /* Active page: "home" | "shards" | "missing" | "upgrades" | "attributes" | "sweep" | "minions" | "mutations" | "garden-chips" | "farming" | "profile" | "p2w" */
   view: "home",
+  farmingActiveTab: "stats",
   profileSubTab: "overview",
 
   /* P2W Calculator settings */
@@ -3500,6 +3501,18 @@ function farmingCropIconRail(rows, activeId = null) {
   </div>`;
 }
 
+const FARMING_TABS = [
+  { id: "stats", label: "Stats" },
+  { id: "garden", label: "Garden" },
+  { id: "fortune", label: "Fortune" },
+  { id: "pests", label: "Pest Farming" },
+  { id: "rates", label: "Weight Breakdown" },
+];
+
+function farmingTabPanelClass(tabId) {
+  return `farming-tab-panel${state.farmingActiveTab === tabId ? " active" : ""}`;
+}
+
 function farmingHeroHTML(weight, garden, fortune) {
   const profileName = state.player.profiles.find((p) => p.profile_id === state.player.selectedId)?.cute_name || "Selected profile";
   const player = state.player.username || "Linked player";
@@ -3528,12 +3541,8 @@ function farmingHeroHTML(weight, garden, fortune) {
       <span>🎮 ${escapeHtml(player)}</span>
       <span>◎</span>
     </div>
-    <nav class="elite-farming-nav" aria-label="Elite Farming sections">
-      <a href="#elite-stats">Stats</a>
-      <a href="#elite-garden">Garden</a>
-      <a href="#elite-fortune">Fortune</a>
-      <a href="#elite-pests">Pest Farming</a>
-      <a href="#elite-rates">Weight Breakdown</a>
+    <nav class="elite-farming-nav" aria-label="Elite Farming sections" role="tablist">
+      ${FARMING_TABS.map((tab) => `<button id="elite-tab-${tab.id}" class="elite-farming-tab${state.farmingActiveTab === tab.id ? " active" : ""}" type="button" role="tab" aria-selected="${state.farmingActiveTab === tab.id ? "true" : "false"}" aria-controls="elite-${tab.id}" data-farming-tab="${tab.id}">${escapeHtml(tab.label)}</button>`).join("")}
     </nav>`;
 }
 
@@ -3582,13 +3591,14 @@ function renderFarmingView() {
   const gardenLevelLabel = garden.level.next ? `${fmtInt(garden.level.progress)} / ${fmtInt(garden.level.next)}` : "Maxed / unknown cap";
   const fortuneTotal = Math.max(1, fortune.sources.reduce((sum, s) => sum + (Number(s.current) || 0), 0));
   const profileName = state.player.profiles.find((p) => p.profile_id === state.player.selectedId)?.cute_name || "Profile";
+  if (!FARMING_TABS.some((tab) => tab.id === state.farmingActiveTab)) state.farmingActiveTab = "stats";
 
   pane.innerHTML = `
     <div class="elite-farming-shell">
       ${farmingHeroHTML(weight, garden, fortune)}
       ${farmingCropIconRail(cropRows, topCrop?.id)}
 
-      <section class="elite-two" id="elite-stats">
+      <section class="elite-two ${farmingTabPanelClass("stats")}" id="elite-stats" role="tabpanel" aria-labelledby="elite-tab-stats" ${state.farmingActiveTab === "stats" ? "" : "hidden"}>
         <article class="elite-panel elite-panel-flat">
           <div class="elite-panel-title-row"><h3>Farming ${fmtInt(weight.level)}</h3><span class="elite-chip">Weight ↓</span></div>
           ${farmingMiniBar(weight.exp, 111672425, `${fmtInt(weight.exp)} XP`)}
@@ -3613,7 +3623,7 @@ function renderFarmingView() {
         </article>
       </section>
 
-      <section class="elite-two" id="elite-garden">
+      <section class="elite-two ${farmingTabPanelClass("garden")}" id="elite-garden" role="tabpanel" aria-labelledby="elite-tab-garden" ${state.farmingActiveTab === "garden" ? "" : "hidden"}>
         <article class="elite-panel elite-panel-flat">
           <div class="elite-panel-title-row"><h3>Garden ${fmtInt(garden.level.level)}</h3><span class="elite-chip green">${escapeHtml(profileName)}</span></div>
           ${farmingMiniBar(garden.level.progress || garden.exp, garden.level.next || gardenLevelMax, gardenLevelLabel)}
@@ -3625,7 +3635,10 @@ function renderFarmingView() {
           </div>
         </article>
 
-        <article class="elite-panel elite-panel-flat" id="elite-fortune">
+      </section>
+
+      <section class="elite-two ${farmingTabPanelClass("fortune")}" id="elite-fortune" role="tabpanel" aria-labelledby="elite-tab-fortune" ${state.farmingActiveTab === "fortune" ? "" : "hidden"}>
+        <article class="elite-panel elite-panel-flat">
           <div class="elite-panel-title-row"><h3>Farming Fortune</h3>${farmingStatBadge(fmtInt(fortune.estimated))}</div>
           <div class="elite-fortune-grid">
             ${fortune.sources.map((s) => { const current = Number(s.current) || 0; const max = Number(s.max) || Math.max(fortuneTotal, current || 1); return `<div class="elite-progress-card"><div><strong>${escapeHtml(s.name)}</strong><small>${escapeHtml(s.confidence)}</small></div>${farmingMiniBar(current, max, `${fmtInt(current)} / ${s.max ? fmtInt(max) : "—"} ☘`)}<em>${escapeHtml(s.next || "")}</em></div>`; }).join("")}
@@ -3634,7 +3647,7 @@ function renderFarmingView() {
         </article>
       </section>
 
-      <section class="elite-two" id="elite-pests">
+      <section class="elite-two ${farmingTabPanelClass("pests")}" id="elite-pests" role="tabpanel" aria-labelledby="elite-tab-pests" ${state.farmingActiveTab === "pests" ? "" : "hidden"}>
         <article class="elite-panel elite-panel-flat">
           <div class="elite-panel-title-row"><h3>Pest Farming</h3>${farmingStatBadge(pests.reduce((sum, p) => sum + p.fortune, 0).toFixed(1))}</div>
           <div class="elite-pest-icons">${pests.map((p) => `<div class="elite-pest-tile"><strong>${escapeHtml(p.name)}</strong><span>${fmtInt(p.kills)} kills</span><small>${fmtInt(p.brackets)} brackets${p.next ? ` · next ${fmtInt(p.next)}` : ""}</small>${farmingMiniBar(p.brackets, 15, `+${p.fortune.toFixed(1)} FF`)}</div>`).join("")}</div>
@@ -3642,12 +3655,18 @@ function renderFarmingView() {
         ${renderEliteContestCard()}
       </section>
 
-      <section class="elite-panel elite-full" id="elite-rates">
+      <section class="elite-panel elite-full ${farmingTabPanelClass("rates")}" id="elite-rates" role="tabpanel" aria-labelledby="elite-tab-rates" ${state.farmingActiveTab === "rates" ? "" : "hidden"}>
         <div class="elite-panel-title-row"><h3>Leaderboard-style Weight Breakdown</h3><span class="elite-chip">${weight.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })} Farming Weight</span></div>
         <div class="elite-weight-breakdown"><div><h4>Crops <small>(${weight.cropWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })})</small></h4>${cropRows.map((r) => `<p><span>${escapeHtml(r.name)}</span><b>${r.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}</div><div><h4>Bonus <small>(${weight.bonusWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })})</small></h4>${Object.entries(weight.bonusSources).map(([name, val]) => `<p><span>${escapeHtml(name)}</span><b>${Number(val).toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}<h4>Questions?</h4><p class="farming-muted">Calculations are static-Hypixie estimates adapted from EliteFarmers concepts and profile-visible Hypixel fields.</p></div></div>
       </section>
     </div>`;
 
+  pane.querySelectorAll(".elite-farming-tab").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.farmingActiveTab = button.dataset.farmingTab || "stats";
+      renderFarmingView();
+    });
+  });
   pane.querySelector("#farming-retry-contest")?.addEventListener("click", () => loadEliteContestSummary(true));
 }
 
