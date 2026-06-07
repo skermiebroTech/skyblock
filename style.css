@@ -3632,7 +3632,7 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 }
 .garden-chip-progress {
   display: grid;
-  grid-template-columns: 1.4fr 0.9fr 0.9fr;
+  grid-template-columns: minmax(168px, 1.6fr) minmax(86px, 0.8fr) minmax(86px, 0.8fr);
   gap: 8px;
   margin-bottom: 12px;
   padding: 10px;
@@ -3656,6 +3656,9 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 .garden-chip-progress input,
 .garden-chip-progress select {
   width: 100%;
+}
+.garden-chip-owned-rarity {
+  min-width: 168px;
 }
 .garden-chip-progress input:disabled {
   opacity: 0.5;

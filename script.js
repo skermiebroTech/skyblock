@@ -27,6 +27,7 @@ const CONFIG = {
   BAZAAR_ENDPOINT: "/skyblock/bazaar",
   PROFILES_ENDPOINT: "/skyblock/profiles",
   ITEMS_ENDPOINT: "/resources/skyblock/items",
+  ELITE_CONTEST_ENDPOINT: "/elite/contests/at/now",
   FIRESALES_PUBLIC_URL: "https://api.hypixel.net/v2/skyblock/firesales",
 
   /* CORS-friendly Mojang proxy for username → UUID resolution. */
@@ -1770,7 +1771,18 @@ function skyCryptItemIconUrl(itemId) {
   return `https://sky.shiiyu.moe/api/item/${encodeURIComponent(itemId)}`;
 }
 
+const INLINE_ITEM_ICON_OVERRIDES = {
+  "INK_SACK:3": `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges"><rect width="32" height="32" fill="none"/><rect x="11" y="4" width="10" height="4" fill="#6f3f1d"/><rect x="8" y="8" width="16" height="4" fill="#8b5526"/><rect x="6" y="12" width="20" height="8" fill="#a86b32"/><rect x="8" y="20" width="16" height="4" fill="#7b461f"/><rect x="11" y="24" width="10" height="4" fill="#4f2a15"/><rect x="10" y="10" width="4" height="4" fill="#c28745"/><rect x="18" y="18" width="4" height="4" fill="#5b2f16"/></svg>`)}`,
+  COCOA_BEANS: `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges"><rect width="32" height="32" fill="none"/><rect x="11" y="4" width="10" height="4" fill="#6f3f1d"/><rect x="8" y="8" width="16" height="4" fill="#8b5526"/><rect x="6" y="12" width="20" height="8" fill="#a86b32"/><rect x="8" y="20" width="16" height="4" fill="#7b461f"/><rect x="11" y="24" width="10" height="4" fill="#4f2a15"/><rect x="10" y="10" width="4" height="4" fill="#c28745"/><rect x="18" y="18" width="4" height="4" fill="#5b2f16"/></svg>`)}`,
+};
+
+function itemIconOverrideUrl(itemId) {
+  return INLINE_ITEM_ICON_OVERRIDES[itemId] || null;
+}
+
 function fallbackToSkyCryptItemOnError(itemId, finalFallback = PLACEHOLDER_ICON) {
+  const override = itemIconOverrideUrl(itemId);
+  if (override) return `this.onerror=null;this.src='${override}';`;
   const safeFallback = String(finalFallback || PLACEHOLDER_ICON).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   return `if(!this.dataset.skycryptFallback){this.dataset.skycryptFallback='1';this.src='${skyCryptItemIconUrl(itemId)}';}else{this.onerror=null;this.src='${safeFallback}';}`;
 }
@@ -1781,6 +1793,8 @@ function fallbackToSkyCryptItemOrHideOnError(itemId) {
 
 function getUniversalItemIconUrl(itemId) {
   if (!itemId) return PLACEHOLDER_ICON;
+  const override = itemIconOverrideUrl(itemId);
+  if (override) return override;
   
   // 1. Check if it's a Shard (exists in shardsDb or begins with SHARD_)
   if (state.shardsDb && (state.shardsDb[itemId] || itemId.startsWith("SHARD_"))) {
@@ -3453,8 +3467,8 @@ async function loadEliteContestSummary(force = false) {
   state.eliteContest = { loading: true, data: null, error: null, fetchedAt: null };
   if (state.view === "farming") renderFarmingView();
   try {
-    const res = await fetch("https://api.eliteskyblock.com/contests/at/now", { cache: "no-store" });
-    if (!res.ok) throw new Error(`Elite API returned HTTP ${res.status}`);
+    const res = await fetch(`${CONFIG.API_BASE}${CONFIG.ELITE_CONTEST_ENDPOINT}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Elite contest proxy returned HTTP ${res.status}`);
     state.eliteContest = { loading: false, data: await res.json(), error: null, fetchedAt: Date.now() };
   } catch (e) {
     state.eliteContest = { loading: false, data: null, error: e.message || String(e), fetchedAt: Date.now() };
@@ -3519,7 +3533,7 @@ function farmingHeroHTML(weight, garden, fortune) {
       <a href="#elite-garden">Garden</a>
       <a href="#elite-fortune">Fortune</a>
       <a href="#elite-pests">Pest Farming</a>
-      <a href="#elite-rates">Ranks</a>
+      <a href="#elite-rates">Weight Breakdown</a>
     </nav>`;
 }
 
@@ -3531,7 +3545,7 @@ function renderEliteContestCard() {
   }
   if (c.loading) return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><div class="acc-loading"><span class="spinner"></span> Loading Elite contest summary…</div></article>`;
   if (c.error) {
-    return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><p class="farming-muted">Elite's public API is reachable from command-line checks, but this browser could not read it directly (${escapeHtml(c.error)}). Static GitHub Pages may need a CORS-friendly proxy for live Elite API widgets.</p><button class="btn-secondary btn-small" id="farming-retry-contest">Retry</button></article>`;
+    return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><p class="farming-muted">Hypixie could not load the Elite contest proxy (${escapeHtml(c.error)}). Try again in a moment; if this persists, the Worker route may need to be redeployed.</p><button class="btn-secondary btn-small" id="farming-retry-contest">Retry</button></article>`;
   }
   const contests = c.data?.contests || {};
   const rows = Object.entries(contests).flatMap(([ts, crops]) => (crops || []).map((crop) => ({ ts: Number(ts) * 1000, crop })));
@@ -4528,8 +4542,6 @@ function init() {
   /* Auto-refresh every minute. Hits cache silently if data is fresh. */
   setInterval(() => loadData(false), CONFIG.CACHE_TTL_BAZAAR_MS);
 }
-
-document.addEventListener("DOMContentLoaded", init);
 
 /* =========================================================================
  * SKYCRYPT STYLE PROFILE VIEWER
