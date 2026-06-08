@@ -786,6 +786,7 @@ async function loadGardenData(profileId) {
     const { data } = await api.fetchGarden(requestedProfileId);
     if (state.player.selectedId !== requestedProfileId) return;
     state.player.gardenData = data?.garden || data;
+    state.player.mutationAnalysis = mergeGardenIntoMutationAnalysis(state.player.mutationAnalysis, state.player.gardenData);
   } catch (e) {
     if (state.player.selectedId !== requestedProfileId) return;
     state.player.gardenData = null;
@@ -794,7 +795,7 @@ async function loadGardenData(profileId) {
   } finally {
     if (state.player.selectedId === requestedProfileId) {
       state.player.gardenLoading = false;
-      if (state.view === "farming") renderActiveView();
+      if (state.view === "farming" || state.view === "mutations") renderActiveView();
     }
   }
 }
@@ -4114,35 +4115,50 @@ function analyseProfileMutations(rawProfile, uuid) {
   const byId = new Map(tracker.map((m) => [m.id, m]));
   const byName = new Map(tracker.map((m) => [normalizeMutationToken(m.name), m]));
   const discovered = new Set();
+  const analyzed = new Set();
   const evidence = {};
 
-  function mark(raw, path, value) {
+  function mark(raw, path, value, opts = {}) {
     const token = normalizeMutationToken(raw);
-    const m = byId.get(token) || byName.get(token) || byId.get(token.replace(/_MUTATION$/, "")) || byName.get(token.replace(/_MUTATION$/, ""));
+    const variants = [token, token.replace(/_MUTATION$/, ""), token.replace(/^MUTATION_/, "")];
+    let m = null;
+    for (const v of variants) {
+      m = byId.get(v) || byName.get(v);
+      if (m) break;
+    }
     if (!m) return false;
     discovered.add(m.id);
-    if (!evidence[m.id]) evidence[m.id] = { path, value };
+    if (opts.analyzed) analyzed.add(m.id);
+    if (!evidence[m.id] || opts.analyzed) evidence[m.id] = { path, value, analyzed: !!opts.analyzed };
     return true;
   }
+
+  const gardenPlayer = member.garden_player_data || member.player_data?.garden_player_data || member.garden || {};
+  const analyzedList = Array.isArray(gardenPlayer.analyzed_greenhouse_crops) ? gardenPlayer.analyzed_greenhouse_crops : [];
+  const discoveredList = Array.isArray(gardenPlayer.discovered_greenhouse_crops) ? gardenPlayer.discovered_greenhouse_crops : [];
+  for (const id of discoveredList) mark(id, "garden_player_data.discovered_greenhouse_crops", id);
+  for (const id of analyzedList) mark(id, "garden_player_data.analyzed_greenhouse_crops", id, { analyzed: true });
 
   for (const hit of profileMutationCandidates(member)) {
     const path = hit.path;
     const value = hit.value;
     const key = hit.key;
     if (value === false || value == null || value === 0) continue;
+    const isAnalyzed = /analy[sz]ed_greenhouse_crops|\.analy[sz]ed$/i.test(path);
 
     /* Common shapes: { mutations: { ASHWREATH: true } },
      * { discovered_mutations: ["ASHWREATH"] }, or arrays of objects with an id/name. */
-    mark(key, path, value);
-    if (typeof value === "string") mark(value, path, value);
+    mark(key, path, value, { analyzed: isAnalyzed });
+    if (typeof value === "string") mark(value, path, value, { analyzed: isAnalyzed });
   }
 
   const greenhouse = extractGreenhouseProfileStats(member);
   return {
     discovered,
+    analyzed,
     evidence,
     greenhouse,
-    source: discovered.size || greenhouse ? "Hypixel profile API" : null,
+    source: discovered.size || analyzed.size || greenhouse ? "Hypixel profile API" : null,
     candidateCount: profileMutationCandidates(member).length,
   };
 }
@@ -4161,7 +4177,51 @@ function extractGreenhouseProfileStats(member) {
     if (/(ethereal|vine)/i.test(p)) vines = n;
   }
   if (slots == null && vines == null) return null;
-  return { slots, vines, path };
+  return { slots, vines, path, source: "profile" };
+}
+
+function extractGreenhouseGardenStats(gardenData) {
+  const garden = gardenData?.garden || gardenData || null;
+  if (!garden || typeof garden !== "object") return null;
+  const rawSlots = Array.isArray(garden.greenhouse_slots) ? garden.greenhouse_slots : [];
+  const slotsList = rawSlots
+    .map((slot) => ({ x: Number(slot?.x), z: Number(slot?.z) }))
+    .filter((slot) => Number.isInteger(slot.x) && Number.isInteger(slot.z) && slot.x >= 0 && slot.x < 10 && slot.z >= 0 && slot.z < 10);
+  const upgradesRaw = garden.garden_upgrades || {};
+  const upgrades = {
+    growthSpeed: Number(upgradesRaw.GROWTH_SPEED ?? upgradesRaw.greenhouseGrowthSpeed ?? 0) || 0,
+    yield: Number(upgradesRaw.YIELD ?? upgradesRaw.greenhouseYield ?? 0) || 0,
+    plotLimit: Number(upgradesRaw.PLOT_LIMIT ?? upgradesRaw.greenhousePlotLimit ?? 0) || 0,
+  };
+  const lastGrowthStageTime = Number(garden.last_growth_stage_time ?? garden.lastGrowthStageTime ?? 0) || null;
+  if (!slotsList.length && !lastGrowthStageTime && !Object.values(upgrades).some(Boolean)) return null;
+  return {
+    slots: slotsList.length,
+    slotsList,
+    upgrades,
+    lastGrowthStageTime,
+    path: "garden.greenhouse_slots",
+    source: "standalone Garden API",
+  };
+}
+
+function mergeGardenIntoMutationAnalysis(analysis, gardenData) {
+  const gardenGreenhouse = extractGreenhouseGardenStats(gardenData);
+  if (!gardenGreenhouse) return analysis;
+  const base = analysis || { discovered: new Set(), analyzed: new Set(), evidence: {}, greenhouse: null, candidateCount: 0 };
+  const current = base.greenhouse || {};
+  const greenhouseSources = new Set(String(current.source || "").split(" + ").filter(Boolean));
+  greenhouseSources.add(gardenGreenhouse.source);
+  base.greenhouse = {
+    ...current,
+    ...gardenGreenhouse,
+    vines: current.vines ?? gardenGreenhouse.vines ?? null,
+    source: Array.from(greenhouseSources).join(" + "),
+  };
+  const analysisSources = new Set(String(base.source || "").split(" + ").filter(Boolean));
+  analysisSources.add("Garden API");
+  base.source = Array.from(analysisSources).join(" + ");
+  return base;
 }
 
 function mutationCatalog() {
@@ -4190,13 +4250,21 @@ function profileMutationDiscoveredSet() {
   return set instanceof Set ? set : new Set();
 }
 
+function profileMutationAnalyzedSet() {
+  const set = state.player?.mutationAnalysis?.analyzed;
+  return set instanceof Set ? set : new Set();
+}
+
 function combinedMutationDiscoveredSet() {
   return new Set([...profileMutationDiscoveredSet(), ...mutationDiscoveredSet()]);
 }
 
 function mutationDiscoverySource(id) {
+  const analyzed = profileMutationAnalyzedSet().has(id);
   const api = profileMutationDiscoveredSet().has(id);
   const manual = mutationDiscoveredSet().has(id);
+  if (analyzed && manual) return "api-analyzed+manual";
+  if (analyzed) return "api-analyzed";
   if (api && manual) return "api+manual";
   if (api) return "api";
   if (manual) return "manual";
@@ -4298,6 +4366,60 @@ function mutationProfitRows(discovered = combinedMutationDiscoveredSet()) {
   });
 }
 
+function formatGreenhouseTime(ms) {
+  if (!ms) return "unknown";
+  const date = new Date(ms);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function mutationUpgradeBarHTML(label, value, max, itemId) {
+  const safe = Math.max(0, Math.min(max, Number(value) || 0));
+  const pct = max > 0 ? (safe / max) * 100 : 0;
+  return `<div class="mutation-upgrade-row">
+    ${mcIconHTML(itemId, label, "mutation-upgrade-icon")}
+    <div class="mutation-upgrade-main">
+      <div class="mutation-upgrade-head"><strong>${escapeHtml(label)}</strong><span>${safe} / ${max}</span></div>
+      <div class="mutation-upgrade-bar"><span style="width:${pct}%"></span></div>
+    </div>
+  </div>`;
+}
+
+function renderGreenhouseTracker(greenhouse, targetSlots, vinesNeeded, vineCost, vinesUnit) {
+  const slotSet = new Set((greenhouse?.slotsList || []).map((slot) => `${slot.x},${slot.z}`));
+  const ownedSlots = Number.isFinite(Number(greenhouse?.slots)) ? Number(greenhouse.slots) : slotSet.size || null;
+  const upgrades = greenhouse?.upgrades || {};
+  const grid = Array.from({ length: 100 }, (_, index) => {
+    const x = index % 10;
+    const z = Math.floor(index / 10);
+    const filled = slotSet.has(`${x},${z}`);
+    const core = x >= 3 && x <= 6 && z >= 3 && z <= 6 && (x % 3 !== 0 || z % 3 !== 0);
+    return `<span class="mutation-greenhouse-cell ${filled ? "is-filled" : core ? "is-core" : ""}" title="Slot ${x},${z}: ${filled ? "unlocked" : core ? "starter/core" : "locked"}"></span>`;
+  }).join("");
+  const source = greenhouse?.source || (state.player?.uuid ? "Garden API loading or unavailable" : "Link a player to sync automatically");
+  return `<div class="mutation-greenhouse-card">
+    <div class="mutation-greenhouse-head">
+      <div>
+        <h4>Automatic Greenhouse Tracker</h4>
+        <p>${escapeHtml(source)}${state.player?.gardenLoading ? " · loading Garden endpoint" : ""}${state.player?.gardenError ? ` · ${escapeHtml(state.player.gardenError)}` : ""}</p>
+      </div>
+      <div class="mutation-greenhouse-count"><strong>${ownedSlots ?? "—"}</strong><span>/ 100 slots</span></div>
+    </div>
+    <div class="mutation-greenhouse-body">
+      <div class="mutation-greenhouse-grid" aria-label="Greenhouse plant slots">${grid}</div>
+      <div class="mutation-greenhouse-details">
+        ${mutationUpgradeBarHTML("Growth Speed", upgrades.growthSpeed, 9, "SEEDS")}
+        ${mutationUpgradeBarHTML("Plant Yield", upgrades.yield, 9, "FLOWER_POT_ITEM")}
+        ${mutationUpgradeBarHTML("Plot Limit", upgrades.plotLimit, 2, "GRASS")}
+        <div class="mutation-greenhouse-note">
+          <span><strong>Last growth stage:</strong> ${formatGreenhouseTime(greenhouse?.lastGrowthStageTime)}</span>
+          <span><strong>Planner:</strong> ${Math.max(0, targetSlots - (ownedSlots || 12))} slots to ${targetSlots}${vineCost != null ? ` · ${fmtCoins(vineCost)}` : vinesUnit ? "" : " · vine price unavailable"}</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderMutationsView() {
   const pane = $("#view-mutations");
   if (!pane) return;
@@ -4315,6 +4437,7 @@ function renderMutationsView() {
   const recipe = selected ? mutationRecipe(selected, qty) : null;
   const manualDiscovered = mutationDiscoveredSet();
   const profileDiscovered = profileMutationDiscoveredSet();
+  const profileAnalyzed = profileMutationAnalyzedSet();
   const discovered = new Set([...profileDiscovered, ...manualDiscovered]);
   const progress = tracker.length ? discovered.size / tracker.length : 0;
   const search = state.mutations.search.trim().toLowerCase();
@@ -4341,7 +4464,7 @@ function renderMutationsView() {
   const vineCost = vinesUnit ? vinesNeeded * vinesUnit : null;
   const profileSource = state.player?.mutationAnalysis?.source;
   const apiStatus = profileSource
-    ? `${profileDiscovered.size} from Hypixel${apiSlots != null ? ` · ${apiSlots} greenhouse slots` : ""}`
+    ? `${profileDiscovered.size} discovered · ${profileAnalyzed.size} analyzed${apiSlots != null ? ` · ${apiSlots} greenhouse slots` : ""}`
     : (state.player?.uuid ? "No mutation fields found in selected profile API data" : "Link a player to sync discovered mutations");
 
   const rarityGroups = ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY"].map((rarity) => {
@@ -4374,12 +4497,13 @@ function renderMutationsView() {
       </section>
 
       <section class="mutation-panel">
-        <div class="mutation-panel-head"><h3>Greenhouse planner</h3></div>
+        <div class="mutation-panel-head"><h3>Greenhouse tracker</h3></div>
         <div class="mutation-controls-row">
           <label class="sort-label" for="mutation-greenhouse-target">Target slots</label>
           <input id="mutation-greenhouse-target" class="select-native mutation-qty" type="number" min="12" max="100" step="1" value="${targetSlots}">
-          <span class="legend-item">Default greenhouse starts at 12 slots; this estimates one Ethereal Vine per added slot.</span>
+          <span class="legend-item">Synced from Hypixel Garden API. Manual target only estimates remaining slot expansion.</span>
         </div>
+        ${renderGreenhouseTracker(profileGreenhouse, targetSlots, vinesNeeded, vineCost, vinesUnit)}
 
         <div class="mutation-panel-head"><h3>Recipe calculator</h3></div>
         <div class="mutation-controls-row">
@@ -4404,7 +4528,7 @@ function renderMutationsView() {
 function renderMutationTile(m, discovered) {
   const on = discovered.has(m.id);
   const source = mutationDiscoverySource(m.id);
-  const sourceLabel = source === "api" ? "API" : (source === "manual" ? "Manual" : (source === "api+manual" ? "API + manual" : "Missing"));
+  const sourceLabel = source === "api-analyzed" ? "Analyzed" : (source === "api-analyzed+manual" ? "Analyzed + manual" : (source === "api" ? "Discovered" : (source === "manual" ? "Manual" : (source === "api+manual" ? "API + manual" : "Missing"))));
   return `<button class="mutation-tile ${on ? "is-discovered" : ""}" data-mutation-toggle="${m.id}" title="${escapeHtml(m.tip || m.name)}"><span class="mutation-tile-head">${mutationIconHTML(m)}<span><span class="mutation-name">${escapeHtml(m.name)}</span><span class="mutation-meta">${m.watering === "YES" ? "Watering" : "No watering"} · ${m.growthStages ?? 0} stages · ${fmtCoins(m.coins || 0)}</span></span></span><span class="mutation-source mutation-source-${source}">${sourceLabel}</span></button>`;
 }
 

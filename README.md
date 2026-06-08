@@ -130,7 +130,7 @@ A static companion for the new SkyBlock Mutations system, modeled after the publ
 
 - **Collection tracker** for the 40 discoverable mutations, grouped by rarity, with progress stored locally in the browser.
 - **Recursive recipe calculator** that expands direct spreading conditions into base material requirements for any quantity.
-- **Greenhouse planner** that estimates extra Ethereal Vines needed for slot targets and uses the live Bazaar price when Hypixel exposes an Ethereal Vine product.
+- **Greenhouse tracker/planner** that automatically syncs Hypixel Garden API greenhouse slots, growth-speed/yield/plot-limit upgrades, analyzed/discovered crops, and last growth-stage timing; manual target slots still estimate extra Ethereal Vines needed for expansion.
 - **Profit leaderboard** ranking mutations by static coin value, recursive ingredient cost, profit per harvest, and profit per hour for a configurable cycle length.
 
 The bundled data lives in `mutations-data.js`; refresh it when the upstream mutation list or recipes change.
