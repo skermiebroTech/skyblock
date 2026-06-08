@@ -61,7 +61,7 @@ shard-market/
 
 The two JSON files under `data/` come from the open-source [SkyShards](https://github.com/Campionnn/SkyShards) project (MIT) and bundle the community-maintained fusion recipes + per-shard metadata. They're loaded once and cached in `localStorage` for 24 h.
 
-The Farming dashboard is adapted from ideas and constants in [EliteFarmers/Website](https://github.com/EliteFarmers/Website), especially its `packages/farming-weight` package. Hypixie remains a static no-build app; Svelte components from EliteFarmers are not imported directly.
+The Farming dashboard is rebuilt in vanilla JavaScript from EliteFarmers-inspired page concepts. Direct constants are adapted from the MIT [EliteFarmers/FarmingWeight](https://github.com/EliteFarmers/FarmingWeight) package; [EliteFarmers/Website](https://github.com/EliteFarmers/Website) is used as a GPL-licensed UX/API reference only. Hypixie remains a static no-build app and does not import EliteFarmers Svelte components.
 
 No bundler, no `npm install`, no toolchain. Open `index.html` in any modern browser and it works.
 
@@ -149,16 +149,16 @@ The static ability/source/level data lives in `garden-chips-data.js`. Chip progr
 
 ### Farming
 
-An EliteFarmers-inspired Farming dashboard for linked SkyBlock profiles:
+A rebuilt EliteFarmers-inspired Farming tab for linked SkyBlock profiles. The tab is split into six in-page panels:
 
-- **Farming Weight** from crop collections plus visible bonus sources: Farming 50/60, Jacob medals, Anita bonus, and Tier 12 farming minions.
-- **Crop milestones and rate estimates** for every Garden crop, including Sunflower, Moonflower, and Wild Rose, using crop weight constants adapted from EliteFarmers' farming-weight logic.
-- **Farming Fortune breakdown** for profile-visible sources: Farming level, crop upgrades, Anita bonus, pest bestiary, and detected farming gear hints from decoded armor/equipment/hotbar data.
-- **Garden profile summary** for Garden level, copper, unlocked plots, composter-like resources, and visitor stats when exposed by Hypixel's profile payload.
-- **Pest Farming** bestiary brackets and next-kill targets based on EliteFarmers pest bracket constants.
-- **Current Jacob contest** widget that attempts to read Elite's public contest endpoint. If the browser blocks the request because of CORS, the page explains the limitation instead of inventing data.
+- **Stats** — Farming Weight, crop weight rows, selected crop details, visible bonus-weight sources, and quick NPC-rate preview.
+- **Garden** — Garden level, copper/DNA/composter-like resources, crop milestones, unlocked plot grid, crop upgrades, visitor totals, and the Elite caveat that most Garden data is shared across profile members.
+- **Fortune** — profile-visible Farming Fortune sources, upgrade priorities, and a source matrix linking to relevant wiki pages.
+- **Pest Farming** — pest bestiary brackets, next-kill targets, selected crop → pest mapping, and the current Jacob contest widget through the Elite contest proxy when available.
+- **Rates** — transparent baseline crop-rate and NPC-profit estimates for all crops using Elite crop constants plus visible fortune.
+- **Ranks** — Farming Weight crop/bonus breakdown with an honest note that global leaderboard ranks require Elite's backend and are not faked in the static site.
 
-Some EliteFarmers features depend on its Svelte app and backend API. Hypixie reimplements the useful parts in static JavaScript and labels estimates where the browser-visible Hypixel profile payload is incomplete.
+The bundled constants live in `farming-data.js`: crop IDs, NPC values, drop counts, Farming Weight divisors, crop milestone steps, Garden level steps, pest brackets, and source-matrix metadata. Some full EliteFarmers features require server-side data or deeper item-stat modeling; Hypixie labels those as estimates instead of inventing values.
 
 ### Hunting-level craft flips
 

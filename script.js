@@ -3214,7 +3214,7 @@ function renderHomeView() {
 
 
 /* =========================================================================
- * ELITE-STYLE FARMING VIEW
+ * FARMING VIEW — fresh EliteFarmers-inspired static rebuild
  * ======================================================================= */
 
 function farmingSelectedProfile() {
@@ -3234,14 +3234,15 @@ function farmingNum(...values) {
 }
 
 function farmingObj(...values) {
-  return values.find((v) => v && typeof v === "object") || {};
+  return values.find((v) => v && typeof v === "object" && !Array.isArray(v)) || {};
 }
 
-function farmingVisitorStat(visitor, ...keys) {
-  if (visitor && typeof visitor === "object") {
-    return farmingNum(...keys.map((key) => visitor[key]));
-  }
-  return farmingNum(visitor);
+function farmingArr(...values) {
+  return values.find((v) => Array.isArray(v)) || [];
+}
+
+function farmingCompactKey(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 }
 
 function farmingCollectionMap(member) {
@@ -3265,26 +3266,34 @@ function farmingLevelFromExp(exp, max = 60) {
   return Math.min(max, xpToLevel(exp));
 }
 
-function farmingLevelFromSteps(value, steps) {
+function farmingLevelFromSteps(value, steps, overflow = false) {
   let level = 0;
   let remaining = Number(value) || 0;
+  const total = remaining;
   for (const step of steps || []) {
     if (remaining >= step) {
       remaining -= step;
       level++;
     } else {
-      break;
+      return { level, progress: remaining, next: step, ratio: step ? remaining / step : 1, total, maxed: false };
     }
   }
-  return { level, progress: remaining, next: steps?.[level] || null, ratio: steps?.[level] ? remaining / steps[level] : 1 };
+  const last = (steps || []).at?.(-1) || 0;
+  if (overflow && last > 0) {
+    const extra = Math.floor(remaining / last);
+    level += extra;
+    remaining -= extra * last;
+    return { level, progress: remaining, next: last, ratio: remaining / last, total, maxed: false };
+  }
+  return { level, progress: remaining, next: null, ratio: 1, total, maxed: true };
 }
 
 function farmingCropMilestone(collection, crop) {
-  const steps = window.HYPIXIE_CROP_MILESTONES?.[crop.id] || null;
-  if (steps) return farmingLevelFromSteps(collection, steps);
+  const milestones = window.HYPIXIE_CROP_MILESTONES || {};
+  const steps = milestones[crop.id] || (crop.aliases || []).map((a) => milestones[a]).find(Boolean) || null;
+  if (steps) return farmingLevelFromSteps(collection, steps, true);
   const divisor = crop.weightDivisor || 100000;
-  const rough = Math.floor(Math.log10(Math.max(1, collection)) * 6);
-  return { level: Math.max(0, Math.min(46, rough)), progress: collection % divisor, next: divisor, ratio: Math.min(1, (collection % divisor) / divisor) };
+  return { level: Math.floor(collection / divisor), progress: collection % divisor, next: divisor, ratio: Math.min(1, (collection % divisor) / divisor), total: collection, maxed: false };
 }
 
 function farmingCropRows(member) {
@@ -3296,30 +3305,30 @@ function farmingCropRows(member) {
       ...crop,
       collection,
       milestone: farmingCropMilestone(collection, crop),
-      rawWeight: collection / crop.weightDivisor,
+      rawWeight: collection / (crop.weightDivisor || 1),
     };
   });
 
   const totalNoMushroom = baseRows.filter((r) => !r.mushroomSpecial).reduce((sum, r) => sum + r.rawWeight, 0);
-  const doubleBreakWeight = baseRows.filter((r) => r.doubleBreak).reduce((sum, r) => sum + r.rawWeight, 0);
+  const doubleBreakWeight = baseRows.filter((r) => r.breaks === 2).reduce((sum, r) => sum + r.rawWeight, 0);
   const doubleRatio = totalNoMushroom > 0 ? doubleBreakWeight / totalNoMushroom : 0;
 
   return baseRows.map((row) => {
     let weight = row.rawWeight;
     if (row.mushroomSpecial) {
-      weight = doubleRatio * (row.collection / (row.weightDivisor * 2)) + (1 - doubleRatio) * (row.collection / row.weightDivisor);
+      weight = doubleRatio * (row.collection / ((row.weightDivisor || 1) * 2)) + (1 - doubleRatio) * row.rawWeight;
     }
     return { ...row, weight };
-  }).sort((a, b) => b.weight - a.weight);
+  }).sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name));
 }
 
 function farmingJacobData(member) {
   const jacob = farmingObj(member?.jacob2, member?.jacob, member?.events?.jacob);
   const contests = Object.values(jacob?.contests || jacob?.participations || {}).flatMap((entry) => Array.isArray(entry) ? entry : [entry]).filter(Boolean);
   const medalsInv = farmingObj(jacob?.medals_inv, jacob?.medals, jacob?.perks?.medals);
-  const earned = { diamond: 0, platinum: 0, gold: 0 };
+  const earned = { diamond: 0, platinum: 0, gold: 0, silver: 0, bronze: 0 };
 
-  for (const medal of ["diamond", "platinum", "gold"]) {
+  for (const medal of Object.keys(earned)) {
     earned[medal] += farmingNum(medalsInv[medal], medalsInv[medal.toUpperCase()]);
   }
   for (const contest of contests) {
@@ -3328,9 +3337,17 @@ function farmingJacobData(member) {
   }
 
   const perks = farmingObj(jacob?.perks, jacob?.upgrades);
+  const personalBestByCrop = {};
+  for (const contest of contests) {
+    const crop = contest?.crop || contest?.crop_id || contest?.cropId;
+    const score = farmingNum(contest?.collected, contest?.score, contest?.amount);
+    if (crop) personalBestByCrop[crop] = Math.max(personalBestByCrop[crop] || 0, score);
+  }
   return {
+    raw: jacob,
     contests,
     medals: earned,
+    personalBestByCrop,
     anitaBonus: farmingNum(perks.farming_level_cap, perks.double_drops, perks.farming_fortune, perks.anita_bonus_farming_fortune, jacob?.anita_bonus_farming_fortune),
   };
 }
@@ -3367,13 +3384,15 @@ function pestBracketInfo(pest, kills) {
 function farmingPestRows(member) {
   const kills = farmingBestiaryKills(member);
   return (window.HYPIXIE_PEST_BESTIARY || []).map((pest) => {
-    const count = farmingNum(kills[pest.id], kills[pest.name], kills[pest.name?.toUpperCase?.().replace(/[^A-Z0-9]+/g, "_")]);
+    const keys = [pest.id, ...(pest.aliases || []), pest.name, farmingCompactKey(pest.name), `pest_${farmingCompactKey(pest.name)}_1`];
+    const count = farmingNum(...keys.map((key) => kills[key]));
     const bracket = pestBracketInfo(pest, count);
     return {
       ...pest,
       kills: count,
       brackets: bracket.unlocked,
       next: bracket.next,
+      max: bracket.max,
       fortune: bracket.unlocked * (window.HYPIXIE_PEST_FORTUNE_PER_BRACKET || 0.4),
     };
   }).sort((a, b) => b.kills - a.kills || a.name.localeCompare(b.name));
@@ -3387,27 +3406,51 @@ function farmingWeightSummary(member) {
   const level = farmingLevelFromExp(exp, 60);
   const minionCount = farmingTier12MinionCount(member);
   const cropWeight = rows.reduce((sum, r) => sum + r.weight, 0);
-  const medalWeight = Math.min(bonus.maxMedalsCounted || 1000, jacob.medals.diamond) * (bonus.diamondMedal || 0.75)
-    + Math.min(Math.max(0, (bonus.maxMedalsCounted || 1000) - jacob.medals.diamond), jacob.medals.platinum) * (bonus.platinumMedal || 0.5)
-    + Math.min(Math.max(0, (bonus.maxMedalsCounted || 1000) - jacob.medals.diamond - jacob.medals.platinum), jacob.medals.gold) * (bonus.goldMedal || 0.25);
+  const medalCap = bonus.maxMedalsCounted || 1000;
+  const medalWeight = Math.min(medalCap, jacob.medals.diamond) * (bonus.diamondMedal || 0.75)
+    + Math.min(Math.max(0, medalCap - jacob.medals.diamond), jacob.medals.platinum) * (bonus.platinumMedal || 0.5)
+    + Math.min(Math.max(0, medalCap - jacob.medals.diamond - jacob.medals.platinum), jacob.medals.gold) * (bonus.goldMedal || 0.25);
   const levelWeight = exp >= 111672425 ? (bonus.farming60 || 250) : (exp >= 55172425 ? (bonus.farming50 || 100) : 0);
   const minionWeight = minionCount * (bonus.tier12Minion || 5);
   const anitaWeight = jacob.anitaBonus * (bonus.anitaPerLevel || 2);
   const bonusSources = {
     "Farming level bonus": levelWeight,
-    "Jacob medals": medalWeight,
-    "Tier 12 farming minions": minionWeight,
+    "Jacob medal bonus": medalWeight,
+    "Tier XII farming minions": minionWeight,
     "Anita bonus": anitaWeight,
   };
   const bonusWeight = Object.values(bonusSources).reduce((sum, n) => sum + n, 0);
   return { rows, exp, level, cropWeight, bonusWeight, bonusSources, totalWeight: cropWeight + bonusWeight, jacob, minionCount };
 }
 
+function farmingUnlockedPlotIds(garden) {
+  const candidates = [garden.unlocked_plots, garden.plots, garden.plot_unlocked, garden.unlockedPlots];
+  for (const value of candidates) {
+    if (Array.isArray(value)) return value.map((id) => String(id));
+    if (value && typeof value === "object") {
+      return Object.entries(value)
+        .filter(([, v]) => v !== false && v !== 0 && v !== "false" && v != null)
+        .map(([id]) => String(id));
+    }
+  }
+  if (garden.farming_toolkit?.IS_UNLOCKED === true || garden.IS_UNLOCKED === true) return ["garden_unlocked_exact_plots_not_exposed"];
+  return [];
+}
+
+function farmingVisitorStat(visitor, ...keys) {
+  if (visitor && typeof visitor === "object") return farmingNum(...keys.map((key) => visitor[key]));
+  return farmingNum(visitor);
+}
+
 function farmingGardenSummary(member) {
   const garden = farmingGardenData(member);
   const exp = farmingNum(garden.experience, garden.garden_exp, garden.garden_experience);
-  const level = farmingLevelFromSteps(exp, window.HYPIXIE_GARDEN_EXP_REQUIRED || []);
-  const cropUpgrades = farmingObj(garden.crop_upgrades, garden.crop_upgrade_levels, garden.upgrades);
+  const level = farmingLevelFromSteps(exp, window.HYPIXIE_GARDEN_EXP_REQUIRED || [], true);
+  const cropUpgrades = farmingObj(garden.crop_upgrades, garden.crop_upgrade_levels, garden.upgrades, garden.cropUpgrades);
+  const cropUpgradeRows = (window.HYPIXIE_FARMING_CROPS || []).map((crop) => {
+    const keys = [crop.id, ...(crop.aliases || []), farmingCompactKey(crop.name), crop.name];
+    return { crop, level: farmingNum(...keys.map((k) => cropUpgrades[k])) };
+  });
   const unlockedPlots = farmingUnlockedPlotIds(garden);
   const visitors = farmingObj(garden.commission_data?.visits, garden.visitors, garden.visitor_stats);
   const visitorStats = Object.entries(visitors).map(([id, v]) => ({
@@ -3427,28 +3470,16 @@ function farmingGardenSummary(member) {
     exp,
     level,
     cropUpgrades,
-    avgCropUpgrade: Object.values(cropUpgrades).length ? Object.values(cropUpgrades).reduce((s, v) => s + (Number(v) || 0), 0) / Object.values(cropUpgrades).length : 0,
+    cropUpgradeRows,
+    avgCropUpgrade: cropUpgradeRows.length ? cropUpgradeRows.reduce((s, r) => s + r.level, 0) / cropUpgradeRows.length : 0,
     unlockedPlots,
-    copper: farmingNum(garden.copper, garden.resources?.copper),
+    copper: farmingNum(garden.copper, member?.currencies?.copper, member?.unparsed?.copper, garden.resources?.copper),
     compost: farmingNum(garden.compost, garden.composter?.compost, garden.resources?.compost),
     organicMatter: farmingNum(garden.organic_matter, garden.composter?.organic_matter),
     fuel: farmingNum(garden.fuel, garden.composter?.fuel_units, garden.composter?.fuel),
-    visitors: { totalVisits, accepted, rejected, acceptanceRate, count: uniqueVisitors, top: visitorStats.sort((a, b) => b.accepted - a.accepted || b.visits - a.visits).slice(0, 5) },
+    dnaMilestone: farmingNum(garden.dnaMilestone, garden.dna_milestone, member?.unparsed?.dnaMilestone),
+    visitors: { totalVisits, accepted, rejected, acceptanceRate, count: uniqueVisitors, top: visitorStats.sort((a, b) => b.accepted - a.accepted || b.visits - a.visits).slice(0, 8) },
   };
-}
-
-function farmingUnlockedPlotIds(garden) {
-  const candidates = [garden.unlocked_plots, garden.plots, garden.plot_unlocked, garden.unlockedPlots];
-  for (const value of candidates) {
-    if (Array.isArray(value)) return value.map((id) => String(id));
-    if (value && typeof value === "object") {
-      return Object.entries(value)
-        .filter(([, v]) => v !== false && v !== 0 && v !== "false" && v != null)
-        .map(([id]) => String(id));
-    }
-  }
-  if (garden.farming_toolkit?.IS_UNLOCKED === true || garden.IS_UNLOCKED === true) return ["garden_unlocked_exact_plots_not_exposed"];
-  return [];
 }
 
 function farmingPlotMatchesCell(id, index) {
@@ -3457,26 +3488,35 @@ function farmingPlotMatchesCell(id, index) {
   const compact = raw.replace(/[^a-z0-9]/g, "");
   const n0 = String(index);
   const n1 = String(index + 1);
-  return raw === n0 || raw === n1
-    || compact === `plot${n0}` || compact === `plot${n1}`
-    || compact === `gardenplot${n0}` || compact === `gardenplot${n1}`
-    || compact.endsWith(`plot${n0}`) || compact.endsWith(`plot${n1}`);
+  return raw === n0 || raw === n1 || compact === `plot${n0}` || compact === `plot${n1}` || compact.endsWith(`plot${n0}`) || compact.endsWith(`plot${n1}`);
+}
+
+function farmingPct(value, max) {
+  if (!Number.isFinite(Number(max)) || Number(max) <= 0) return 0;
+  return Math.max(0, Math.min(100, (Number(value) || 0) / Number(max) * 100));
+}
+
+function farmingMiniBar(value, max, label = "") {
+  const pct = farmingPct(value, max);
+  const text = label || `${fmtInt(value)} / ${fmtInt(max)}`;
+  return `<div class="farm-progress"><span style="width:${pct.toFixed(2)}%"></span><strong>${escapeHtml(text)}</strong></div>`;
+}
+
+function farmingMetric(label, value, hint = "") {
+  return `<div class="farm-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong>${hint ? `<small>${escapeHtml(hint)}</small>` : ""}</div>`;
 }
 
 function farmingPlotGridHTML(unlockedPlots) {
   const ids = (unlockedPlots || []).map((id) => String(id));
   const hasUnknownUnlocked = ids.includes("garden_unlocked_exact_plots_not_exposed");
   const cells = Array.from({ length: 25 }, (_, i) => {
-    const matched = ids.filter((id) => farmingPlotMatchesCell(id, i));
+    const matched = ids.find((id) => farmingPlotMatchesCell(id, i));
     const numericMatch = ids.some((id) => /^\d+$/.test(id) && (Number(id) === i || Number(id) === i + 1));
-    const isUnlocked = matched.length > 0 || numericMatch;
-    const label = matched[0] === "garden_unlocked_exact_plots_not_exposed" ? "Garden unlocked" : (matched[0] || (numericMatch ? `Plot ${i + 1}` : `Plot ${i + 1}`));
-    return `<span class="${isUnlocked ? "on" : ""}" title="${escapeHtml(label)}${isUnlocked ? " unlocked" : " not detected"}" aria-label="${escapeHtml(label)} ${isUnlocked ? "unlocked" : "not detected"}">${isUnlocked ? "✓" : ""}</span>`;
+    const isUnlocked = Boolean(matched) || numericMatch;
+    return `<span class="${isUnlocked ? "on" : ""}" title="Plot ${i + 1}: ${isUnlocked ? "unlocked" : "not detected"}">${isUnlocked ? "✓" : ""}</span>`;
   }).join("");
-  const list = ids.length
-    ? `<div class="elite-plot-list" aria-label="Unlocked plot ids">${hasUnknownUnlocked ? `<span class="farming-muted">Garden is unlocked, but Hypixel did not expose exact plot IDs for this profile.</span>` : ids.map((id) => `<code>${escapeHtml(id)}</code>`).join("")}</div>`
-    : `<p class="farming-muted">No unlocked plot IDs were exposed in this profile payload.</p>`;
-  return `<div class="elite-plot-grid">${cells}<strong>${hasUnknownUnlocked ? "Garden unlocked" : `${fmtInt(ids.length)} unlocked plots`}</strong></div>${list}`;
+  const note = hasUnknownUnlocked ? "Garden unlocked; exact plot IDs not exposed." : `${fmtInt(ids.length)} unlocked plots detected`;
+  return `<div class="farm-plot-grid">${cells}</div><p class="farm-note">${escapeHtml(note)}</p>`;
 }
 
 function farmingFortuneSummary(member, weight, garden, pests) {
@@ -3486,16 +3526,16 @@ function farmingFortuneSummary(member, weight, garden, pests) {
   const anitaFortune = weight.jacob.anitaBonus * 4;
   const base = farmingLevel * 4;
   const visibleGear = [state.player.equippedArmor, state.player.equippedEquipment, state.player.hotbar].flat().filter(Boolean);
-  const gearHints = visibleGear.filter((it) => /FERMENTO|SQUASH|CROPIE|RANCHER|LOTUS|DICER|THEORETICAL|FUNGI|CACTUS_KNIFE|COCO_CHOPPER/i.test(it.skyblockId || it.displayName || ""));
+  const gearHints = visibleGear.filter((it) => /FERMENTO|SQUASH|CROPIE|RANCHER|LOTUS|DICER|THEORETICAL|FUNGI|CACTUS_KNIFE|COCO_CHOPPER|HOOVER|VACUUM/i.test(it.skyblockId || it.displayName || ""));
   const estimated = base + cropUpgradeFortune + anitaFortune + pestFortune;
   return {
     estimated,
     sources: [
-      { name: "Farming level", current: base, max: 240, next: farmingLevel < 60 ? `Level ${farmingLevel + 1}` : "Maxed", confidence: "profile" },
-      { name: "Crop upgrades", current: cropUpgradeFortune, max: 50, next: "Upgrade low crops at Desk", confidence: "profile/estimate" },
-      { name: "Anita bonus", current: anitaFortune, max: 60, next: "Buy more Anita fortune", confidence: "profile/estimate" },
-      { name: "Pest bestiary", current: pestFortune, max: (window.HYPIXIE_PEST_BESTIARY?.length || 0) * 15 * 0.4, next: "Kill pests to next brackets", confidence: "profile" },
-      { name: "Detected farming gear", current: gearHints.length, max: null, next: gearHints.length ? gearHints.map((it) => it.displayName || it.skyblockId).slice(0, 4).join(", ") : "Enable inventory API / equip farming gear", confidence: "detected items" },
+      { name: "Farming level", category: "General", current: base, max: 240, next: farmingLevel < 60 ? `Level ${farmingLevel + 1}` : "Maxed", confidence: "profile" },
+      { name: "Crop upgrades", category: "Garden", current: cropUpgradeFortune, max: 50, next: "Upgrade low crops at Garden Desk", confidence: "profile/estimate" },
+      { name: "Anita bonus", category: "Jacob", current: anitaFortune, max: 60, next: "Spend medals/tickets with Anita", confidence: "profile/estimate" },
+      { name: "Pest bestiary", category: "Pests", current: pestFortune, max: (pests.reduce((s, p) => s + (p.max || 15), 0)) * 0.4, next: "Kill pests to next brackets", confidence: "profile" },
+      { name: "Detected farming gear", category: "Gear", current: gearHints.length, max: null, next: gearHints.length ? gearHints.map((it) => it.displayName || it.skyblockId).slice(0, 4).join(", ") : "Enable inventory API / equip farming gear", confidence: "detected items" },
     ],
   };
 }
@@ -3503,23 +3543,26 @@ function farmingFortuneSummary(member, weight, garden, pests) {
 function farmingRateRows(cropRows, fortune) {
   return cropRows.map((crop) => {
     const multiplier = 1 + Math.max(0, fortune.estimated) / 100;
-    const itemsPerMinute = crop.baseBreaksPerMinute * crop.drops * multiplier;
-    const coinsPerHourNpc = itemsPerMinute * crop.npc * 60;
-    return { ...crop, itemsPerMinute, coinsPerHourNpc };
-  }).sort((a, b) => b.coinsPerHourNpc - a.coinsPerHourNpc);
+    const blocks = crop.baseBreaksPerMinute || 1180;
+    const itemsPerMinute = blocks * (crop.drops || 1) * multiplier;
+    const coinsPerHourNpc = itemsPerMinute * (crop.npc || 0) * 60;
+    const collectionPerHour = blocks * (crop.drops || 1) * 60;
+    return { ...crop, multiplier, blocks, itemsPerMinute, coinsPerHourNpc, collectionPerHour };
+  }).sort((a, b) => b.coinsPerHourNpc - a.coinsPerHourNpc || a.name.localeCompare(b.name));
 }
 
-function farmingUpgradeRows(weight, garden, pests) {
+function farmingUpgradeRows(weight, garden, pests, selectedCrop) {
   const lowestCrop = weight.rows.slice().sort((a, b) => a.milestone.level - b.milestone.level || a.collection - b.collection)[0];
   const weakestPest = pests.slice().sort((a, b) => a.brackets - b.brackets || a.kills - b.kills)[0];
+  const selectedUpgrade = garden.cropUpgradeRows.find((r) => r.crop.id === selectedCrop?.id);
   return [
-    { title: "Push Farming level", detail: `Current Farming ${weight.level}. Every level is +4 Farming Fortune.`, status: weight.level >= 60 ? "Maxed" : `Next: Farming ${weight.level + 1}`, priority: weight.level < 60 ? 1 : 9 },
-    { title: "Lowest crop milestone", detail: lowestCrop ? `${lowestCrop.name} milestone ${lowestCrop.milestone.level}; collection ${fmtInt(lowestCrop.collection)}.` : "No crop collections found.", status: lowestCrop ? "Farm this to balance weight" : "Needs profile", priority: 2 },
-    { title: "Crop upgrades", detail: `Average visible crop upgrade level ${garden.avgCropUpgrade.toFixed(1)} / 10.`, status: garden.avgCropUpgrade >= 10 ? "Maxed" : "Upgrade at Garden Desk", priority: 3 },
-    { title: "Garden plots", detail: `${garden.unlockedPlots.length || 0} unlocked plots detected.`, status: garden.unlockedPlots.length >= 24 ? "Maxed" : "Unlock more plots", priority: 4 },
-    { title: "Pest bestiary", detail: weakestPest ? `${weakestPest.name}: ${fmtInt(weakestPest.kills)} kills, ${weakestPest.brackets} brackets.` : "No pest data found.", status: weakestPest?.next ? `Next at ${fmtInt(weakestPest.next)} kills` : "Review pests", priority: 5 },
-    { title: "Garden Chips", detail: "Use Hypixie's Garden Chips tab for copy costs and Sowdust targets.", status: "Open Garden Chips", priority: 6 },
-  ].sort((a, b) => a.priority - b.priority);
+    { title: "Push Farming level", detail: `Current Farming ${weight.level}. Every level is roughly +4 Farming Fortune.`, status: weight.level >= 60 ? "Maxed" : `Next: Farming ${weight.level + 1}`, category: "General" },
+    { title: "Balance crop milestones", detail: lowestCrop ? `${lowestCrop.name} milestone ${lowestCrop.milestone.level}; collection ${fmtInt(lowestCrop.collection)}.` : "No crop collections found.", status: lowestCrop ? "Lowest crop" : "Needs profile", category: "Garden" },
+    { title: `${selectedCrop?.name || "Selected crop"} upgrade`, detail: selectedUpgrade ? `Garden Desk crop upgrade ${fmtInt(selectedUpgrade.level)} / 10.` : "No selected crop upgrade detected.", status: selectedUpgrade?.level >= 10 ? "Maxed" : "Upgrade at Desk", category: "Crop" },
+    { title: "Unlock Garden plots", detail: `${garden.unlockedPlots.length || 0} visible unlocked plots.`, status: garden.unlockedPlots.length >= 24 ? "Maxed" : "Unlock more plots", category: "Garden" },
+    { title: "Pest bestiary", detail: weakestPest ? `${weakestPest.name}: ${fmtInt(weakestPest.kills)} kills, ${weakestPest.brackets}/${weakestPest.max} brackets.` : "No pest data found.", status: weakestPest?.next ? `Next at ${fmtInt(weakestPest.next)} kills` : "Review pests", category: "Pests" },
+    { title: "Garden Chips", detail: "Use Hypixie's Garden Chips tab for copy costs, level targets, and Sowdust planning.", status: "Open Garden Chips", category: "Chips" },
+  ];
 }
 
 async function loadEliteContestSummary(force = false) {
@@ -3536,26 +3579,51 @@ async function loadEliteContestSummary(force = false) {
   if (state.view === "farming") renderFarmingView();
 }
 
+const FARMING_TABS = [
+  { id: "stats", label: "Stats" },
+  { id: "garden", label: "Garden" },
+  { id: "fortune", label: "Fortune" },
+  { id: "pests", label: "Pest Farming" },
+  { id: "rates", label: "Rates" },
+  { id: "ranks", label: "Ranks" },
+];
 
-function farmingPct(value, max) {
-  if (!Number.isFinite(Number(max)) || Number(max) <= 0) return 0;
-  return Math.max(0, Math.min(100, (Number(value) || 0) / Number(max) * 100));
+function farmingTabPanelClass(tabId) {
+  return `farm-panel${state.farmingActiveTab === tabId ? " active" : ""}`;
 }
 
-function farmingMiniBar(value, max, label = "") {
-  const pct = farmingPct(value, max);
-  const text = label || `${fmtInt(value)} / ${fmtInt(max)}`;
-  return `<div class="elite-progress"><span style="width:${pct.toFixed(2)}%"></span><strong>${escapeHtml(text)}</strong></div>`;
-}
-
-function farmingStatBadge(value, label = "") {
-  return `<span class="elite-badge"><span>☘</span>${escapeHtml(String(value))}${label ? ` <small>${escapeHtml(label)}</small>` : ""}</span>`;
+function farmingHeroHTML(weight, garden, fortune) {
+  const profileName = state.player.profiles.find((p) => p.profile_id === state.player.selectedId)?.cute_name || "Selected profile";
+  const player = state.player.username || "Linked player";
+  return `
+    <section class="farm-hero" aria-label="Farming profile summary">
+      <div class="farm-avatar-wrap">
+        <img class="farm-avatar" src="https://mc-heads.net/head/${encodeURIComponent(state.player.uuid || player)}/96" alt="${escapeHtml(player)} head" loading="lazy">
+        <span>Elite-style</span>
+      </div>
+      <div class="farm-hero-main">
+        <p class="farm-eyebrow">Hypixie Farming</p>
+        <h2>${escapeHtml(player)} <small>· ${escapeHtml(profileName)}</small></h2>
+        <div class="farm-weight">${weight.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</div>
+        <p class="farm-note">Farming Weight rebuilt from profile-visible collections, Jacob data, tier-XII minions, and EliteFarmers/FarmingWeight constants.</p>
+      </div>
+      <div class="farm-hero-stats">
+        ${farmingMetric("Farming", fmtInt(weight.level), `${fmtInt(weight.exp)} XP`)}
+        ${farmingMetric("Garden", fmtInt(garden.level.level), garden.level.next ? `${fmtInt(garden.level.progress)} / ${fmtInt(garden.level.next)}` : "overflow")}
+        ${farmingMetric("Fortune est.", fmtInt(fortune.estimated), "visible sources")}
+        ${farmingMetric("Crops", fmtInt(weight.rows.length), "tracked")}
+      </div>
+    </section>
+    <nav class="farm-tabs" aria-label="Farming sections" role="tablist">
+      ${FARMING_TABS.map((tab) => `<button id="farm-tab-${tab.id}" class="farm-tab${state.farmingActiveTab === tab.id ? " active" : ""}" type="button" role="tab" aria-selected="${state.farmingActiveTab === tab.id ? "true" : "false"}" aria-controls="farm-${tab.id}" data-farming-tab="${tab.id}">${escapeHtml(tab.label)}</button>`).join("")}
+    </nav>`;
 }
 
 function farmingCropIconRail(rows, activeId = null) {
-  return `<div class="elite-crop-rail" aria-label="Farming crops">
-    ${rows.map((r) => `<button class="elite-crop-btn ${activeId === r.id ? "active" : ""}" type="button" title="${escapeHtml(r.name)}" aria-label="Show ${escapeHtml(r.name)} farming details" aria-pressed="${activeId === r.id ? "true" : "false"}" data-farming-crop="${escapeHtml(r.id)}">
+  return `<div class="farm-crop-rail" aria-label="Farming crops">
+    ${rows.map((r) => `<button class="farm-crop-btn ${activeId === r.id ? "active" : ""}" type="button" title="${escapeHtml(r.name)}" aria-label="Show ${escapeHtml(r.name)} farming details" aria-pressed="${activeId === r.id ? "true" : "false"}" data-farming-crop="${escapeHtml(r.id)}">
       <img src="${getUniversalItemIconUrl(r.icon)}" alt="${escapeHtml(r.name)}" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}">
+      <span>${escapeHtml(r.name)}</span>
     </button>`).join("")}
   </div>`;
 }
@@ -3568,70 +3636,25 @@ function farmingSelectedCrop(weight) {
   return weight.rows[0] || null;
 }
 
-const FARMING_TABS = [
-  { id: "stats", label: "Stats & Rates" },
-  { id: "garden", label: "Garden" },
-  { id: "fortune", label: "Farming Fortune" },
-  { id: "pests", label: "Pest Farming" },
-  { id: "rates", label: "Leaderboard Ranks" },
-];
-
-function farmingTabPanelClass(tabId) {
-  return `farming-tab-panel${state.farmingActiveTab === tabId ? " active" : ""}`;
-}
-
-function farmingHeroHTML(weight, garden, fortune) {
-  const profileName = state.player.profiles.find((p) => p.profile_id === state.player.selectedId)?.cute_name || "Selected profile";
-  const player = state.player.username || "Linked player";
-  return `
-    <section class="elite-farming-hero" aria-label="Farming profile summary">
-      <div class="elite-avatar-stack">
-        <img class="elite-player-head" src="https://mc-heads.net/head/${encodeURIComponent(state.player.uuid || player)}/96" alt="${escapeHtml(player)} head" loading="lazy">
-        <span class="elite-rank-pill">Hypixie</span>
-      </div>
-      <div class="elite-hero-main">
-        <div class="elite-name-chip"><span class="elite-mvp">MVP++</span> ${escapeHtml(player)}</div>
-        <div class="elite-weight-number">${weight.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</div>
-        <div class="elite-weight-label">Farming Weight</div>
-      </div>
-      <div class="elite-hero-side">
-        <div class="elite-mini-stat"><span>Profile</span><strong>${escapeHtml(profileName)}</strong></div>
-        <div class="elite-mini-stat"><span>Farming</span><strong>${fmtInt(weight.level)}</strong></div>
-        <div class="elite-mini-stat"><span>Garden</span><strong>${fmtInt(garden.level.level)}</strong></div>
-        <div class="elite-mini-stat"><span>Fortune est.</span><strong>${fmtInt(fortune.estimated)}</strong></div>
-      </div>
-    </section>
-    <div class="elite-profile-pills">
-      <span>${escapeHtml(profileName)}</span>
-      <span class="cyan">${fmtInt(weight.level + garden.level.level + 100)}</span>
-      <span>Noticed <small>NOTICE</small></span>
-      <span>🎮 ${escapeHtml(player)}</span>
-      <span>◎</span>
-    </div>
-    <nav class="elite-farming-nav" aria-label="Elite Farming sections" role="tablist">
-      ${FARMING_TABS.map((tab) => `<button id="elite-tab-${tab.id}" class="elite-farming-tab${state.farmingActiveTab === tab.id ? " active" : ""}" type="button" role="tab" aria-selected="${state.farmingActiveTab === tab.id ? "true" : "false"}" aria-controls="elite-${tab.id}" data-farming-tab="${tab.id}">${escapeHtml(tab.label)}</button>`).join("")}
-    </nav>`;
-}
-
 function renderEliteContestCard() {
   const c = state.eliteContest;
   if (!c) {
     setTimeout(() => loadEliteContestSummary(false), 0);
-    return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><div class="acc-loading"><span class="spinner"></span> Loading Elite contest summary…</div></article>`;
+    return `<article class="farm-card farm-card-wide" id="elite-contests"><h3>Current Jacob Contest</h3><div class="acc-loading"><span class="spinner"></span> Loading Elite contest summary…</div></article>`;
   }
-  if (c.loading) return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><div class="acc-loading"><span class="spinner"></span> Loading Elite contest summary…</div></article>`;
+  if (c.loading) return `<article class="farm-card farm-card-wide" id="elite-contests"><h3>Current Jacob Contest</h3><div class="acc-loading"><span class="spinner"></span> Loading Elite contest summary…</div></article>`;
   if (c.error) {
-    return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><p class="farming-muted">Hypixie could not load the Elite contest proxy (${escapeHtml(c.error)}). Try again in a moment; if this persists, the Worker route may need to be redeployed.</p><button class="btn-secondary btn-small" id="farming-retry-contest">Retry</button></article>`;
+    return `<article class="farm-card farm-card-wide" id="elite-contests"><h3>Current Jacob Contest</h3><p class="farm-note">Hypixie could not load the Elite contest proxy (${escapeHtml(c.error)}). This can require a Worker redeploy or CORS proxy availability.</p><button class="btn-secondary btn-small" id="farming-retry-contest">Retry</button></article>`;
   }
   const contests = c.data?.contests || {};
   const rows = Object.entries(contests).flatMap(([ts, crops]) => (crops || []).map((crop) => ({ ts: Number(ts) * 1000, crop })));
-  return `<article class="elite-panel elite-full" id="elite-contests"><h3>Current Jacob contest</h3><div class="farming-contest-list">${rows.length ? rows.map((r) => `<span class="farming-pill">${escapeHtml(r.crop)} <small>${new Date(r.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></span>`).join("") : "No active contest listed."}</div><button class="btn-secondary btn-small" id="farming-retry-contest">Refresh</button></article>`;
+  return `<article class="farm-card farm-card-wide" id="elite-contests"><h3>Current Jacob Contest</h3><div class="farm-pill-list">${rows.length ? rows.map((r) => `<span class="farm-pill">${escapeHtml(r.crop)} <small>${new Date(r.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></span>`).join("") : "No active contest listed."}</div><button class="btn-secondary btn-small" id="farming-retry-contest">Refresh</button></article>`;
 }
 
 function renderFarmingView() {
   const pane = $("#view-farming");
   if (!pane) return;
-  if (typeof HYPIXIE_FARMING_CROPS === "undefined") {
+  if (!window.HYPIXIE_FARMING_CROPS) {
     pane.innerHTML = `<div class="acc-loading">Farming data is not loaded.</div>`;
     return;
   }
@@ -3639,7 +3662,7 @@ function renderFarmingView() {
   const rawProfile = farmingSelectedProfile();
   const member = farmingMember(rawProfile);
   if (!member) {
-    pane.innerHTML = `<div class="elite-farming-shell"><div class="acc-gate"><div class="acc-gate-icon">🌾</div><h2>Link your account first</h2><p>Elite-style Farming needs your selected SkyBlock profile. Enter your Minecraft username in the panel above, then choose a profile.</p></div></div>`;
+    pane.innerHTML = `<div class="farm-shell"><div class="acc-gate"><div class="acc-gate-icon">🌾</div><h2>Link your account first</h2><p>The Farming tab uses your selected SkyBlock profile for collections, Garden, Jacob, pests, inventory hints, and weight math. Enter a Minecraft username above, then choose a profile.</p></div></div>`;
     return;
   }
 
@@ -3647,97 +3670,99 @@ function renderFarmingView() {
   const garden = farmingGardenSummary(member);
   const pests = farmingPestRows(member);
   const fortune = farmingFortuneSummary(member, weight, garden, pests);
-  const rates = farmingRateRows(weight.rows, fortune);
-  const upgrades = farmingUpgradeRows(weight, garden, pests);
   const selectedCrop = farmingSelectedCrop(weight);
+  const rates = farmingRateRows(weight.rows, fortune);
   const selectedRate = rates.find((r) => r.id === selectedCrop?.id) || rates[0] || null;
-  const topRate = selectedRate;
-  const cropRows = weight.rows;
   const ratesForDisplay = selectedRate ? [selectedRate, ...rates.filter((r) => r.id !== selectedRate.id)] : rates;
+  const upgrades = farmingUpgradeRows(weight, garden, pests, selectedCrop);
+  const cropRows = weight.rows;
   const cropMaxWeight = Math.max(1, ...cropRows.map((r) => r.weight));
   const cropMaxCollection = Math.max(1, ...cropRows.map((r) => r.collection));
-  const gardenLevelMax = garden.level.next ? garden.level.progress + garden.level.next : Math.max(1, garden.exp || 1);
-  const gardenLevelLabel = garden.level.next ? `${fmtInt(garden.level.progress)} / ${fmtInt(garden.level.next)}` : "Maxed / unknown cap";
   const fortuneTotal = Math.max(1, fortune.sources.reduce((sum, s) => sum + (Number(s.current) || 0), 0));
   const profileName = state.player.profiles.find((p) => p.profile_id === state.player.selectedId)?.cute_name || "Profile";
+  const sourceMatrix = window.HYPIXIE_FARMING_SOURCE_MATRIX || [];
   if (!FARMING_TABS.some((tab) => tab.id === state.farmingActiveTab)) state.farmingActiveTab = "stats";
 
   pane.innerHTML = `
-    <div class="elite-farming-shell">
+    <div class="farm-shell">
       ${farmingHeroHTML(weight, garden, fortune)}
       ${farmingCropIconRail(cropRows, selectedCrop?.id)}
 
-      <section class="elite-two ${farmingTabPanelClass("stats")}" id="elite-stats" role="tabpanel" aria-labelledby="elite-tab-stats" ${state.farmingActiveTab === "stats" ? "" : "hidden"}>
-        <article class="elite-panel elite-panel-flat">
-          <div class="elite-panel-title-row"><h3>Farming ${fmtInt(weight.level)}</h3><span class="elite-chip">Selected: ${escapeHtml(selectedCrop?.name || "Crop")}</span></div>
-          ${selectedCrop ? `<div class="elite-selected-crop-card"><img src="${getUniversalItemIconUrl(selectedCrop.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(selectedCrop.icon)}"><div><strong>${escapeHtml(selectedCrop.name)}</strong><span>Collection ${fmtInt(selectedCrop.collection)} · Milestone ${fmtInt(selectedCrop.milestone.level)} · ${selectedCrop.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })} weight</span></div></div>` : ""}
-          ${farmingMiniBar(weight.exp, 111672425, `${fmtInt(weight.exp)} XP`)}
-          <div class="elite-crop-list">
-            ${cropRows.map((r) => `<div class="elite-crop-row">
-              <img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}">
-              <div class="elite-crop-info"><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)}</span></div>
-              <div class="elite-crop-bars"><b>${r.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</b>${farmingMiniBar(r.weight, cropMaxWeight, `${fmtInt(r.milestone.level)} · ${fmtInt(r.collection)}`)}</div>
-            </div>`).join("")}
-          </div>
-        </article>
-
-        <article class="elite-panel elite-panel-flat">
-          <div class="elite-panel-title-row"><h3>${topRate ? `${escapeHtml(topRate.name)} Rates` : "Crop Rates"}</h3>${topRate ? farmingStatBadge(fmtCoins(topRate.coinsPerHourNpc), "/h") : ""}</div>
-          <div class="elite-rate-list">
-            ${ratesForDisplay.slice(0, 10).map((r) => `<div class="elite-rate-row ${r.id === selectedCrop?.id ? "active" : ""}">
-              <img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}">
-              <div><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.itemsPerMinute)} items/min · NPC</span></div><em>${fmtCoins(r.coinsPerHourNpc)}/h</em>
-            </div>`).join("")}
-          </div>
-          <p class="farming-muted">Rates are estimates using profile-visible fortune, default break rates, crop NPC values, and crop drops.</p>
-        </article>
+      <section class="${farmingTabPanelClass("stats")}" id="farm-stats" role="tabpanel" aria-labelledby="farm-tab-stats" ${state.farmingActiveTab === "stats" ? "" : "hidden"}>
+        <div class="farm-grid two">
+          <article class="farm-card">
+            <div class="farm-card-head"><h3>Crop Weight</h3><span class="farm-badge">${weight.cropWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</span></div>
+            ${selectedCrop ? `<div class="farm-selected"><img src="${getUniversalItemIconUrl(selectedCrop.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(selectedCrop.icon)}"><div><strong>${escapeHtml(selectedCrop.name)}</strong><span>Collection ${fmtInt(selectedCrop.collection)} · Milestone ${fmtInt(selectedCrop.milestone.level)} · ${selectedCrop.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })} weight</span></div></div>` : ""}
+            <div class="farm-list">
+              ${cropRows.map((r) => `<div class="farm-row"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)} collection · milestone ${fmtInt(r.milestone.level)}</span></div><div>${farmingMiniBar(r.weight, cropMaxWeight, r.weight.toLocaleString(undefined, { maximumFractionDigits: 3 }))}</div></div>`).join("")}
+            </div>
+          </article>
+          <article class="farm-card">
+            <div class="farm-card-head"><h3>Bonus Weight</h3><span class="farm-badge">${weight.bonusWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</span></div>
+            <div class="farm-metrics compact">
+              ${Object.entries(weight.bonusSources).map(([name, val]) => farmingMetric(name, Number(val).toLocaleString(undefined, { maximumFractionDigits: 3 }), "EliteFarmers category")).join("")}
+              ${farmingMetric("Gold+ medals", fmtInt(weight.jacob.medals.gold + weight.jacob.medals.platinum + weight.jacob.medals.diamond), "visible / estimated")}
+              ${farmingMetric("Tier XII minions", fmtInt(weight.minionCount), "+5 weight each")}
+            </div>
+            <div class="farm-card-head sub"><h3>Rates preview</h3><span class="farm-badge">${selectedRate ? fmtCoins(selectedRate.coinsPerHourNpc) + "/h" : "—"}</span></div>
+            <div class="farm-list compact">
+              ${ratesForDisplay.slice(0, 5).map((r) => `<div class="farm-row ${r.id === selectedCrop?.id ? "active" : ""}"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.itemsPerMinute)} items/min · ${fmtInt(r.blocks)} blocks/min</span></div><em>${fmtCoins(r.coinsPerHourNpc)}/h</em></div>`).join("")}
+            </div>
+            <p class="farm-note">Rates are static-site estimates using profile-visible fortune and Elite crop constants, not full Elite backend gear modeling.</p>
+          </article>
+        </div>
       </section>
 
-      <section class="elite-two ${farmingTabPanelClass("garden")}" id="elite-garden" role="tabpanel" aria-labelledby="elite-tab-garden" ${state.farmingActiveTab === "garden" ? "" : "hidden"}>
-        <article class="elite-panel elite-panel-flat">
-          <div class="elite-panel-title-row"><h3>Garden ${fmtInt(garden.level.level)}</h3><span class="elite-chip green">${escapeHtml(profileName)}</span></div>
-          ${farmingMiniBar(garden.level.progress || garden.exp, garden.level.next || gardenLevelMax, gardenLevelLabel)}
-          <div class="elite-garden-layout">
-            <div><h4>Crop Milestones</h4><div class="elite-crop-list compact">
-              ${cropRows.slice().sort((a,b) => b.milestone.level - a.milestone.level || b.collection - a.collection).map((r) => `<div class="elite-crop-row"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div class="elite-crop-info"><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)}</span></div><div class="elite-crop-bars"><b>${fmtInt(r.milestone.level)}</b>${farmingMiniBar(r.collection, cropMaxCollection, fmtInt(r.collection))}</div></div>`).join("")}
-            </div></div>
-            <div><h4>Unlocked Plots</h4>${farmingPlotGridHTML(garden.unlockedPlots)}<div class="elite-chip-row"><span>Copper · <b>${fmtInt(garden.copper)}</b></span><span>Compost · <b>${fmtInt(garden.compost)}</b></span><span>Organic · <b>${fmtInt(garden.organicMatter)}</b></span><span>Fuel · <b>${fmtInt(garden.fuel)}</b></span></div><h4>Visitors</h4><div class="elite-chip-cloud"><span>Unique · ${fmtInt(garden.visitors.count)}</span><span>Total Visits · ${fmtInt(garden.visitors.totalVisits)}</span><span>Accepted · ${fmtInt(garden.visitors.accepted)}</span><span>Rejected · ${fmtInt(garden.visitors.rejected)}</span><span>Acceptance Rate · ${garden.visitors.acceptanceRate.toFixed(2)}%</span>${garden.visitors.top.map((v) => `<span>${escapeHtml(v.id)} · ${fmtInt(v.accepted || v.visits)}</span>`).join("")}</div><p class="farming-muted elite-garden-disclaimer">Garden data such as visitors, plots, and crop upgrades is profile-shared in Hypixel's API, matching EliteFarmers' treatment. Copper is shown from the selected member when available.</p></div>
-          </div>
-        </article>
-
+      <section class="${farmingTabPanelClass("garden")}" id="farm-garden" role="tabpanel" aria-labelledby="farm-tab-garden" ${state.farmingActiveTab === "garden" ? "" : "hidden"}>
+        <div class="farm-grid garden">
+          <article class="farm-card farm-card-wide">
+            <div class="farm-card-head"><h3>Garden ${fmtInt(garden.level.level)}</h3><span class="farm-badge green">${escapeHtml(profileName)}</span></div>
+            ${farmingMiniBar(garden.level.progress || garden.exp, garden.level.next || Math.max(1, garden.exp), garden.level.next ? `${fmtInt(garden.level.progress)} / ${fmtInt(garden.level.next)}` : "Overflow / maxed")}
+            <div class="farm-metrics">
+              ${farmingMetric("Copper", fmtInt(garden.copper), "member-visible")}
+              ${farmingMetric("DNA milestone", `${fmtInt(garden.dnaMilestone)} / 6`, "profile field")}
+              ${farmingMetric("Compost", fmtInt(garden.compost), "composter")}
+              ${farmingMetric("Fuel", fmtInt(garden.fuel), "composter")}
+            </div>
+          </article>
+          <article class="farm-card"><h3>Crop Milestones</h3><div class="farm-list compact">${cropRows.slice().sort((a,b) => b.milestone.level - a.milestone.level || b.collection - a.collection).map((r) => `<div class="farm-row"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)} collected</span></div><div>${farmingMiniBar(r.collection, cropMaxCollection, `Milestone ${fmtInt(r.milestone.level)}`)}</div></div>`).join("")}</div></article>
+          <article class="farm-card"><h3>Unlocked Plots</h3>${farmingPlotGridHTML(garden.unlockedPlots)}<h3>Crop Upgrades</h3><div class="farm-upgrade-mini">${garden.cropUpgradeRows.map((r) => `<span title="${escapeHtml(r.crop.name)} crop upgrade">${escapeHtml(r.crop.name)} <b>${fmtInt(r.level)}/10</b></span>`).join("")}</div></article>
+          <article class="farm-card farm-card-wide"><div class="farm-card-head"><h3>Visitors</h3><span class="farm-badge">${fmtInt(garden.visitors.accepted)} accepted</span></div><div class="farm-metrics">${farmingMetric("Unique", `${fmtInt(garden.visitors.count)} / ${fmtInt(window.HYPIXIE_GARDEN_VISITOR_TOTAL || 83)}`, "visitor collection")}${farmingMetric("Total visits", fmtInt(garden.visitors.totalVisits), "seen")}${farmingMetric("Rejected", fmtInt(garden.visitors.rejected), "computed")}${farmingMetric("Acceptance rate", `${garden.visitors.acceptanceRate.toFixed(2)}%`, "accepted / total")}</div><div class="farm-pill-list visitor">${garden.visitors.top.length ? garden.visitors.top.map((v) => `<span class="farm-pill">${escapeHtml(v.id.replace(/_/g, " "))} <small>${fmtInt(v.accepted || v.visits)}</small></span>`).join("") : `<span class="farm-note">No per-visitor map exposed by this profile payload.</span>`}</div><p class="farm-note">EliteFarmers caveat: most Garden data besides copper is shared between profile members due to Hypixel's API model.</p></article>
+        </div>
       </section>
 
-      <section class="elite-two ${farmingTabPanelClass("fortune")}" id="elite-fortune" role="tabpanel" aria-labelledby="elite-tab-fortune" ${state.farmingActiveTab === "fortune" ? "" : "hidden"}>
-        <article class="elite-panel elite-panel-flat">
-          <div class="elite-panel-title-row"><h3>Farming Fortune</h3>${farmingStatBadge(fmtInt(fortune.estimated))}</div>
-          <div class="elite-fortune-grid">
-            ${fortune.sources.map((s) => { const current = Number(s.current) || 0; const max = Number(s.max) || Math.max(fortuneTotal, current || 1); return `<div class="elite-progress-card"><div><strong>${escapeHtml(s.name)}</strong><small>${escapeHtml(s.confidence)}</small></div>${farmingMiniBar(current, max, `${fmtInt(current)} / ${s.max ? fmtInt(max) : "—"} ☘`)}<em>${escapeHtml(s.next || "")}</em></div>`; }).join("")}
-          </div>
-          <div class="elite-item-stack"><h4>Available Upgrades</h4>${upgrades.map((u) => `<div class="elite-upgrade-row"><div><strong>${escapeHtml(u.title)}</strong><span>${escapeHtml(u.detail)}</span></div><em>${escapeHtml(u.status)}</em></div>`).join("")}</div>
-        </article>
+      <section class="${farmingTabPanelClass("fortune")}" id="farm-fortune" role="tabpanel" aria-labelledby="farm-tab-fortune" ${state.farmingActiveTab === "fortune" ? "" : "hidden"}>
+        <div class="farm-grid two">
+          <article class="farm-card"><div class="farm-card-head"><h3>Farming Fortune</h3><span class="farm-badge">${fmtInt(fortune.estimated)} ☘</span></div><div class="farm-source-grid">${fortune.sources.map((s) => { const current = Number(s.current) || 0; const max = Number(s.max) || Math.max(fortuneTotal, current || 1); return `<div class="farm-source"><div><strong>${escapeHtml(s.name)}</strong><span>${escapeHtml(s.category)} · ${escapeHtml(s.confidence)}</span></div>${farmingMiniBar(current, max, `${fmtInt(current)} / ${s.max ? fmtInt(max) : "—"} ☘`)}<small>${escapeHtml(s.next || "")}</small></div>`; }).join("")}</div></article>
+          <article class="farm-card"><div class="farm-card-head"><h3>Available Upgrades</h3><span class="farm-badge green">Priority</span></div><div class="farm-list">${upgrades.map((u) => `<div class="farm-upgrade-row"><span>${escapeHtml(u.category)}</span><div><strong>${escapeHtml(u.title)}</strong><small>${escapeHtml(u.detail)}</small></div><em>${escapeHtml(u.status)}</em></div>`).join("")}</div></article>
+          <article class="farm-card farm-card-wide"><h3>Source Matrix</h3><div class="farm-source-matrix">${sourceMatrix.map((s) => `<a href="${escapeHtml(s.wiki || "#")}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(s.title)}</strong><span>${escapeHtml(s.category)} · ${escapeHtml(s.source)}</span></a>`).join("")}</div></article>
+        </div>
       </section>
 
-      <section class="elite-two ${farmingTabPanelClass("pests")}" id="elite-pests" role="tabpanel" aria-labelledby="elite-tab-pests" ${state.farmingActiveTab === "pests" ? "" : "hidden"}>
-        <article class="elite-panel elite-panel-flat">
-          <div class="elite-panel-title-row"><h3>Pest Farming</h3>${farmingStatBadge(pests.reduce((sum, p) => sum + p.fortune, 0).toFixed(1))}</div>
-          <div class="elite-pest-icons">${pests.map((p) => `<div class="elite-pest-tile"><strong>${escapeHtml(p.name)}</strong><span>${fmtInt(p.kills)} kills</span><small>${fmtInt(p.brackets)} brackets${p.next ? ` · next ${fmtInt(p.next)}` : ""}</small>${farmingMiniBar(p.brackets, 15, `+${p.fortune.toFixed(1)} FF`)}</div>`).join("")}</div>
-        </article>
-        ${renderEliteContestCard()}
+      <section class="${farmingTabPanelClass("pests")}" id="farm-pests" role="tabpanel" aria-labelledby="farm-tab-pests" ${state.farmingActiveTab === "pests" ? "" : "hidden"}>
+        <div class="farm-grid two">
+          <article class="farm-card"><div class="farm-card-head"><h3>Pest Farming</h3><span class="farm-badge">+${pests.reduce((sum, p) => sum + p.fortune, 0).toFixed(1)} ☘</span></div><div class="farm-pest-grid">${pests.map((p) => `<div class="farm-pest"><strong>${escapeHtml(p.name)}</strong><span>${fmtInt(p.kills)} kills</span>${farmingMiniBar(p.brackets, p.max || 15, `${fmtInt(p.brackets)} / ${fmtInt(p.max || 15)} brackets`)}<small>${p.next ? `Next at ${fmtInt(p.next)} kills` : "Max bracket or no next threshold"}</small></div>`).join("")}</div></article>
+          <article class="farm-card"><h3>Selected Crop Pest</h3>${selectedCrop ? `<div class="farm-selected"><img src="${getUniversalItemIconUrl(selectedCrop.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(selectedCrop.icon)}"><div><strong>${escapeHtml(selectedCrop.name)} → ${escapeHtml(selectedCrop.pest || "Unknown pest")}</strong><span>Crop-specific pest mapping from EliteFarmers/FarmingWeight.</span></div></div>` : ""}<p class="farm-note">This panel intentionally separates Farm, Spawn, and Kill planning concepts but only renders profile-visible bestiary progress until full vacuum/loadout parsing is added.</p></article>
+          ${renderEliteContestCard()}
+        </div>
       </section>
 
-      <section class="elite-panel elite-full ${farmingTabPanelClass("rates")}" id="elite-rates" role="tabpanel" aria-labelledby="elite-tab-rates" ${state.farmingActiveTab === "rates" ? "" : "hidden"}>
-        <div class="elite-panel-title-row"><h3>Leaderboard Ranks & Weight Breakdown</h3><span class="elite-chip">${weight.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })} Farming Weight</span></div>
-        <div class="elite-weight-breakdown"><div><h4>Crops <small>(${weight.cropWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })})</small></h4>${cropRows.map((r) => `<p><span>${escapeHtml(r.name)}</span><b>${r.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}</div><div><h4>Bonus <small>(${weight.bonusWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })})</small></h4>${Object.entries(weight.bonusSources).map(([name, val]) => `<p><span>${escapeHtml(name)}</span><b>${Number(val).toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}<h4>Rank note</h4><p class="farming-muted">EliteFarmers shows official top-50k leaderboard ranks from its backend. Hypixie is static, so this panel shows the same breakdown categories but cannot claim a global rank without an external rank API.</p></div></div>
+      <section class="${farmingTabPanelClass("rates")}" id="farm-rates" role="tabpanel" aria-labelledby="farm-tab-rates" ${state.farmingActiveTab === "rates" ? "" : "hidden"}>
+        <article class="farm-card farm-card-wide"><div class="farm-card-head"><h3>Crop Rates & NPC Profit</h3><span class="farm-badge">${selectedRate ? escapeHtml(selectedRate.name) : "All crops"}</span></div><div class="farm-table-wrap"><table class="farm-table"><thead><tr><th>Crop</th><th>Items / min</th><th>Collection / h</th><th>NPC coins / h</th><th>Notes</th></tr></thead><tbody>${ratesForDisplay.map((r) => `<tr class="${r.id === selectedCrop?.id ? "active" : ""}"><td><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}">${escapeHtml(r.name)}</td><td class="num">${fmtInt(r.itemsPerMinute)}</td><td class="num">${fmtInt(r.collectionPerHour)}</td><td class="num">${fmtCoins(r.coinsPerHourNpc)}</td><td>${r.exportable ? "Exportable crop" : r.flower ? "Flower crop" : "Standard crop"}</td></tr>`).join("")}</tbody></table></div><p class="farm-note">Bazaar routing, RNG toggles, bountiful, and full item-stat effects need a deeper static port of Elite's rate calculator. Current output is a transparent baseline.</p></article>
+      </section>
+
+      <section class="${farmingTabPanelClass("ranks")}" id="farm-ranks" role="tabpanel" aria-labelledby="farm-tab-ranks" ${state.farmingActiveTab === "ranks" ? "" : "hidden"}>
+        <article class="farm-card farm-card-wide"><div class="farm-card-head"><h3>Ranks & Weight Breakdown</h3><span class="farm-badge">${weight.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })} Weight</span></div><div class="farm-breakdown"><div><h4>Crops <small>${weight.cropWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</small></h4>${cropRows.map((r) => `<p><span>${escapeHtml(r.name)}</span><b>${r.weight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}</div><div><h4>Bonus <small>${weight.bonusWeight.toLocaleString(undefined, { maximumFractionDigits: 3 })}</small></h4>${Object.entries(weight.bonusSources).map(([name, val]) => `<p><span>${escapeHtml(name)}</span><b>${Number(val).toLocaleString(undefined, { maximumFractionDigits: 3 })}</b></p>`).join("")}<h4>Rank note</h4><p class="farm-note">EliteFarmers shows official leaderboard ranks from its backend. Hypixie is static, so it can show the breakdown and link users to Elite, but it does not fake top-50k ranks.</p><a class="btn-secondary btn-small" href="https://elitebot.dev" target="_blank" rel="noopener noreferrer">Open EliteFarmers</a></div></div></article>
       </section>
     </div>`;
 
-  pane.querySelectorAll(".elite-farming-tab").forEach((button) => {
+  pane.querySelectorAll(".farm-tab").forEach((button) => {
     button.addEventListener("click", () => {
       state.farmingActiveTab = button.dataset.farmingTab || "stats";
       renderFarmingView();
     });
   });
-  pane.querySelectorAll(".elite-crop-btn[data-farming-crop]").forEach((button) => {
+  pane.querySelectorAll(".farm-crop-btn[data-farming-crop]").forEach((button) => {
     button.addEventListener("click", () => {
       state.farmingSelectedCropId = button.dataset.farmingCrop || null;
       state.farmingActiveTab = "stats";
