@@ -47,9 +47,11 @@ export default {
       }
     }
 
-    // Ensure the environment variable is configured in your Cloudflare settings
-    if (!env.HYPIXEL_API_KEY) {
-      return new Response(JSON.stringify({ success: false, cause: "Worker is missing the HYPIXEL_API_KEY environment variable." }), {
+    // Prefer the Worker secret, but allow a browser-provided key as a fallback
+    // for local testing or when the deployed Worker secret is missing/stale.
+    const hypixelApiKey = env.HYPIXEL_API_KEY || request.headers.get("API-Key") || "";
+    if (!hypixelApiKey) {
+      return new Response(JSON.stringify({ success: false, cause: "Missing Hypixel API key. Add HYPIXEL_API_KEY to the Worker or save an API key in Hypixie settings." }), {
         status: 500,
         headers: {
           "Content-Type": "application/json",
@@ -62,8 +64,7 @@ export default {
     const targetUrl = `https://api.hypixel.net/v2${url.pathname}${url.search}`;
 
     const headers = new Headers();
-    // Inject the API key securely from Cloudflare's environment variables
-    headers.set("API-Key", env.HYPIXEL_API_KEY);
+    headers.set("API-Key", hypixelApiKey);
     headers.set("Accept", "application/json");
 
     try {

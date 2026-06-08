@@ -96,4 +96,567 @@ window.HYPIXIE_FARMING_SOURCE_MATRIX = [
   { id: "armor", title: "Farming Armor & Equipment", category: "Gear", max: 4, fortunePerLevel: 0, source: "Cropie, Squash, Fermento, Lotus, attributes", wiki: "https://wiki.hypixel.net/Farming_Fortune" },
 ];
 
-window.HYPIXIE_GARDEN_VISITOR_TOTAL = 83;
+window.HYPIXIE_GARDEN_VISITORS = [
+  {
+    "id": "adventurer",
+    "name": "Adventurer",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Adventurer"
+  },
+  {
+    "id": "alchemist",
+    "name": "Alchemist",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Alchemist"
+  },
+  {
+    "id": "andrew",
+    "name": "Andrew",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Andrew"
+  },
+  {
+    "id": "anita",
+    "name": "Anita",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Anita"
+  },
+  {
+    "id": "arthur",
+    "name": "Arthur",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Arthur"
+  },
+  {
+    "id": "baker",
+    "name": "Baker",
+    "rarity": "LEGENDARY",
+    "wiki": "https://wiki.hypixel.net/Baker"
+  },
+  {
+    "id": "banker_broadjaw",
+    "name": "Banker Broadjaw",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Banker_Broadjaw"
+  },
+  {
+    "id": "bartender",
+    "name": "Bartender",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Bartender"
+  },
+  {
+    "id": "beth",
+    "name": "Beth",
+    "rarity": "LEGENDARY",
+    "wiki": "https://wiki.hypixel.net/Beth"
+  },
+  {
+    "id": "seraphine",
+    "name": "Clerk Seraphine",
+    "rarity": "LEGENDARY",
+    "wiki": "https://wiki.hypixel.net/Clerk_Seraphine"
+  },
+  {
+    "id": "dalbrek",
+    "name": "Dalbrek",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Dalbrek"
+  },
+  {
+    "id": "duke",
+    "name": "Duke",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Duke"
+  },
+  {
+    "id": "dusk",
+    "name": "Dusk",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Dusk"
+  },
+  {
+    "id": "emissary_carlton",
+    "name": "Emissary Carlton",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Emissary_Carlton"
+  },
+  {
+    "id": "emissary_ceanna",
+    "name": "Emissary Ceanna",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Emissary_Ceanna"
+  },
+  {
+    "id": "emissary_fraiser",
+    "name": "Emissary Fraiser",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Emissary_Fraiser"
+  },
+  {
+    "id": "emissary_sisko",
+    "name": "Emissary Sisko",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Emissary_Sisko"
+  },
+  {
+    "id": "emissary_wilson",
+    "name": "Emissary Wilson",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Emissary_Wilson"
+  },
+  {
+    "id": "farmer_jon",
+    "name": "Farmer Jon",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Farmer_Jon"
+  },
+  {
+    "id": "farmhand",
+    "name": "Farmhand",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Farmhand"
+  },
+  {
+    "id": "fear_mongerer",
+    "name": "Fear Mongerer",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Fear_Mongerer"
+  },
+  {
+    "id": "felix",
+    "name": "Felix",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Felix"
+  },
+  {
+    "id": "fisherman",
+    "name": "Fisherman",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Fisherman"
+  },
+  {
+    "id": "fragilis",
+    "name": "Fragilis",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Fragilis"
+  },
+  {
+    "id": "friendly_hiker",
+    "name": "Friendly Hiker",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Friendly_Hiker"
+  },
+  {
+    "id": "geonathan_greatforge",
+    "name": "Geonathan Greatforge",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Geonathan_Greatforge"
+  },
+  {
+    "id": "gimley",
+    "name": "Gimley",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Gimley"
+  },
+  {
+    "id": "gold_forger",
+    "name": "Gold Forger",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Gold_Forger"
+  },
+  {
+    "id": "grandma_wolf",
+    "name": "Grandma Wolf",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Grandma_Wolf"
+  },
+  {
+    "id": "guy",
+    "name": "Guy",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Guy"
+  },
+  {
+    "id": "gwendolyn",
+    "name": "Gwendolyn",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Gwendolyn"
+  },
+  {
+    "id": "hornum",
+    "name": "Hornum",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Hornum"
+  },
+  {
+    "id": "hungry_hiker",
+    "name": "Hungry Hiker",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Hungry_Hiker"
+  },
+  {
+    "id": "iron_forger",
+    "name": "Iron Forger",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Iron_Forger"
+  },
+  {
+    "id": "jack",
+    "name": "Jack",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Jack"
+  },
+  {
+    "id": "jacob",
+    "name": "Jacob",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Jacob"
+  },
+  {
+    "id": "jamie",
+    "name": "Jamie",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Jamie"
+  },
+  {
+    "id": "jerry",
+    "name": "Jerry",
+    "rarity": "LEGENDARY",
+    "wiki": "https://wiki.hypixel.net/Jerry"
+  },
+  {
+    "id": "jotraeline_greatforge",
+    "name": "Jotraeline Greatforge",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Jotraeline_Greatforge"
+  },
+  {
+    "id": "lazy_miner",
+    "name": "Lazy Miner",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Lazy_Miner"
+  },
+  {
+    "id": "leo",
+    "name": "Leo",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Leo"
+  },
+  {
+    "id": "liam",
+    "name": "Liam",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Liam"
+  },
+  {
+    "id": "librarian",
+    "name": "Librarian",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Librarian"
+  },
+  {
+    "id": "lumberjack",
+    "name": "Lumber Jack",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Lumber_Jack"
+  },
+  {
+    "id": "lumina",
+    "name": "Lumina",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Lumina"
+  },
+  {
+    "id": "lynn",
+    "name": "Lynn",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Lynn"
+  },
+  {
+    "id": "madame_eleanor",
+    "name": "Madame Eleanor Q. Goldsworth III",
+    "rarity": "LEGENDARY",
+    "wiki": "https://wiki.hypixel.net/Madame_Eleanor_Q._Goldsworth_III",
+    "short": "Madame Eleanor"
+  },
+  {
+    "id": "maeve",
+    "name": "Maeve",
+    "rarity": "MYTHIC",
+    "wiki": "https://wiki.hypixel.net/Maeve"
+  },
+  {
+    "id": "mason",
+    "name": "Mason",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Mason"
+  },
+  {
+    "id": "odawa",
+    "name": "Odawa",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Odawa"
+  },
+  {
+    "id": "old_man_garry",
+    "name": "Old Man Garry",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Old_Man_Garry"
+  },
+  {
+    "id": "oringo",
+    "name": "Oringo",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Oringo"
+  },
+  {
+    "id": "pest_wrangler",
+    "name": "Pest Wrangler",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Pest_Wrangler"
+  },
+  {
+    "id": "disguised_rats",
+    "name": "Pest Wrangler?",
+    "rarity": "LEGENDARY",
+    "wiki": "https://wiki.hypixel.net/Pest_Wrangler%3F"
+  },
+  {
+    "id": "bear_pete",
+    "name": "Pete",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Pete"
+  },
+  {
+    "id": "plumber_joe",
+    "name": "Plumber Joe",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Plumber_Joe"
+  },
+  {
+    "id": "puzzler",
+    "name": "Puzzler",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Puzzler"
+  },
+  {
+    "id": "queen_mismyla",
+    "name": "Queen Mismyla",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Queen_Mismyla"
+  },
+  {
+    "id": "ravenous_rhino",
+    "name": "Ravenous Rhino",
+    "rarity": "MYTHIC",
+    "wiki": "https://wiki.hypixel.net/Ravenous_Rhino"
+  },
+  {
+    "id": "rhys",
+    "name": "Rhys",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Rhys"
+  },
+  {
+    "id": "royal_resident_reward",
+    "name": "Royal Resident",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Royal_Resident"
+  },
+  {
+    "id": "royal_resident_peasant",
+    "name": "Royal Resident (Snooty)",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Royal_Residents",
+    "short": "Royal Res. (Snooty)"
+  },
+  {
+    "id": "royal_resident_neighbour",
+    "name": "Royal Resident (Neighbor)",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Royal_Residents",
+    "short": "Royal Res. (Neighbor)"
+  },
+  {
+    "id": "rusty",
+    "name": "Rusty",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Rusty"
+  },
+  {
+    "id": "ryu",
+    "name": "Ryu",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Ryu"
+  },
+  {
+    "id": "sargwyn",
+    "name": "Sargwyn",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Sargwyn"
+  },
+  {
+    "id": "seymour",
+    "name": "Seymour",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Seymour"
+  },
+  {
+    "id": "shaggy",
+    "name": "Shaggy",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Shaggy"
+  },
+  {
+    "id": "shifty",
+    "name": "Shifty",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Shifty"
+  },
+  {
+    "id": "sirius",
+    "name": "Sirius",
+    "rarity": "LEGENDARY",
+    "wiki": "https://wiki.hypixel.net/Sirius"
+  },
+  {
+    "id": "spaceman",
+    "name": "Spaceman",
+    "rarity": "SPECIAL",
+    "wiki": "https://wiki.hypixel.net/Spaceman"
+  },
+  {
+    "id": "stella",
+    "name": "Stella",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Stella"
+  },
+  {
+    "id": "tammy",
+    "name": "Tammy",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Tammy"
+  },
+  {
+    "id": "tarwen",
+    "name": "Tarwen",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Tarwen"
+  },
+  {
+    "id": "terry",
+    "name": "Terry",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Terry"
+  },
+  {
+    "id": "tia",
+    "name": "Tia the Fairy",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Tia_the_Fairy"
+  },
+  {
+    "id": "tom",
+    "name": "Tom",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Tom"
+  },
+  {
+    "id": "trevor",
+    "name": "Trevor",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Trevor"
+  },
+  {
+    "id": "vex",
+    "name": "Vex",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Vex"
+  },
+  {
+    "id": "vinyl_collector",
+    "name": "Vinyl Collector",
+    "rarity": "RARE",
+    "wiki": "https://wiki.hypixel.net/Vinyl_Collector"
+  },
+  {
+    "id": "weaponsmith",
+    "name": "Weaponsmith",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Weaponsmith"
+  },
+  {
+    "id": "wizard",
+    "name": "Wizard",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Wizard"
+  },
+  {
+    "id": "xalx",
+    "name": "Xalx",
+    "rarity": "UNCOMMON",
+    "wiki": "https://wiki.hypixel.net/Xalx"
+  },
+  {
+    "id": "carpenter",
+    "name": "Carpenter",
+    "rarity": "UNKNOWN",
+    "wiki": "https://wiki.hypixel.net/Carpenter"
+  },
+  {
+    "id": "chantelle",
+    "name": "Chantelle",
+    "rarity": "UNKNOWN",
+    "wiki": "https://wiki.hypixel.net/Chantelle"
+  },
+  {
+    "id": "farm_merchant",
+    "name": "Farm Merchant",
+    "rarity": "UNKNOWN",
+    "wiki": "https://wiki.hypixel.net/Farm_Merchant"
+  },
+  {
+    "id": "fire_guy",
+    "name": "Fire Guy",
+    "rarity": "UNKNOWN",
+    "wiki": "https://wiki.hypixel.net/Fire_Guy"
+  },
+  {
+    "id": "jacobus",
+    "name": "Jacobus",
+    "rarity": "UNKNOWN",
+    "wiki": "https://wiki.hypixel.net/Jacobus"
+  },
+  {
+    "id": "lift_operator",
+    "name": "Lift Operator",
+    "rarity": "UNKNOWN",
+    "wiki": "https://wiki.hypixel.net/Lift_Operator"
+  },
+  {
+    "id": "master_tactician",
+    "name": "Master Tactician",
+    "rarity": "UNKNOWN",
+    "wiki": "https://wiki.hypixel.net/Master_Tactician"
+  },
+  {
+    "id": "ophelia",
+    "name": "Ophelia",
+    "rarity": "UNKNOWN",
+    "wiki": "https://wiki.hypixel.net/Ophelia"
+  },
+  {
+    "id": "snowmaker",
+    "name": "Snowmaker",
+    "rarity": "UNKNOWN",
+    "wiki": "https://wiki.hypixel.net/Snowmaker"
+  },
+  {
+    "id": "zog",
+    "name": "Zog",
+    "rarity": "UNKNOWN",
+    "wiki": "https://wiki.hypixel.net/Zog"
+  }
+];
+window.HYPIXIE_GARDEN_VISITOR_TOTAL = window.HYPIXIE_GARDEN_VISITORS.length;

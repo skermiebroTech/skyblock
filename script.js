@@ -26,6 +26,7 @@ const CONFIG = {
   API_BASE: "https://hypixie.skermiebro.workers.dev",
   BAZAAR_ENDPOINT: "/skyblock/bazaar",
   PROFILES_ENDPOINT: "/skyblock/profiles",
+  GARDEN_ENDPOINT: "/skyblock/garden",
   ITEMS_ENDPOINT: "/resources/skyblock/items",
   ELITE_CONTEST_ENDPOINT: "/elite/contests/at/now",
   FIRESALES_PUBLIC_URL: "https://api.hypixel.net/v2/skyblock/firesales",
@@ -71,6 +72,7 @@ const CONFIG = {
   CACHE_KEY_BINS:          "shardmarket.cache.lowestBins.v2",
   CACHE_KEY_FIRESALES:     "shardmarket.cache.fireSales.v1",
   CACHE_KEY_PROFILE_PREFIX: "shardmarket.cache.profile.",  // + uuid
+  CACHE_KEY_GARDEN_PREFIX:  "shardmarket.cache.garden.",   // + profile id
   CACHE_TTL_BINS_MS:       300_000,   // 5 min — AH moves but a full scan is heavy
   CACHE_TTL_FIRESALES_MS:  60_000,    // Fire Sales are public and can update around start/end times
 
@@ -137,6 +139,9 @@ const state = {
     equippedArmor: null,
     equippedEquipment: null,
     hotbar: null,
+    gardenData: null,
+    gardenLoading: false,
+    gardenError: null,
     profileInventoryLoading: false,
     inventoryError: null,
     loading:       false,
@@ -344,6 +349,14 @@ const api = {
   fetchProfiles(uuid) {
     return apiFetch(`${CONFIG.PROFILES_ENDPOINT}?uuid=${uuid}`, {
       cacheKey: CONFIG.CACHE_KEY_PROFILE_PREFIX + uuid,
+      cacheTtl: CONFIG.CACHE_TTL_PROFILE_MS,
+    });
+  },
+
+  /* Fetch standalone Garden data for a SkyBlock profile UUID. */
+  fetchGarden(profileId) {
+    return apiFetch(`${CONFIG.GARDEN_ENDPOINT}?profile=${profileId}`, {
+      cacheKey: CONFIG.CACHE_KEY_GARDEN_PREFIX + profileId,
       cacheTtl: CONFIG.CACHE_TTL_PROFILE_MS,
     });
   },
@@ -729,10 +742,14 @@ function selectProfile(profileId) {
   state.player.equippedArmor = null;
   state.player.equippedEquipment = null;
   state.player.hotbar = null;
+  state.player.gardenData = null;
+  state.player.gardenError = null;
+  state.player.gardenLoading = false;
   loadAccessoryAnalysis(prof._raw);
   loadAttributeAnalysis();
   loadSweepAnalysis(prof._raw);
   loadProfileInventory(prof._raw);
+  loadGardenData(profileId);
   rebuildRows();
   if (state.view === "mutations") renderActiveView();
 }
@@ -755,6 +772,30 @@ async function loadAccessoryAnalysis(rawProfile) {
   } finally {
     renderPlayerPanel();
     if (state.view === "missing" || state.view === "upgrades" || state.view === "profile") renderActiveView();
+  }
+}
+
+/* Fetch standalone Garden API data for richer visitor tracking. */
+async function loadGardenData(profileId) {
+  const requestedProfileId = profileId || state.player.selectedId;
+  if (!requestedProfileId) return;
+  state.player.gardenLoading = true;
+  state.player.gardenError = null;
+
+  try {
+    const { data } = await api.fetchGarden(requestedProfileId);
+    if (state.player.selectedId !== requestedProfileId) return;
+    state.player.gardenData = data?.garden || data;
+  } catch (e) {
+    if (state.player.selectedId !== requestedProfileId) return;
+    state.player.gardenData = null;
+    state.player.gardenError = e.message || String(e);
+    console.error("[Hypixie] garden load failed:", e);
+  } finally {
+    if (state.player.selectedId === requestedProfileId) {
+      state.player.gardenLoading = false;
+      if (state.view === "farming") renderActiveView();
+    }
   }
 }
 
@@ -849,6 +890,7 @@ function clearPlayer() {
     attributeStacks: null, attributeAnalysis: null, sweepAnalysis: null,
     craftedMinions: null, mutationAnalysis: null,
     equippedArmor: null, equippedEquipment: null, hotbar: null,
+    gardenData: null, gardenLoading: false, gardenError: null,
     profileInventoryLoading: false, inventoryError: null,
     loading: false, error: null,
   };
@@ -3250,7 +3292,7 @@ function farmingCollectionMap(member) {
 }
 
 function farmingGardenData(member) {
-  return farmingObj(member?.garden, member?.garden_player_data, member?.player_data?.garden, member?.garden_data);
+  return farmingObj(state.player.gardenData, member?.garden, member?.garden_player_data, member?.player_data?.garden, member?.garden_data);
 }
 
 function farmingGetCollection(collections, crop) {
@@ -3442,6 +3484,73 @@ function farmingVisitorStat(visitor, ...keys) {
   return farmingNum(visitor);
 }
 
+function farmingVisitorCatalog() {
+  return window.HYPIXIE_GARDEN_VISITORS || [];
+}
+
+function farmingVisitorName(id) {
+  return farmingVisitorCatalog().find((v) => v.id === id)?.name || String(id || "").replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function farmingRarityRank(rarity) {
+  return { UNKNOWN: 0, COMMON: 1, UNCOMMON: 2, RARE: 3, EPIC: 4, LEGENDARY: 5, MYTHIC: 6, SPECIAL: 7, VERY_SPECIAL: 8 }[String(rarity || "UNKNOWN").toUpperCase()] || 0;
+}
+
+function farmingNormalizeGardenVisitors(garden) {
+  const commission = farmingObj(garden?.commission_data, garden?.commissionData);
+  const visitsMap = farmingObj(commission.visits, garden?.visitor_visits, garden?.visits);
+  const completedMap = farmingObj(commission.completed, garden?.completed, garden?.visitor_completed);
+  const normalizedMap = farmingObj(garden?.visitors, garden?.visitor_stats);
+  const activeMap = farmingObj(garden?.active_commissions, garden?.current_visitors, garden?.currentVisitors);
+  const ids = new Set([...Object.keys(visitsMap), ...Object.keys(completedMap), ...Object.keys(normalizedMap)]);
+  const rows = [];
+
+  for (const id of ids) {
+    const source = normalizedMap[id];
+    const rawVisits = source && typeof source === "object"
+      ? farmingVisitorStat(source, "visits", "seen", "total", "count")
+      : farmingNum(visitsMap[id], source);
+    const active = Object.prototype.hasOwnProperty.call(activeMap, id);
+    const visits = Math.max(0, rawVisits - (active ? 1 : 0));
+    const accepted = source && typeof source === "object"
+      ? farmingVisitorStat(source, "accepted", "completed", "offers_accepted")
+      : farmingNum(completedMap[id]);
+    if (visits > 0 || accepted > 0 || active) {
+      const meta = farmingVisitorCatalog().find((v) => v.id === id) || {};
+      rows.push({ id, name: meta.name || farmingVisitorName(id), rarity: meta.rarity || "UNKNOWN", wiki: meta.wiki || "", visits, accepted, active });
+    }
+  }
+
+  const totalAccepted = farmingNum(commission.total_completed, garden?.completedVisitors, garden?.completed_visitors, rows.reduce((sum, v) => sum + v.accepted, 0));
+  const uniqueServed = farmingNum(commission.unique_npcs_served, garden?.uniqueVisitors, garden?.unique_visitors, rows.filter((v) => v.accepted > 0).length);
+  const totalVisits = farmingNum(garden?.totalVisitors, garden?.total_visitors, rows.reduce((sum, v) => sum + v.visits, 0));
+  const missing = farmingVisitorCatalog()
+    .filter((meta) => !(rows.find((row) => row.id === meta.id)?.accepted > 0))
+    .sort((a, b) => farmingRarityRank(b.rarity) - farmingRarityRank(a.rarity) || a.name.localeCompare(b.name));
+
+  rows.sort((a, b) => b.accepted - a.accepted || b.visits - a.visits || farmingRarityRank(b.rarity) - farmingRarityRank(a.rarity) || a.name.localeCompare(b.name));
+  return {
+    totalVisits,
+    accepted: totalAccepted,
+    rejected: Math.max(0, totalVisits - totalAccepted),
+    acceptanceRate: totalVisits > 0 ? totalAccepted / totalVisits * 100 : 0,
+    count: uniqueServed,
+    rows,
+    top: rows.slice(0, 10),
+    missing,
+    missingCount: missing.length,
+    source: Object.keys(commission).length ? "Hypixel Garden commission_data" : (Object.keys(normalizedMap).length ? "normalized visitor map" : "profile fallback"),
+  };
+}
+
+function farmingVisitorPill(visitor, kind = "seen") {
+  const cls = kind === "missing" ? " missing" : (visitor.active ? " active" : "");
+  const count = kind === "missing" ? visitor.rarity : `${fmtInt(visitor.accepted)} accepted · ${fmtInt(visitor.visits)} visits`;
+  const label = `<strong>${escapeHtml(visitor.name || farmingVisitorName(visitor.id))}</strong><small>${escapeHtml(String(count))}</small>`;
+  if (visitor.wiki) return `<a class="farm-visitor-pill${cls}" href="${escapeHtml(visitor.wiki)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  return `<span class="farm-visitor-pill${cls}">${label}</span>`;
+}
+
 function farmingGardenSummary(member) {
   const garden = farmingGardenData(member);
   const exp = farmingNum(garden.experience, garden.garden_exp, garden.garden_experience);
@@ -3452,19 +3561,7 @@ function farmingGardenSummary(member) {
     return { crop, level: farmingNum(...keys.map((k) => cropUpgrades[k])) };
   });
   const unlockedPlots = farmingUnlockedPlotIds(garden);
-  const visitors = farmingObj(garden.commission_data?.visits, garden.visitors, garden.visitor_stats);
-  const visitorStats = Object.entries(visitors).map(([id, v]) => ({
-    id,
-    visits: farmingVisitorStat(v, "visits", "seen", "total", "count"),
-    accepted: farmingVisitorStat(v, "accepted", "completed", "offers_accepted"),
-  }));
-  const acceptedFromVisitors = visitorStats.reduce((sum, v) => sum + v.accepted, 0);
-  const visitsFromVisitors = visitorStats.reduce((sum, v) => sum + v.visits, 0);
-  const accepted = farmingNum(garden.completedVisitors, garden.completed_visitors, garden.acceptedVisitors, garden.accepted_visitors, garden.visitors_accepted, acceptedFromVisitors);
-  const totalVisits = farmingNum(garden.totalVisitors, garden.total_visitors, garden.visits, garden.visitor_visits, visitsFromVisitors, accepted);
-  const uniqueVisitors = farmingNum(garden.uniqueVisitors, garden.unique_visitors, garden.unique, garden.visitors_unique, visitorStats.filter((v) => v.visits > 0 || v.accepted > 0).length);
-  const rejected = Math.max(0, totalVisits - accepted);
-  const acceptanceRate = totalVisits > 0 ? accepted / totalVisits * 100 : 0;
+  const visitorSummary = farmingNormalizeGardenVisitors(garden);
   return {
     raw: garden,
     exp,
@@ -3478,7 +3575,7 @@ function farmingGardenSummary(member) {
     organicMatter: farmingNum(garden.organic_matter, garden.composter?.organic_matter),
     fuel: farmingNum(garden.fuel, garden.composter?.fuel_units, garden.composter?.fuel),
     dnaMilestone: farmingNum(garden.dnaMilestone, garden.dna_milestone, member?.unparsed?.dnaMilestone),
-    visitors: { totalVisits, accepted, rejected, acceptanceRate, count: uniqueVisitors, top: visitorStats.sort((a, b) => b.accepted - a.accepted || b.visits - a.visits).slice(0, 8) },
+    visitors: visitorSummary,
   };
 }
 
@@ -3727,7 +3824,7 @@ function renderFarmingView() {
           </article>
           <article class="farm-card"><h3>Crop Milestones</h3><div class="farm-list compact">${cropRows.slice().sort((a,b) => b.milestone.level - a.milestone.level || b.collection - a.collection).map((r) => `<div class="farm-row"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)} collected</span></div><div>${farmingMiniBar(r.collection, cropMaxCollection, `Milestone ${fmtInt(r.milestone.level)}`)}</div></div>`).join("")}</div></article>
           <article class="farm-card"><h3>Unlocked Plots</h3>${farmingPlotGridHTML(garden.unlockedPlots)}<h3>Crop Upgrades</h3><div class="farm-upgrade-mini">${garden.cropUpgradeRows.map((r) => `<span title="${escapeHtml(r.crop.name)} crop upgrade">${escapeHtml(r.crop.name)} <b>${fmtInt(r.level)}/10</b></span>`).join("")}</div></article>
-          <article class="farm-card farm-card-wide"><div class="farm-card-head"><h3>Visitors</h3><span class="farm-badge">${fmtInt(garden.visitors.accepted)} accepted</span></div><div class="farm-metrics">${farmingMetric("Unique", `${fmtInt(garden.visitors.count)} / ${fmtInt(window.HYPIXIE_GARDEN_VISITOR_TOTAL || 83)}`, "visitor collection")}${farmingMetric("Total visits", fmtInt(garden.visitors.totalVisits), "seen")}${farmingMetric("Rejected", fmtInt(garden.visitors.rejected), "computed")}${farmingMetric("Acceptance rate", `${garden.visitors.acceptanceRate.toFixed(2)}%`, "accepted / total")}</div><div class="farm-pill-list visitor">${garden.visitors.top.length ? garden.visitors.top.map((v) => `<span class="farm-pill">${escapeHtml(v.id.replace(/_/g, " "))} <small>${fmtInt(v.accepted || v.visits)}</small></span>`).join("") : `<span class="farm-note">No per-visitor map exposed by this profile payload.</span>`}</div><p class="farm-note">EliteFarmers caveat: most Garden data besides copper is shared between profile members due to Hypixel's API model.</p></article>
+          <article class="farm-card farm-card-wide"><div class="farm-card-head"><h3>Visitor Tracker</h3><span class="farm-badge">${fmtInt(garden.visitors.accepted)} accepted</span></div>${state.player.gardenLoading ? `<div class="acc-loading"><span class="spinner"></span> Loading standalone Garden visitor data…</div>` : ""}${state.player.gardenError ? `<p class="farm-note warn">Garden API fetch failed: ${escapeHtml(state.player.gardenError)}. Showing profile fallback data.</p>` : ""}<div class="farm-metrics">${farmingMetric("Unique accepted", `${fmtInt(garden.visitors.count)} / ${fmtInt(window.HYPIXIE_GARDEN_VISITOR_TOTAL || 83)}`, "commission_data.unique_npcs_served")}${farmingMetric("Missing", fmtInt(garden.visitors.missingCount), "not accepted yet")}${farmingMetric("Total visits", fmtInt(garden.visitors.totalVisits), garden.visitors.source)}${farmingMetric("Acceptance rate", `${garden.visitors.acceptanceRate.toFixed(2)}%`, "accepted / total")}</div><div class="farm-card-head sub"><h3>Accepted visitors</h3><span class="farm-badge green">Top ${fmtInt(garden.visitors.top.length)}</span></div><div class="farm-visitor-grid">${garden.visitors.top.length ? garden.visitors.top.map((v) => farmingVisitorPill(v)).join("") : `<span class="farm-note">No accepted visitor map found yet.</span>`}</div><div class="farm-card-head sub"><h3>Missing visitors</h3><span class="farm-badge">${fmtInt(garden.visitors.missingCount)} left</span></div><div class="farm-visitor-grid missing">${garden.visitors.missing.slice(0, 36).map((v) => farmingVisitorPill(v, "missing")).join("") || `<span class="farm-note">All catalog visitors have been accepted.</span>`}</div>${garden.visitors.missing.length > 36 ? `<p class="farm-note">Showing first 36 missing visitors, sorted by rarity.</p>` : ""}<p class="farm-note">Uses the same EliteFarmers rule: accepted/missing comes from Hypixel Garden <code>commission_data.completed</code>; current active commissions are subtracted from visit totals.</p></article>
         </div>
       </section>
 

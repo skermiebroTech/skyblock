@@ -152,7 +152,7 @@ The static ability/source/level data lives in `garden-chips-data.js`. Chip progr
 A rebuilt EliteFarmers-inspired Farming tab for linked SkyBlock profiles. The tab is split into six in-page panels:
 
 - **Stats** — Farming Weight, crop weight rows, selected crop details, visible bonus-weight sources, and quick NPC-rate preview.
-- **Garden** — Garden level, copper/DNA/composter-like resources, crop milestones, unlocked plot grid, crop upgrades, visitor totals, and the Elite caveat that most Garden data is shared across profile members.
+- **Garden** — Garden level, copper/DNA/composter-like resources, crop milestones, unlocked plot grid, crop upgrades, and an Elite-style visitor tracker that reads Hypixel Garden `commission_data` for accepted/missing visitors.
 - **Fortune** — profile-visible Farming Fortune sources, upgrade priorities, and a source matrix linking to relevant wiki pages.
 - **Pest Farming** — pest bestiary brackets, next-kill targets, selected crop → pest mapping, and the current Jacob contest widget through the Elite contest proxy when available.
 - **Rates** — transparent baseline crop-rate and NPC-profit estimates for all crops using Elite crop constants plus visible fortune.
