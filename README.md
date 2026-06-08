@@ -321,7 +321,7 @@ Recipes and metadata are bundled from the [SkyShards](https://github.com/Campion
 
 ### Best Fusions panel
 
-The dashboard's top **Best Fusions** panel shows the six highest-profit recipes right now, with input prices, output quantity, and per-unit margin so you can decide what to craft this session. The main shard list also shows each row's best recipe inline under the shard name, so recipes are visible without hovering the ⚒ badge.
+The dashboard's top **Best Fusions** panel shows the six highest-profit recipes right now, with input prices, output quantity, and per-unit margin so you can decide what to craft this session. The main shard list also shows each row's best recipe inline under the shard name, so recipes are visible without hovering the fusion badge.
 
 ### Toggles
 

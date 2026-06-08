@@ -1,17 +1,17 @@
 {
   "C1": {
     "title": "Nature Elemental",
-    "description": "Grants +2 ❤ Health",
+    "description": "Grants +2 Health Health",
     "id": "nature_elemental"
   },
   "C2": {
     "title": "Fog Elemental",
-    "description": "Grants +1 ✎ Intelligence",
+    "description": "Grants +1 Intelligence Intelligence",
     "id": "fog_elemental"
   },
   "C3": {
     "title": "Light Elemental",
-    "description": "Grants +1 ❁ Strength",
+    "description": "Grants +1 Damage Strength",
     "id": "light_elemental"
   },
   "C4": {
@@ -26,7 +26,7 @@
   },
   "C7": {
     "title": "Moonglade Mastery",
-    "description": "Grants +10 ☘ Fig Fortune and +10 ☘ Mangrove Fortune",
+    "description": "Grants +10 Fortune Fig Fortune and +10 Fortune Mangrove Fortune",
     "id": "moonglade_mastery"
   },
   "C9": {
@@ -36,12 +36,12 @@
   },
   "C10": {
     "title": "Mossy Box",
-    "description": "Grants +5 ☘ Block Fortune",
+    "description": "Grants +5 Fortune Block Fortune",
     "id": "mossy_box"
   },
   "C11": {
     "title": "Forest Fishing",
-    "description": "Grants +3 ☂ Fishing Speed while on Foraging Islands",
+    "description": "Grants +3 Fishing Speed Fishing Speed while on Foraging Islands",
     "id": "forest_fishing"
   },
   "C12": {
@@ -56,7 +56,7 @@
   },
   "C15": {
     "title": "Arthropod Resistance",
-    "description": "Grants +4 ❈ Defense against Arthropod mobs",
+    "description": "Grants +4 Defense Defense against Arthropod mobs",
     "id": "arachno_resistance"
   },
   "C16": {
@@ -71,7 +71,7 @@
   },
   "C18": {
     "title": "Undead Resistance",
-    "description": "Grants +4 ❈ Defense against Undead mobs",
+    "description": "Grants +4 Defense Defense against Undead mobs",
     "id": "undead_resistance"
   },
   "C19": {
@@ -86,7 +86,7 @@
   },
   "C21": {
     "title": "Ender Resistance",
-    "description": "Grants +4 ❈ Defense against Ender mobs",
+    "description": "Grants +4 Defense Defense against Ender mobs",
     "id": "ender_resistance"
   },
   "C23": {
@@ -116,12 +116,12 @@
   },
   "C29": {
     "title": "Forest Strength",
-    "description": "Grants +5 ❁ Strength while on Foraging Islands",
+    "description": "Grants +5 Damage Strength while on Foraging Islands",
     "id": "forest_strength"
   },
   "C30": {
     "title": "Blazing Resistance",
-    "description": "Grants +4 ❈ Defense against Infernal mobs",
+    "description": "Grants +4 Defense Defense against Infernal mobs",
     "id": "blazing_resistance"
   },
   "C32": {
@@ -131,7 +131,7 @@
   },
   "C33": {
     "title": "Yog Membrane",
-    "description": "Grants +1 ♨ Heat Resistance",
+    "description": "Grants +1 Heat Resistance Heat Resistance",
     "id": "yog_membrane"
   },
   "C34": {
@@ -141,7 +141,7 @@
   },
   "C35": {
     "title": "Decent Karma",
-    "description": "Grants +2 ☘ Hunter Fortune towards COMMON Attributes",
+    "description": "Grants +2 Fortune Hunter Fortune towards COMMON Attributes",
     "id": "decent_karma"
   },
   "C36": {
@@ -151,27 +151,27 @@
   },
   "C39": {
     "title": "Mythological Resistance",
-    "description": "Grants +4 ❈ Defense against ✿ Mythological mobs",
+    "description": "Grants +4 Defense Defense against Mythological mobs",
     "id": "mythological_resistance"
   },
   "U1": {
     "title": "Wood Elemental",
-    "description": "Grants +2 ❤ Health",
+    "description": "Grants +2 Health Health",
     "id": "wood_elemental"
   },
   "U2": {
     "title": "Water Elemental",
-    "description": "Grants +1 ✎ Intelligence",
+    "description": "Grants +1 Intelligence Intelligence",
     "id": "water_elemental"
   },
   "U3": {
     "title": "Stone Elemental",
-    "description": "Grants +1 ❁ Strength",
+    "description": "Grants +1 Damage Strength",
     "id": "stone_elemental"
   },
   "U4": {
     "title": "Fig Collector",
-    "description": "Grants +1 ☘ Fig Fortune for every digit in your Fig Log collection. (Max 10M collection)",
+    "description": "Grants +1 Fortune Fig Fortune for every digit in your Fig Log collection. (Max 10M collection)",
     "id": "fig_collector"
   },
   "U5": {
@@ -191,7 +191,7 @@
   },
   "U8": {
     "title": "Good Karma",
-    "description": "Grants +2 ☘ Hunter Fortune towards UNCOMMON Attributes",
+    "description": "Grants +2 Fortune Hunter Fortune towards UNCOMMON Attributes",
     "id": "good_karma"
   },
   "U9": {
@@ -201,7 +201,7 @@
   },
   "U10": {
     "title": "Pest Luck",
-    "description": "Grants +2 ☀ Overbloom towards Pests",
+    "description": "Grants +2 Overbloom Overbloom towards Pests",
     "id": "pest_luck"
   },
   "U11": {
@@ -216,7 +216,7 @@
   },
   "U15": {
     "title": "Dragon Shortbow Improvement",
-    "description": "Your Dragon Shortbow gains +2% more ❁ Damage while in The End",
+    "description": "Your Dragon Shortbow gains +2% more Damage Damage while in The End",
     "id": "dragon_shortbow_improvement"
   },
   "U16": {
@@ -226,7 +226,7 @@
   },
   "U18": {
     "title": "Speed",
-    "description": "Grants +1 ✦ Speed",
+    "description": "Grants +1 Speed Speed",
     "id": "speed"
   },
   "U20": {
@@ -241,7 +241,7 @@
   },
   "U22": {
     "title": "Insect Power",
-    "description": "Your Vacuum deals +10% extra ❁ Damage",
+    "description": "Your Vacuum deals +10% extra Damage Damage",
     "id": "insect_power"
   },
   "U23": {
@@ -251,7 +251,7 @@
   },
   "U24": {
     "title": "Undead Ruler",
-    "description": "Grants +3% more ❁ Damage against Undead mobs",
+    "description": "Grants +3% more Damage Damage against Undead mobs",
     "id": "undead"
   },
   "U25": {
@@ -266,17 +266,17 @@
   },
   "U28": {
     "title": "Mangrove Collector",
-    "description": "Grants +1 ☘ Mangrove Fortune for every digit in your Mangrove Log collection. (Max 10M collection)",
+    "description": "Grants +1 Fortune Mangrove Fortune for every digit in your Mangrove Log collection. (Max 10M collection)",
     "id": "mangrove_collector"
   },
   "U29": {
     "title": "Spirit Axe",
-    "description": "Your Axes deal +2% extra ❁ Damage to creatures on Galatea",
+    "description": "Your Axes deal +2% extra Damage Damage to creatures on Galatea",
     "id": "spirit_axe"
   },
   "U30": {
     "title": "Combo",
-    "description": "Deal +0.1% more ❁ Damage per Grandma Wolf pet combo. (Max 50 combo)",
+    "description": "Deal +0.1% more Damage Damage per Grandma Wolf pet combo. (Max 50 combo)",
     "id": "combo"
   },
   "U31": {
@@ -291,7 +291,7 @@
   },
   "U33": {
     "title": "Arthropod Ruler",
-    "description": "Grants +3% more ❁ Damage against Arthropod mobs",
+    "description": "Grants +3% more Damage Damage against Arthropod mobs",
     "id": "arachno"
   },
   "U34": {
@@ -301,22 +301,22 @@
   },
   "U36": {
     "title": "Ender Ruler",
-    "description": "Grants +3% more ❁ Damage against Ender Creatures",
+    "description": "Grants +3% more Damage Damage against Ender Creatures",
     "id": "ender"
   },
   "U38": {
     "title": "Magmatic Ruler",
-    "description": "Grants +3% more ❁ Damage against Lava Sea Creatures",
+    "description": "Grants +3% more Damage Damage against Lava Sea Creatures",
     "id": "magmatic_ruler"
   },
   "U39": {
     "title": "Battle Frog",
-    "description": "Your Frog Pet gains +3 ❁ Strength",
+    "description": "Your Frog Pet gains +3 Damage Strength",
     "id": "battle_frog"
   },
   "U40": {
     "title": "Infiltration",
-    "description": "Grants +3 ☘ Farming Fortune if your Garden Plot currently has a Pest in it",
+    "description": "Grants +3 Fortune Farming Fortune if your Garden Plot currently has a Pest in it",
     "id": "infiltration"
   },
   "U41": {
@@ -331,22 +331,22 @@
   },
   "R1": {
     "title": "Forest Elemental",
-    "description": "Grants +2 ❤ Health",
+    "description": "Grants +2 Health Health",
     "id": "forest_elemental"
   },
   "R2": {
     "title": "Torrent Elemental",
-    "description": "Grants +1 ✎ Intelligence",
+    "description": "Grants +1 Intelligence Intelligence",
     "id": "torrent_elemental"
   },
   "R3": {
     "title": "Lightning Elemental",
-    "description": "Grants +1 ❁ Strength",
+    "description": "Grants +1 Damage Strength",
     "id": "lightning_elemental"
   },
   "R4": {
     "title": "Animal Expertise",
-    "description": "Grants +10 ☘ Foraging Fortune",
+    "description": "Grants +10 Fortune Foraging Fortune",
     "id": "animal_expertise"
   },
   "R5": {
@@ -366,7 +366,7 @@
   },
   "R8": {
     "title": "Great Karma",
-    "description": "Grants +1 ☘ Hunter Fortune towards RARE Attributes",
+    "description": "Grants +1 Fortune Hunter Fortune towards RARE Attributes",
     "id": "great_karma"
   },
   "R9": {
@@ -396,12 +396,12 @@
   },
   "R16": {
     "title": "Crop Bug",
-    "description": "Grants +1 ☀ Overbloom which increases your chances of dropping RARE CROPS.",
+    "description": "Grants +1 Overbloom Overbloom which increases your chances of dropping RARE CROPS.",
     "id": "crop_bug"
   },
   "R18": {
     "title": "Humanoid Ruler",
-    "description": "Grants +3% more ❁ Damage against Humanoid Creatures",
+    "description": "Grants +3% more Damage Damage against Humanoid Creatures",
     "id": "humanoid_ruler"
   },
   "R21": {
@@ -471,7 +471,7 @@
   },
   "R36": {
     "title": "Lifeline",
-    "description": "When under 20% maximum HP, your ❁ Damage and ❈ Defense increase by +2.5%",
+    "description": "When under 20% maximum HP, your Damage Damage and Defense Defense increase by +2.5%",
     "id": "lifeline"
   },
   "R38": {
@@ -496,7 +496,7 @@
   },
   "R44": {
     "title": "Extreme Pressure",
-    "description": "Grants +5 ❍ Pressure Resistance",
+    "description": "Grants +5 Pressure Resistance Pressure Resistance",
     "id": "extreme_pressure"
   },
   "R45": {
@@ -516,7 +516,7 @@
   },
   "R50": {
     "title": "Deep Diving",
-    "description": "Grants +5 ⚶ Respiration",
+    "description": "Grants +5 Respiration Respiration",
     "id": "deep_diving"
   },
   "R51": {
@@ -536,12 +536,12 @@
   },
   "R54": {
     "title": "Hunter's Grasp",
-    "description": "Your Black Holes gain +1% ☘ Hunter Fortune",
+    "description": "Your Black Holes gain +1% Fortune Hunter Fortune",
     "id": "hunters_grasp"
   },
   "R56": {
     "title": "Blazing Fortune",
-    "description": "Grants +1 ✯ Magic Find on Lava Sea Creatures",
+    "description": "Grants +1 Magic Find on Lava Sea Creatures",
     "id": "blazing_fortune"
   },
   "R57": {
@@ -571,7 +571,7 @@
   },
   "R63": {
     "title": "Mythological Fortune",
-    "description": "Grants +0.5 ✯ Magic Find against ✿ Mythological mobs",
+    "description": "Grants +0.5 Magic Find against Mythological mobs",
     "id": "mythological_fortune"
   },
   "R64": {
@@ -581,27 +581,27 @@
   },
   "E1": {
     "title": "Earth Elemental",
-    "description": "Grants +2 ❤ Health",
+    "description": "Grants +2 Health Health",
     "id": "earth_elemental"
   },
   "E2": {
     "title": "Frost Elemental",
-    "description": "Grants +1 ✎ Intelligence",
+    "description": "Grants +1 Intelligence Intelligence",
     "id": "frost_elemental"
   },
   "E3": {
     "title": "Wind Elemental",
-    "description": "Grants +1 ❁ Strength",
+    "description": "Grants +1 Damage Strength",
     "id": "wind_elemental"
   },
   "E4": {
     "title": "Foraging Wisdom",
-    "description": "Grants +0.5 ☯ Foraging Wisdom",
+    "description": "Grants +0.5 Wisdom Foraging Wisdom",
     "id": "foraging_wisdom"
   },
   "E5": {
     "title": "Excellent Karma",
-    "description": "Grants +1 ☘ Hunter Fortune towards epic Attributes",
+    "description": "Grants +1 Fortune Hunter Fortune towards epic Attributes",
     "id": "excellent_karma"
   },
   "E6": {
@@ -631,17 +631,17 @@
   },
   "E13": {
     "title": "Lunar Power",
-    "description": "Grants +5 ☘ Farming Fortune during the Night",
+    "description": "Grants +5 Fortune Farming Fortune during the Night",
     "id": "lunar_power"
   },
   "E14": {
     "title": "Trophy Hunter",
-    "description": "Grants +2 ♔ Trophy Fish Chance",
+    "description": "Grants +2 Trophy Fish Chance",
     "id": "trophy_hunter"
   },
   "E15": {
     "title": "Deep Technique",
-    "description": "Each block you mine has a +1% chance to grant 1 extra ✧ Pristine for that block",
+    "description": "Each block you mine has a +1% chance to grant 1 extra Pristine Pristine for that block",
     "id": "deep_technique"
   },
   "E16": {
@@ -651,17 +651,17 @@
   },
   "E17": {
     "title": "Fishing Speed",
-    "description": "Grants +3 ☂ Fishing Speed",
+    "description": "Grants +3 Fishing Speed Fishing Speed",
     "id": "fishing_speed"
   },
   "E18": {
     "title": "Infernal Ruler",
-    "description": "Grants +3% more ❁ Damage against Infernal mobs",
+    "description": "Grants +3% more Damage Damage against Infernal mobs",
     "id": "blazing"
   },
   "E20": {
     "title": "Sea Wisdom",
-    "description": "Grants +0.5 ☯ Fishing Wisdom",
+    "description": "Grants +0.5 Wisdom Fishing Wisdom",
     "id": "fishing_experience"
   },
   "E21": {
@@ -696,7 +696,7 @@
   },
   "E29": {
     "title": "Attack Speed",
-    "description": "Grants +1 ⚔ Bonus Attack Speed",
+    "description": "Grants +1 Attack Speed Bonus Attack Speed",
     "id": "attack_speed"
   },
   "E30": {
@@ -706,7 +706,7 @@
   },
   "E31": {
     "title": "Solar Power",
-    "description": "Grants +5 ☘ Farming Fortune during the day",
+    "description": "Grants +5 Fortune Farming Fortune during the day",
     "id": "solar_power"
   },
   "E32": {
@@ -716,7 +716,7 @@
   },
   "E33": {
     "title": "Veil",
-    "description": "Grants +1 ❂ True Defense",
+    "description": "Grants +1 True Defense True Defense",
     "id": "veil"
   },
   "E34": {
@@ -726,22 +726,22 @@
   },
   "E35": {
     "title": "Hunt Wisdom",
-    "description": "Grants +0.5 ☯ Hunting Wisdom",
+    "description": "Grants +0.5 Wisdom Hunting Wisdom",
     "id": "hunt_wisdom"
   },
   "E36": {
     "title": "Cavern Wisdom",
-    "description": "Grants +0.5 ☯ Mining Wisdom",
+    "description": "Grants +0.5 Wisdom Mining Wisdom",
     "id": "cavern_wisdom"
   },
   "E37": {
     "title": "Garden Wisdom",
-    "description": "Grants +0.5 ☯ Farming Wisdom",
+    "description": "Grants +0.5 Wisdom Farming Wisdom",
     "id": "garden_wisdom"
   },
   "E39": {
     "title": "Mythological Tracker",
-    "description": "Grants +0.5 ❃ Tracking on Griffin Burrows",
+    "description": "Grants +0.5 Tracking Tracking on Griffin Burrows",
     "id": "big_game_hunter"
   },
   "E42": {
@@ -756,17 +756,17 @@
   },
   "L1": {
     "title": "Shadow Elemental",
-    "description": "Grants +2 ❤ Health",
+    "description": "Grants +2 Health Health",
     "id": "shadow_elemental"
   },
   "L2": {
     "title": "Snow Elemental",
-    "description": "Grants +1 ✎ Intelligence",
+    "description": "Grants +1 Intelligence Intelligence",
     "id": "snow_elemental"
   },
   "L3": {
     "title": "Storm Elemental",
-    "description": "Grants +1 ❁ Strength",
+    "description": "Grants +1 Damage Strength",
     "id": "storm_elemental"
   },
   "L4": {
@@ -776,7 +776,7 @@
   },
   "L5": {
     "title": "Loch Hook",
-    "description": "Grants +0.5 ⚓ Double Hook Chance while on Foraging Islands",
+    "description": "Grants +0.5 Double Hook Chance while on Foraging Islands",
     "id": "loch_hook"
   },
   "L6": {
@@ -791,12 +791,12 @@
   },
   "L8": {
     "title": "Cloak Improvement",
-    "description": "Your David's Cloak gains +1 ❂ True Defense",
+    "description": "Your David's Cloak gains +1 True Defense True Defense",
     "id": "cloak_improvement"
   },
   "L9": {
     "title": "Unlimited Fortitude",
-    "description": "Your ❈ Defense is increased by +0.2%",
+    "description": "Your Defense Defense is increased by +0.2%",
     "id": "fortitude"
   },
   "L11": {
@@ -806,7 +806,7 @@
   },
   "L12": {
     "title": "Book Wisdom",
-    "description": "Grants +0.5 ☯ Enchanting Wisdom",
+    "description": "Grants +0.5 Wisdom Enchanting Wisdom",
     "id": "book_wisdom"
   },
   "L13": {
@@ -821,12 +821,12 @@
   },
   "L15": {
     "title": "Vitality",
-    "description": "Grants +2 ♨ Vitality",
+    "description": "Grants +2 Heat Resistance Vitality",
     "id": "mending"
   },
   "L17": {
     "title": "Unlimited Torment",
-    "description": "Your ✎ Intelligence is increased by +0.1%",
+    "description": "Your Intelligence Intelligence is increased by +0.1%",
     "id": "maximal_torment"
   },
   "L18": {
@@ -841,7 +841,7 @@
   },
   "L23": {
     "title": "Help From Above",
-    "description": "Grants +1.25 ❣ Health Regen",
+    "description": "Grants +1.25 Health Regen Health Regen",
     "id": "life_regeneration"
   },
   "L24": {
@@ -856,7 +856,7 @@
   },
   "L26": {
     "title": "Crimson Hook",
-    "description": "Grants +0.5 ⚓ Double Hook Chance while on Combat Islands",
+    "description": "Grants +0.5 Double Hook Chance while on Combat Islands",
     "id": "double_hook"
   },
   "L27": {
@@ -866,22 +866,22 @@
   },
   "L28": {
     "title": "Magic Find",
-    "description": "Grants +0.5 ✯ Magic Find",
+    "description": "Grants +0.5 Magic Find",
     "id": "magic_find"
   },
   "L29": {
     "title": "Hunter's Karma",
-    "description": "Grants +1 ☘ Hunter Fortune",
+    "description": "Grants +1 Fortune Hunter Fortune",
     "id": "hunter_karma"
   },
   "L30": {
     "title": "Elite",
-    "description": "Grants +3% more ❁ Damage against bosses and mini-bosses",
+    "description": "Grants +3% more Damage Damage against bosses and mini-bosses",
     "id": "elite"
   },
   "L31": {
     "title": "Pet Wisdom",
-    "description": "Grants +0.5 ☯ Taming Wisdom",
+    "description": "Grants +0.5 Wisdom Taming Wisdom",
     "id": "pet_wisdom"
   },
   "L32": {
@@ -891,27 +891,27 @@
   },
   "L33": {
     "title": "Veteran",
-    "description": "Grants +1 ☯ Combat Wisdom",
+    "description": "Grants +1 Wisdom Combat Wisdom",
     "id": "veteran"
   },
   "L34": {
     "title": "Rare Bird",
-    "description": "Grants +1 ♣ Pet Luck",
+    "description": "Grants +1 Pet Luck Pet Luck",
     "id": "rare_bird"
   },
   "L36": {
     "title": "Unlimited Power",
-    "description": "Your ❁ Strength is increased by +0.1%",
+    "description": "Your Damage Strength is increased by +0.1%",
     "id": "unlimited_power"
   },
   "L39": {
     "title": "Unlimited Energy",
-    "description": "Your ☠ Crit Damage is increased by +0.1%",
+    "description": "Your Crit Damage is increased by +0.1%",
     "id": "unlimited_energy"
   },
   "L41": {
     "title": "Ultimate DNA",
-    "description": "Grants +1 ☘ Mining Fortune, ☘ Farming Fortune, and ☘ Foraging Fortune",
+    "description": "Grants +1 Fortune Mining Fortune, Fortune Farming Fortune, and Fortune Foraging Fortune",
     "id": "ultimate_dna"
   },
   "L42": {
@@ -931,12 +931,12 @@
   },
   "L47": {
     "title": "Bayou Biter",
-    "description": "Grants +0.5 ⚓ Double Hook Chance while on Fishing Islands",
+    "description": "Grants +0.5 Double Hook Chance while on Fishing Islands",
     "id": "bayou_biter"
   },
   "L48": {
     "title": "Dominance",
-    "description": "Gain +1.5% more ❁ Damage when at full health",
+    "description": "Gain +1.5% more Damage Damage when at full health",
     "id": "dominance"
   },
   "L51": {

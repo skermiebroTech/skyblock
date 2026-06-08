@@ -41,14 +41,14 @@ const ACCESSORY_REFORGE_PREFIXES = new Set([
 ]);
 
 /* Normalise an auction item_name to a comparable base name:
- *   "✪ Gilded Scavenger Artifact ✪" → "scavenger artifact"
+ *   decorated "Gilded Scavenger Artifact" -> "scavenger artifact"
  * Strips leading symbols, reforge prefix, and surrounding whitespace. */
 function normalizeAuctionName(rawName) {
   let n = rawName
     .replace(/§[0-9a-fk-or]/gi, "")          // legacy color codes
     .replace(/\[[^\]]*Lvl\s*\d+[^\]]*\]/gi, "") // pet level prefix: [Lvl 100]
     .replace(/\bLvl\s*\d+\b/gi, "")         // occasional unbracketed pet level text
-    .replace(/[✪⚚✦®™➊➋➌➍➎➏➐➑➒➓]/g, "")     // star / symbol decorations
+    .replace(/[\u272A\u269A\u2726\u00AE\u2122\u278A\u278B\u278C\u278D\u278E\u278F\u2790\u2791\u2792\u2793]/g, "")     // star / symbol decorations
     .replace(/\s+/g, " ")
     .trim();
 

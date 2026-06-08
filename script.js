@@ -1261,14 +1261,14 @@ function fusionBadgeHTML(r, extraClass = "") {
   if (!r?.hasFusion) return "";
   const lockedClass = r.bestFusion?.huntingLocked ? " badge-fusion-locked" : "";
   const classes = ["badge-fusion", extraClass, lockedClass].filter(Boolean).join(" ");
-  return `<span class="${classes}" title="${escapeHtml(fusionTooltipText(r))}" aria-label="Fusion recipe details">⚒</span>`;
+  return `<span class="${classes}" title="${escapeHtml(fusionTooltipText(r))}" aria-label="Fusion recipe details">${mcIconHTML("ANVIL", "inline-mc-icon", "Fusion")}</span>`;
 }
 
 function fusionRecipeInlineHTML(r) {
   if (!r?.bestFusion) return "";
   const f = r.bestFusion;
   const lock = f.huntingLocked
-    ? `<span class="table-recipe-lock">🔒 Hunting ${f.requiredHuntingLevel}+</span>`
+    ? `<span class="table-recipe-lock">Locked: Hunting ${f.requiredHuntingLevel}+</span>`
     : `<span class="table-recipe-profit ${r.fusionProfitPerUnit > 0 ? "pos" : r.fusionProfitPerUnit < 0 ? "neg" : "neu"}">${fmtCoins(r.fusionProfitPerUnit)}/ea</span>`;
   return `
     <div class="table-recipe" title="${escapeHtml(fusionTooltipText(r))}">
@@ -1404,7 +1404,7 @@ function renderPlayerPanel() {
           <select id="profile-select" class="profile-select" aria-label="SkyBlock profile">
             ${p.profiles.map((pr) => `
               <option value="${pr.profile_id}" ${pr.profile_id === p.selectedId ? "selected" : ""}>
-                ${escapeHtml(pr.cute_name)}${pr.game_mode ? ` (${pr.game_mode})` : ""}${pr.selected ? " ★" : ""}
+                ${escapeHtml(pr.cute_name)}${pr.game_mode ? ` (${pr.game_mode})` : ""}${pr.selected ? " (selected)" : ""}
               </option>
             `).join("")}
           </select>
@@ -1538,7 +1538,7 @@ function renderBestFusionsPanel() {
     const purse = state.player.coinPurse;
     const affordable = purse != null && r.bestFusion.pairCost <= purse;
     const afford = purse == null ? "" : affordable
-      ? `<span class="afford afford-yes" title="Within your coin purse">✓ affordable</span>`
+      ? `<span class="afford afford-yes" title="Within your coin purse">affordable</span>`
       : `<span class="afford afford-no" title="Need ${fmtCoins(r.bestFusion.pairCost - purse)} more">need ${fmtCoins(r.bestFusion.pairCost - purse)}</span>`;
     const huntReq = r.bestFusion.requiredHuntingLevel > 0
       ? `<span class="afford fusion-hunt-req" title="Requires Hunting Lv ${r.bestFusion.requiredHuntingLevel}">Hunting ${r.bestFusion.requiredHuntingLevel}+</span>`
@@ -1655,7 +1655,7 @@ function renderActiveView() {
 function accessoryGateHTML(actionLabel) {
   return `
     <div class="acc-gate">
-      <div class="acc-gate-icon">🔗</div>
+      <div class="acc-gate-icon">${gateIconHTML("COMPASS", "Link account")}</div>
       <h2>Link your account first</h2>
       <p>${actionLabel} needs your profile data. Enter your Minecraft username
          in the panel above, and make sure a Hypixel API key is set in Settings.</p>
@@ -1872,6 +1872,20 @@ function getUniversalItemIconUrl(itemId) {
   
   return skyCryptItemIconUrl(itemId);
 }
+
+function mcIconHTML(itemId, className = "mc-icon", alt = "", extraAttrs = "") {
+  const id = String(itemId || "STONE").toUpperCase();
+  return `<img class="${escapeHtml(className)}" src="${getUniversalItemIconUrl(id)}" alt="${escapeHtml(alt)}" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(id)}" ${extraAttrs}>`;
+}
+
+function homeIconHTML(itemId, alt = "") {
+  return mcIconHTML(itemId, "home-card-icon-img", alt);
+}
+
+function gateIconHTML(itemId, alt = "") {
+  return mcIconHTML(itemId, "acc-gate-icon-img", alt);
+}
+
 
 /* Render one accessory action row (used by both pages). */
 function accessoryActionRow(item, mpLabel, mpValue) {
@@ -2211,7 +2225,7 @@ function renderMissingView() {
     <div class="acc-grid" id="accessory-path-grid">
       ${actions.length
         ? actions.map(accessoryPathCard).join("")
-        : `<div class="acc-empty">🎉 No tracked accessory steps left. Nice.</div>`}
+        : `<div class="acc-empty">No tracked accessory steps left. Nice.</div>`}
     </div>`;
 
   bindAccessoryToolbar(pane);
@@ -2245,7 +2259,7 @@ function renderAttributesView() {
   const a = p.attributeAnalysis;
   if (a.error) { pane.innerHTML = `<div class="acc-gate"><p>Couldn't analyse attributes: ${escapeHtml(a.error)}</p></div>`; return; }
   if (!a.totalCount) {
-    pane.innerHTML = `<div class="acc-gate"><div class="acc-gate-icon">🔮</div>
+    pane.innerHTML = `<div class="acc-gate"><div class="acc-gate-icon">${gateIconHTML("ENCHANTED_BOOK", "Attributes")}</div>
       <h2>No attribute data</h2>
       <p>This profile has no attribute progress recorded yet. Syphon some shards in-game first.</p></div>`;
     updateTabBadge("badge-attributes", 0);
@@ -2353,7 +2367,7 @@ function renderAttributeRow(r) {
           <img src="${iconUrl(shardBazaarId)}" alt="" style="width: 18px; height: 18px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0;" onerror="this.style.display='none';">
           <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
           <span class="attr-skill-badge">${escapeHtml(skillText)}</span>
-          <span class="attr-maxed-badge">✓ MAX</span>
+          <span class="attr-maxed-badge">MAX</span>
         </div>
         <div class="attr-progress"><div class="attr-progress-fill" style="width:100%;background:${color}"></div></div>
         <div class="attr-foot"><span class="attr-count">${r.current}/${r.max}</span></div>
@@ -2661,7 +2675,7 @@ function renderSweepView() {
   if (!Array.isArray(window.SWEEP_SOURCES) || window.SWEEP_SOURCES.length === 0) {
     pane.innerHTML = `
       <div class="acc-gate sweep-data-gate">
-        <div class="acc-gate-icon">⚠️</div>
+        <div class="acc-gate-icon">${gateIconHTML("BARRIER", "Warning")}</div>
         <h2>Sweep data did not load</h2>
         <p>The Sweep tab needs <code>sweep-data.js</code>. If you are viewing GitHub Pages, push the latest commit and hard-refresh the page so the new data file is deployed.</p>
       </div>`;
@@ -2773,7 +2787,7 @@ function renderTable() {
 
     const fusionCell = r.bestFusion
       ? r.bestFusion.huntingLocked
-        ? `<span class="fusion-val fusion-locked" title="Requires Hunting Lv ${r.bestFusion.requiredHuntingLevel}; your linked profile is Lv ${state.player.huntingLevel}">🔒 Lv ${r.bestFusion.requiredHuntingLevel}</span>`
+        ? `<span class="fusion-val fusion-locked" title="Requires Hunting Lv ${r.bestFusion.requiredHuntingLevel}; your linked profile is Lv ${state.player.huntingLevel}">Locked Lv ${r.bestFusion.requiredHuntingLevel}</span>`
         : `<span class="fusion-val ${fusionClass}" title="${escapeHtml(
             r.bestFusion.inputs.map(i => i.name).join("  +  ")
             + `  →  ×${r.bestFusion.outputQty} ${r.name}\n`
@@ -3145,7 +3159,7 @@ function renderHomeView() {
     <div class="home-grid">
       <article class="home-card" data-go="shards">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(255, 179, 71, 0.1); color: var(--ember-light);">⚒</div>
+          <div class="home-card-icon" style="background: rgba(255, 179, 71, 0.1);">${homeIconHTML("ANVIL", "Shard Market")}</div>
           <span class="home-card-badge">${shardsCount} Shards</span>
         </div>
         <h3 class="home-card-title">Shard Market</h3>
@@ -3155,7 +3169,7 @@ function renderHomeView() {
 
       <article class="home-card" data-go="missing">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(90, 185, 255, 0.1); color: var(--info);">💍</div>
+          <div class="home-card-icon" style="background: rgba(90, 185, 255, 0.1);">${homeIconHTML("DAY_CRYSTAL", "Accessory Path")}</div>
           <span class="home-card-badge">${mpBadge}</span>
         </div>
         <h3 class="home-card-title">Accessory Path</h3>
@@ -3165,7 +3179,7 @@ function renderHomeView() {
 
       <article class="home-card" data-go="attributes">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(255, 51, 51, 0.1); color: #ff3333;">⚔</div>
+          <div class="home-card-icon" style="background: rgba(255, 51, 51, 0.1);">${homeIconHTML("DIAMOND_SWORD", "Attributes")}</div>
           <span class="home-card-badge">Attributes</span>
         </div>
         <h3 class="home-card-title">Attributes</h3>
@@ -3175,7 +3189,7 @@ function renderHomeView() {
 
       <article class="home-card" data-go="sweep">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(71, 209, 71, 0.1); color: #47d147;">🌪</div>
+          <div class="home-card-icon" style="background: rgba(71, 209, 71, 0.1);">${homeIconHTML("FEATHER", "Sweep")}</div>
           <span class="home-card-badge">Sweep</span>
         </div>
         <h3 class="home-card-title">Sweep Optimizer</h3>
@@ -3185,7 +3199,7 @@ function renderHomeView() {
 
       <article class="home-card" data-go="minions">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(51, 204, 255, 0.1); color: #33ccff;">🤖</div>
+          <div class="home-card-icon" style="background: rgba(51, 204, 255, 0.1);">${homeIconHTML("COBBLESTONE_GENERATOR_1", "Minions")}</div>
           <span class="home-card-badge">${cheapestUpgradeStr}</span>
         </div>
         <h3 class="home-card-title">Minion Calculator</h3>
@@ -3195,7 +3209,7 @@ function renderHomeView() {
 
       <article class="home-card" data-go="mutations">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(170, 0, 170, 0.12); color: #d66cff;">🌱</div>
+          <div class="home-card-icon" style="background: rgba(170, 0, 170, 0.12);">${homeIconHTML("VINE", "Mutations")}</div>
           <span class="home-card-badge">40 Mutations</span>
         </div>
         <h3 class="home-card-title">Mutations</h3>
@@ -3205,7 +3219,7 @@ function renderHomeView() {
 
       <article class="home-card" data-go="garden-chips">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(85, 255, 255, 0.1); color: #55ffff;">🌿</div>
+          <div class="home-card-icon" style="background: rgba(85, 255, 255, 0.1);">${homeIconHTML("GREEN_THUMB_1", "Garden Chips")}</div>
           <span class="home-card-badge">10 Chips</span>
         </div>
         <h3 class="home-card-title">Garden Chips</h3>
@@ -3215,7 +3229,7 @@ function renderHomeView() {
 
       <article class="home-card" data-go="farming">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(71, 209, 71, 0.1); color: #8cff8c;">🌾</div>
+          <div class="home-card-icon" style="background: rgba(71, 209, 71, 0.1);">${homeIconHTML("WHEAT", "Farming")}</div>
           <span class="home-card-badge">Elite-style</span>
         </div>
         <h3 class="home-card-title">Farming</h3>
@@ -3225,7 +3239,7 @@ function renderHomeView() {
 
       <article class="home-card" data-go="profile">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(230, 138, 0, 0.1); color: var(--ember-light);">👤</div>
+          <div class="home-card-icon" style="background: rgba(230, 138, 0, 0.1);">${homeIconHTML("SKYBLOCK_MENU", "Profile")}</div>
           <span class="home-card-badge">${state.player?.username ? "Active" : "Link Profile"}</span>
         </div>
         <h3 class="home-card-title">Profile Viewer</h3>
@@ -3235,7 +3249,7 @@ function renderHomeView() {
 
       <article class="home-card" data-go="p2w">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(232, 234, 242, 0.1); color: #e8eaf2;">💎</div>
+          <div class="home-card-icon" style="background: rgba(232, 234, 242, 0.1);">${homeIconHTML("EMERALD", "Gems")}</div>
           <span class="home-card-badge">P2W Calc</span>
         </div>
         <h3 class="home-card-title">P2W Calculator</h3>
@@ -3466,7 +3480,7 @@ function farmingWeightSummary(member) {
 }
 
 function farmingUnlockedPlotIds(garden) {
-  const candidates = [garden.unlocked_plots, garden.plots, garden.plot_unlocked, garden.unlockedPlots];
+  const candidates = [garden.unlocked_plots_ids, garden.unlocked_plots, garden.plots, garden.plot_unlocked, garden.unlockedPlots, garden.garden_upgrades?.unlocked_plots_ids];
   for (const value of candidates) {
     if (Array.isArray(value)) return value.map((id) => String(id));
     if (value && typeof value === "object") {
@@ -3528,7 +3542,7 @@ function farmingNormalizeGardenVisitors(garden) {
     .filter((meta) => !(rows.find((row) => row.id === meta.id)?.accepted > 0))
     .sort((a, b) => farmingRarityRank(b.rarity) - farmingRarityRank(a.rarity) || a.name.localeCompare(b.name));
 
-  rows.sort((a, b) => b.accepted - a.accepted || b.visits - a.visits || farmingRarityRank(b.rarity) - farmingRarityRank(a.rarity) || a.name.localeCompare(b.name));
+  rows.sort((a, b) => farmingRarityRank(b.rarity) - farmingRarityRank(a.rarity) || b.accepted - a.accepted || b.visits - a.visits || a.name.localeCompare(b.name));
   return {
     totalVisits,
     accepted: totalAccepted,
@@ -3536,7 +3550,8 @@ function farmingNormalizeGardenVisitors(garden) {
     acceptanceRate: totalVisits > 0 ? totalAccepted / totalVisits * 100 : 0,
     count: uniqueServed,
     rows,
-    top: rows.slice(0, 10),
+    completed: rows.filter((row) => row.accepted > 0),
+    top: rows.filter((row) => row.accepted > 0),
     missing,
     missingCount: missing.length,
     source: Object.keys(commission).length ? "Hypixel Garden commission_data" : (Object.keys(normalizedMap).length ? "normalized visitor map" : "profile fallback"),
@@ -3583,6 +3598,17 @@ function farmingPlotMatchesCell(id, index) {
   const raw = String(id || "").toLowerCase();
   if (raw === "garden_unlocked_exact_plots_not_exposed") return index === 12;
   const compact = raw.replace(/[^a-z0-9]/g, "");
+
+  /* Standalone Garden endpoint IDs are tiered names such as beginner_1,
+   * intermediate_4, and advanced_9. Map them into the 25-cell visual grid
+   * as 5 beginner, 8 intermediate, then 12 advanced cells. */
+  const tiered = raw.match(/^(beginner|intermediate|advanced)[_-]?(\d+)$/);
+  if (tiered) {
+    const offsets = { beginner: 0, intermediate: 5, advanced: 13 };
+    const cell = offsets[tiered[1]] + Number(tiered[2]) - 1;
+    return index === cell;
+  }
+
   const n0 = String(index);
   const n1 = String(index + 1);
   return raw === n0 || raw === n1 || compact === `plot${n0}` || compact === `plot${n1}` || compact.endsWith(`plot${n0}`) || compact.endsWith(`plot${n1}`);
@@ -3610,7 +3636,7 @@ function farmingPlotGridHTML(unlockedPlots) {
     const matched = ids.find((id) => farmingPlotMatchesCell(id, i));
     const numericMatch = ids.some((id) => /^\d+$/.test(id) && (Number(id) === i || Number(id) === i + 1));
     const isUnlocked = Boolean(matched) || numericMatch;
-    return `<span class="${isUnlocked ? "on" : ""}" title="Plot ${i + 1}: ${isUnlocked ? "unlocked" : "not detected"}">${isUnlocked ? "✓" : ""}</span>`;
+    return `<span class="${isUnlocked ? "on" : ""}" title="Plot ${i + 1}: ${isUnlocked ? "unlocked" : "not detected"}" aria-label="Plot ${i + 1}: ${isUnlocked ? "unlocked" : "not detected"}"></span>`;
   }).join("");
   const note = hasUnknownUnlocked ? "Garden unlocked; exact plot IDs not exposed." : `${fmtInt(ids.length)} unlocked plots detected`;
   return `<div class="farm-plot-grid">${cells}</div><p class="farm-note">${escapeHtml(note)}</p>`;
@@ -3759,7 +3785,7 @@ function renderFarmingView() {
   const rawProfile = farmingSelectedProfile();
   const member = farmingMember(rawProfile);
   if (!member) {
-    pane.innerHTML = `<div class="farm-shell"><div class="acc-gate"><div class="acc-gate-icon">🌾</div><h2>Link your account first</h2><p>The Farming tab uses your selected SkyBlock profile for collections, Garden, Jacob, pests, inventory hints, and weight math. Enter a Minecraft username above, then choose a profile.</p></div></div>`;
+    pane.innerHTML = `<div class="farm-shell"><div class="acc-gate"><div class="acc-gate-icon">${gateIconHTML("WHEAT", "Farming")}</div><h2>Link your account first</h2><p>The Farming tab uses your selected SkyBlock profile for collections, Garden, Jacob, pests, inventory hints, and weight math. Enter a Minecraft username above, then choose a profile.</p></div></div>`;
     return;
   }
 
@@ -3824,13 +3850,13 @@ function renderFarmingView() {
           </article>
           <article class="farm-card"><h3>Crop Milestones</h3><div class="farm-list compact">${cropRows.slice().sort((a,b) => b.milestone.level - a.milestone.level || b.collection - a.collection).map((r) => `<div class="farm-row"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)} collected</span></div><div>${farmingMiniBar(r.collection, cropMaxCollection, `Milestone ${fmtInt(r.milestone.level)}`)}</div></div>`).join("")}</div></article>
           <article class="farm-card"><h3>Unlocked Plots</h3>${farmingPlotGridHTML(garden.unlockedPlots)}<h3>Crop Upgrades</h3><div class="farm-upgrade-mini">${garden.cropUpgradeRows.map((r) => `<span title="${escapeHtml(r.crop.name)} crop upgrade">${escapeHtml(r.crop.name)} <b>${fmtInt(r.level)}/10</b></span>`).join("")}</div></article>
-          <article class="farm-card farm-card-wide"><div class="farm-card-head"><h3>Visitor Tracker</h3><span class="farm-badge">${fmtInt(garden.visitors.accepted)} accepted</span></div>${state.player.gardenLoading ? `<div class="acc-loading"><span class="spinner"></span> Loading standalone Garden visitor data…</div>` : ""}${state.player.gardenError ? `<p class="farm-note warn">Garden API fetch failed: ${escapeHtml(state.player.gardenError)}. Showing profile fallback data.</p>` : ""}<div class="farm-metrics">${farmingMetric("Unique accepted", `${fmtInt(garden.visitors.count)} / ${fmtInt(window.HYPIXIE_GARDEN_VISITOR_TOTAL || 83)}`, "commission_data.unique_npcs_served")}${farmingMetric("Missing", fmtInt(garden.visitors.missingCount), "not accepted yet")}${farmingMetric("Total visits", fmtInt(garden.visitors.totalVisits), garden.visitors.source)}${farmingMetric("Acceptance rate", `${garden.visitors.acceptanceRate.toFixed(2)}%`, "accepted / total")}</div><div class="farm-card-head sub"><h3>Accepted visitors</h3><span class="farm-badge green">Top ${fmtInt(garden.visitors.top.length)}</span></div><div class="farm-visitor-grid">${garden.visitors.top.length ? garden.visitors.top.map((v) => farmingVisitorPill(v)).join("") : `<span class="farm-note">No accepted visitor map found yet.</span>`}</div><div class="farm-card-head sub"><h3>Missing visitors</h3><span class="farm-badge">${fmtInt(garden.visitors.missingCount)} left</span></div><div class="farm-visitor-grid missing">${garden.visitors.missing.slice(0, 36).map((v) => farmingVisitorPill(v, "missing")).join("") || `<span class="farm-note">All catalog visitors have been accepted.</span>`}</div>${garden.visitors.missing.length > 36 ? `<p class="farm-note">Showing first 36 missing visitors, sorted by rarity.</p>` : ""}<p class="farm-note">Uses the same EliteFarmers rule: accepted/missing comes from Hypixel Garden <code>commission_data.completed</code>; current active commissions are subtracted from visit totals.</p></article>
+          <article class="farm-card farm-card-wide"><div class="farm-card-head"><h3>Visitor Tracker</h3><span class="farm-badge">${fmtInt(garden.visitors.accepted)} accepted</span></div>${state.player.gardenLoading ? `<div class="acc-loading"><span class="spinner"></span> Loading standalone Garden visitor data…</div>` : ""}${state.player.gardenError ? `<p class="farm-note warn">Garden API fetch failed: ${escapeHtml(state.player.gardenError)}. Showing profile fallback data.</p>` : ""}<div class="farm-metrics">${farmingMetric("Unique accepted", `${fmtInt(garden.visitors.count)} / ${fmtInt(window.HYPIXIE_GARDEN_VISITOR_TOTAL || 83)}`, "commission_data.unique_npcs_served")}${farmingMetric("Missing", fmtInt(garden.visitors.missingCount), "not accepted yet")}${farmingMetric("Total visits", fmtInt(garden.visitors.totalVisits), garden.visitors.source)}${farmingMetric("Acceptance rate", `${garden.visitors.acceptanceRate.toFixed(2)}%`, "accepted / total")}</div><div class="farm-card-head sub"><h3>Missing visitors</h3><span class="farm-badge">${fmtInt(garden.visitors.missingCount)} left</span></div><div class="farm-visitor-grid missing">${garden.visitors.missing.map((v) => farmingVisitorPill(v, "missing")).join("") || `<span class="farm-note">All catalog visitors have been accepted.</span>`}</div><div class="farm-card-head sub"><h3>Completed visitors</h3><span class="farm-badge green">${fmtInt(garden.visitors.completed?.length || garden.visitors.top.length)} shown</span></div><div class="farm-visitor-grid completed">${(garden.visitors.completed || garden.visitors.top).length ? (garden.visitors.completed || garden.visitors.top).map((v) => farmingVisitorPill(v)).join("") : `<span class="farm-note">No accepted visitor map found yet.</span>`}</div><p class="farm-note">Uses the same EliteFarmers rule: accepted/missing comes from Hypixel Garden <code>commission_data.completed</code>; current active commissions are subtracted from visit totals.</p></article>
         </div>
       </section>
 
       <section class="${farmingTabPanelClass("fortune")}" id="farm-fortune" role="tabpanel" aria-labelledby="farm-tab-fortune" ${state.farmingActiveTab === "fortune" ? "" : "hidden"}>
         <div class="farm-grid two">
-          <article class="farm-card"><div class="farm-card-head"><h3>Farming Fortune</h3><span class="farm-badge">${fmtInt(fortune.estimated)} ☘</span></div><div class="farm-source-grid">${fortune.sources.map((s) => { const current = Number(s.current) || 0; const max = Number(s.max) || Math.max(fortuneTotal, current || 1); return `<div class="farm-source"><div><strong>${escapeHtml(s.name)}</strong><span>${escapeHtml(s.category)} · ${escapeHtml(s.confidence)}</span></div>${farmingMiniBar(current, max, `${fmtInt(current)} / ${s.max ? fmtInt(max) : "—"} ☘`)}<small>${escapeHtml(s.next || "")}</small></div>`; }).join("")}</div></article>
+          <article class="farm-card"><div class="farm-card-head"><h3>Farming Fortune</h3><span class="farm-badge">${fmtInt(fortune.estimated)} FF</span></div><div class="farm-source-grid">${fortune.sources.map((s) => { const current = Number(s.current) || 0; const max = Number(s.max) || Math.max(fortuneTotal, current || 1); return `<div class="farm-source"><div><strong>${escapeHtml(s.name)}</strong><span>${escapeHtml(s.category)} · ${escapeHtml(s.confidence)}</span></div>${farmingMiniBar(current, max, `${fmtInt(current)} / ${s.max ? fmtInt(max) : "—"} FF`)}<small>${escapeHtml(s.next || "")}</small></div>`; }).join("")}</div></article>
           <article class="farm-card"><div class="farm-card-head"><h3>Available Upgrades</h3><span class="farm-badge green">Priority</span></div><div class="farm-list">${upgrades.map((u) => `<div class="farm-upgrade-row"><span>${escapeHtml(u.category)}</span><div><strong>${escapeHtml(u.title)}</strong><small>${escapeHtml(u.detail)}</small></div><em>${escapeHtml(u.status)}</em></div>`).join("")}</div></article>
           <article class="farm-card farm-card-wide"><h3>Source Matrix</h3><div class="farm-source-matrix">${sourceMatrix.map((s) => `<a href="${escapeHtml(s.wiki || "#")}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(s.title)}</strong><span>${escapeHtml(s.category)} · ${escapeHtml(s.source)}</span></a>`).join("")}</div></article>
         </div>
@@ -3838,7 +3864,7 @@ function renderFarmingView() {
 
       <section class="${farmingTabPanelClass("pests")}" id="farm-pests" role="tabpanel" aria-labelledby="farm-tab-pests" ${state.farmingActiveTab === "pests" ? "" : "hidden"}>
         <div class="farm-grid two">
-          <article class="farm-card"><div class="farm-card-head"><h3>Pest Farming</h3><span class="farm-badge">+${pests.reduce((sum, p) => sum + p.fortune, 0).toFixed(1)} ☘</span></div><div class="farm-pest-grid">${pests.map((p) => `<div class="farm-pest"><strong>${escapeHtml(p.name)}</strong><span>${fmtInt(p.kills)} kills</span>${farmingMiniBar(p.brackets, p.max || 15, `${fmtInt(p.brackets)} / ${fmtInt(p.max || 15)} brackets`)}<small>${p.next ? `Next at ${fmtInt(p.next)} kills` : "Max bracket or no next threshold"}</small></div>`).join("")}</div></article>
+          <article class="farm-card"><div class="farm-card-head"><h3>Pest Farming</h3><span class="farm-badge">+${pests.reduce((sum, p) => sum + p.fortune, 0).toFixed(1)} FF</span></div><div class="farm-pest-grid">${pests.map((p) => `<div class="farm-pest"><strong>${escapeHtml(p.name)}</strong><span>${fmtInt(p.kills)} kills</span>${farmingMiniBar(p.brackets, p.max || 15, `${fmtInt(p.brackets)} / ${fmtInt(p.max || 15)} brackets`)}<small>${p.next ? `Next at ${fmtInt(p.next)} kills` : "Max bracket or no next threshold"}</small></div>`).join("")}</div></article>
           <article class="farm-card"><h3>Selected Crop Pest</h3>${selectedCrop ? `<div class="farm-selected"><img src="${getUniversalItemIconUrl(selectedCrop.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(selectedCrop.icon)}"><div><strong>${escapeHtml(selectedCrop.name)} → ${escapeHtml(selectedCrop.pest || "Unknown pest")}</strong><span>Crop-specific pest mapping from EliteFarmers/FarmingWeight.</span></div></div>` : ""}<p class="farm-note">This panel intentionally separates Farm, Spawn, and Kill planning concepts but only renders profile-visible bestiary progress until full vacuum/loadout parsing is added.</p></article>
           ${renderEliteContestCard()}
         </div>
@@ -3862,7 +3888,6 @@ function renderFarmingView() {
   pane.querySelectorAll(".farm-crop-btn[data-farming-crop]").forEach((button) => {
     button.addEventListener("click", () => {
       state.farmingSelectedCropId = button.dataset.farmingCrop || null;
-      state.farmingActiveTab = "stats";
       renderFarmingView();
     });
   });
@@ -4277,7 +4302,7 @@ function renderMutationsView() {
   const pane = $("#view-mutations");
   if (!pane) return;
   if (typeof MUTATIONS_DATA === "undefined") {
-    pane.innerHTML = `<div class="acc-gate"><div class="acc-gate-icon">⚠️</div><h2>Mutation data did not load</h2><p>The Mutations tab needs <code>mutations-data.js</code>. Hard-refresh after deploying the new file.</p></div>`;
+    pane.innerHTML = `<div class="acc-gate"><div class="acc-gate-icon">${gateIconHTML("BARRIER", "Warning")}</div><h2>Mutation data did not load</h2><p>The Mutations tab needs <code>mutations-data.js</code>. Hard-refresh after deploying the new file.</p></div>`;
     return;
   }
 
@@ -4380,7 +4405,7 @@ function renderMutationTile(m, discovered) {
   const on = discovered.has(m.id);
   const source = mutationDiscoverySource(m.id);
   const sourceLabel = source === "api" ? "API" : (source === "manual" ? "Manual" : (source === "api+manual" ? "API + manual" : "Missing"));
-  return `<button class="mutation-tile ${on ? "is-discovered" : ""}" data-mutation-toggle="${m.id}" title="${escapeHtml(m.tip || m.name)}"><span class="mutation-tile-head">${mutationIconHTML(m)}<span><span class="mutation-name">${escapeHtml(m.name)}</span><span class="mutation-meta">${m.watering === "YES" ? "💧" : "—"} · ${m.growthStages ?? 0} stages · ${fmtCoins(m.coins || 0)}</span></span></span><span class="mutation-source mutation-source-${source}">${sourceLabel}</span></button>`;
+  return `<button class="mutation-tile ${on ? "is-discovered" : ""}" data-mutation-toggle="${m.id}" title="${escapeHtml(m.tip || m.name)}"><span class="mutation-tile-head">${mutationIconHTML(m)}<span><span class="mutation-name">${escapeHtml(m.name)}</span><span class="mutation-meta">${m.watering === "YES" ? "Watering" : "No watering"} · ${m.growthStages ?? 0} stages · ${fmtCoins(m.coins || 0)}</span></span></span><span class="mutation-source mutation-source-${source}">${sourceLabel}</span></button>`;
 }
 
 function renderMutationRecipe(selected, recipe, qty) {
@@ -4429,7 +4454,7 @@ function renderMinionsView() {
   if (typeof MINIONS_DATA === "undefined") {
     pane.innerHTML = `
       <div class="acc-gate">
-        <div class="acc-gate-icon">⚠️</div>
+        <div class="acc-gate-icon">${gateIconHTML("BARRIER", "Warning")}</div>
         <h2>Minion data did not load</h2>
         <p>The Minions tab needs <code>minions-data.js</code>. Push your changes and hard-refresh to load the script.</p>
       </div>`;
@@ -4497,7 +4522,7 @@ function renderMinionsView() {
         <div class="stat-label">Cost to Max All</div>
         <div class="stat-value stat-value-stacked">
           <span class="stat-value-major">${totalCostToMax > 0 ? fmtCoins(totalCostToMax) : "0"}</span>
-          <span class="stat-value-minor">T${state.minionStartFromLvl1 ? "0" : "current"} ➔ max tier from bazaar</span>
+          <span class="stat-value-minor">T${state.minionStartFromLvl1 ? "0" : "current"} to max tier from bazaar</span>
         </div>
       </div>
       <div class="stat-card">
@@ -4866,14 +4891,9 @@ function getPetLevel(xp, rarity) {
   return Math.max(1, Math.min(99, level));
 }
 
-function getPetEmoji(type) {
-  const map = {
-    SHEEP: "🐑", DRAGON: "🐉", ENDERMAN: "👁️", MONKEY: "🐒", WOLF: "🐺",
-    CAT: "🐱", ELEPHANT: "🐘", TIGER: "🐯", LION: "🦁", RABBIT: "🐇",
-    SQUID: "🦑", BEE: "🐝", CHICKEN: "🐔", COW: "🐄", PIG: "🐷",
-    RAT: "🐀", BAT: "🦇", SPIDER: "🕷️", GOLEM: "🗿", YETI: "❄️"
-  };
-  return map[type?.toUpperCase()] || "🐾";
+function getPetIconId(type) {
+  const normalized = String(type || "").toUpperCase();
+  return normalized ? `PET_${normalized}` : "BONE";
 }
 
 /* =========================================================================
@@ -4945,11 +4965,11 @@ function getRarityColor(tier) {
   return map[tier?.toUpperCase()] || "#ffffff";
 }
 
-function renderGearSlotHTML(item, defaultEmoji, slotName) {
+function renderGearSlotHTML(item, defaultIconId, slotName) {
   if (!item) {
     return `
       <div class="profile-gear-slot empty" title="Empty ${slotName} Slot">
-        <div class="profile-gear-icon-placeholder">${defaultEmoji}</div>
+        <div class="profile-gear-icon-placeholder">${mcIconHTML(defaultIconId, "profile-gear-placeholder-img", slotName)}</div>
         <div class="profile-gear-details">
           <div class="profile-gear-name-placeholder">No ${slotName}</div>
           <div class="profile-gear-type">${slotName}</div>
@@ -4966,14 +4986,14 @@ function renderGearSlotHTML(item, defaultEmoji, slotName) {
     <div class="profile-gear-slot tooltip-container">
       <div class="profile-gear-icon">
         <img src="${getUniversalItemIconUrl(item.skyblockId)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToSkyCryptItemOnError(item.skyblockId)}">
-        <span class="profile-gear-emoji-fallback" style="display: none; font-size: 24px;">${defaultEmoji}</span>
+        
       </div>
       <div class="profile-gear-details">
         <div class="profile-gear-name" style="color: ${getRarityColor(item.rawTag?.ExtraAttributes?.rarity || 'COMMON')}">
           ${minecraftToHtml(itemName)}
         </div>
         <div class="profile-gear-type">
-          ${slotName} ${recombobulated ? `<span class="recomb-star" title="Recombobulated">✦</span>` : ""}
+          ${slotName} ${recombobulated ? `<span class="recomb-star" title="Recombobulated">Recombed</span>` : ""}
         </div>
       </div>
       <div class="tooltip-content">
@@ -4994,26 +5014,10 @@ function renderHotbarSlotHTML(item, index) {
   const loreLines = item.rawTag?.display?.Lore || [];
   const loreHTML = loreLines.map(line => `<div>${minecraftToHtml(line)}</div>`).join("");
 
-  let emoji = "⚔️";
-  const id = item.skyblockId?.toLowerCase() || "";
-  if (id.includes("bow")) emoji = "🏹";
-  else if (id.includes("pickaxe")) emoji = "⛏️";
-  else if (id.includes("axe")) emoji = "🪓";
-  else if (id.includes("shovel")) emoji = "⛏️";
-  else if (id.includes("hoe")) emoji = "🌾";
-  else if (id.includes("fishing")) emoji = "🎣";
-  else if (id.includes("drill")) emoji = "⚙️";
-  else if (id.includes("rod")) emoji = "🎣";
-  else if (id.includes("potion")) emoji = "🧪";
-  else if (id.includes("book")) emoji = "📖";
-  else if (id.includes("essence") || id.includes("shard")) emoji = "✨";
-  else if (item.count > 1) emoji = "📦";
-
   return `
     <div class="profile-hotbar-slot tooltip-container">
       <div class="profile-hotbar-icon" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
         <img src="${getUniversalItemIconUrl(item.skyblockId)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToSkyCryptItemOnError(item.skyblockId)}">
-        <span class="profile-hotbar-emoji-fallback" style="display: none; font-size: 20px;">${emoji}</span>
       </div>
       ${item.count > 1 ? `<span class="profile-hotbar-count">${item.count}</span>` : ""}
       <div class="tooltip-content">
@@ -5047,7 +5051,7 @@ function renderProfileView() {
   if (!member) {
     pane.innerHTML = `
       <div class="acc-gate">
-        <div class="acc-gate-icon">⚠️</div>
+        <div class="acc-gate-icon">${gateIconHTML("BARRIER", "Warning")}</div>
         <h2>No member data found</h2>
         <p>Could not find active profile data for this member. Please try switching profiles or re-linking.</p>
       </div>`;
@@ -5072,16 +5076,16 @@ function renderProfileView() {
 
   // 1. Skill progress rendering
   const SKILLS_META = [
-    { key: "SKILL_COMBAT", name: "Combat", icon: "⚔️", color: "#ff3333" },
-    { key: "SKILL_MINING", name: "Mining", icon: "⛏️", color: "#5c85d6" },
-    { key: "SKILL_FARMING", name: "Farming", icon: "🌾", color: "#47d147" },
-    { key: "SKILL_FORAGING", name: "Foraging", icon: "🪓", color: "#e68a00" },
-    { key: "SKILL_FISHING", name: "Fishing", icon: "🎣", color: "#33ccff" },
-    { key: "SKILL_ALCHEMY", name: "Alchemy", icon: "🧪", color: "#b347ff" },
-    { key: "SKILL_ENCHANTING", name: "Enchanting", icon: "🔮", color: "#ff47b3" },
-    { key: "SKILL_TAMING", name: "Taming", icon: "🐾", color: "#ffd24d" },
-    { key: "SKILL_CARPENTRY", name: "Carpentry", icon: "🪚", color: "#a67c52" },
-    { key: "SKILL_RUNECRAFTING", name: "Runecrafting", icon: "✨", color: "#ff99ff" },
+    { key: "SKILL_COMBAT", name: "Combat", icon: "DIAMOND_SWORD", color: "#ff3333" },
+    { key: "SKILL_MINING", name: "Mining", icon: "DIAMOND_PICKAXE", color: "#5c85d6" },
+    { key: "SKILL_FARMING", name: "Farming", icon: "WHEAT", color: "#47d147" },
+    { key: "SKILL_FORAGING", name: "Foraging", icon: "DIAMOND_AXE", color: "#e68a00" },
+    { key: "SKILL_FISHING", name: "Fishing", icon: "FISHING_ROD", color: "#33ccff" },
+    { key: "SKILL_ALCHEMY", name: "Alchemy", icon: "BREWING_STAND", color: "#b347ff" },
+    { key: "SKILL_ENCHANTING", name: "Enchanting", icon: "ENCHANTING_TABLE", color: "#ff47b3" },
+    { key: "SKILL_TAMING", name: "Taming", icon: "BONE", color: "#ffd24d" },
+    { key: "SKILL_CARPENTRY", name: "Carpentry", icon: "CRAFTING_TABLE", color: "#a67c52" },
+    { key: "SKILL_RUNECRAFTING", name: "Runecrafting", icon: "ENCHANTED_BOOK", color: "#ff99ff" },
   ];
   
   const skillExp = member.player_data?.experience || {};
@@ -5094,7 +5098,7 @@ function renderProfileView() {
     return `
       <div class="profile-skill-row" title="${skill.name} Skill Details">
         <div class="profile-skill-icon" style="background: rgba(${skill.color === "#ff3333" ? "255,51,51" : skill.color === "#5c85d6" ? "92,133,214" : skill.color === "#47d147" ? "71,209,71" : skill.color === "#e68a00" ? "230,138,0" : "51,204,255"}, 0.1); color: ${skill.color}">
-          ${skill.icon}
+          ${mcIconHTML(skill.icon, "profile-skill-icon-img", skill.name)}
         </div>
         <div class="profile-skill-info">
           <div class="profile-skill-name-row">
@@ -5114,12 +5118,12 @@ function renderProfileView() {
 
   // 2. Slayer rendering
   const SLAYERS_META = [
-    { key: "zombie", name: "Revenant Horror", icon: "🧟" },
-    { key: "spider", name: "Tarantula", icon: "🕷️" },
-    { key: "wolf", name: "Sven Packmaster", icon: "🐺" },
-    { key: "enderman", name: "Voidgloom Seraph", icon: "👁️" },
-    { key: "blaze", name: "Infernum Demonlord", icon: "🔥" },
-    { key: "vampire", name: "Riftstalker", icon: "🧛", isVampire: true },
+    { key: "zombie", name: "Revenant Horror", icon: "ROTTEN_FLESH" },
+    { key: "spider", name: "Tarantula", icon: "SPIDER_EYE" },
+    { key: "wolf", name: "Sven Packmaster", icon: "BONE" },
+    { key: "enderman", name: "Voidgloom Seraph", icon: "ENDER_PEARL" },
+    { key: "blaze", name: "Infernum Demonlord", icon: "BLAZE_ROD" },
+    { key: "vampire", name: "Riftstalker", icon: "REDSTONE", isVampire: true },
   ];
   
   const slayersHTML = SLAYERS_META.map(sl => {
@@ -5132,7 +5136,7 @@ function renderProfileView() {
     return `
       <div class="profile-skill-row" title="${sl.name} Slayer Details">
         <div class="profile-skill-icon" style="background: rgba(255, 51, 51, 0.05); color: #ff3333;">
-          ${sl.icon}
+          ${mcIconHTML(sl.icon, "profile-skill-icon-img", sl.name)}
         </div>
         <div class="profile-skill-info">
           <div class="profile-skill-name-row">
@@ -5156,11 +5160,11 @@ function renderProfileView() {
   const cataPct = cata.xpNeeded ? (cata.progress * 100).toFixed(0) : "100";
   
   const CLASSES_META = [
-    { key: "mage", name: "Mage", icon: "🧙", color: "#33ccff" },
-    { key: "archer", name: "Archer", icon: "🏹", color: "#ff3333" },
-    { key: "berserk", name: "Berserk", icon: "🩸", color: "#ff9933" },
-    { key: "tank", name: "Tank", icon: "🛡️", color: "#47d147" },
-    { key: "healer", name: "Healer", icon: "💖", color: "#ff99ff" },
+    { key: "mage", name: "Mage", icon: "ENCHANTED_BOOK", color: "#33ccff" },
+    { key: "archer", name: "Archer", icon: "BOW", color: "#ff3333" },
+    { key: "berserk", name: "Berserk", icon: "IRON_SWORD", color: "#ff9933" },
+    { key: "tank", name: "Tank", icon: "SHIELD", color: "#47d147" },
+    { key: "healer", name: "Healer", icon: "GOLDEN_APPLE", color: "#ff99ff" },
   ];
   
   const classesHTML = CLASSES_META.map(cl => {
@@ -5172,7 +5176,7 @@ function renderProfileView() {
     return `
       <div class="profile-skill-row" title="${cl.name} Class Details">
         <div class="profile-skill-icon" style="background: rgba(255, 255, 255, 0.05); color: ${cl.color};">
-          ${cl.icon}
+          ${mcIconHTML(cl.icon, "profile-skill-icon-img", cl.name)}
         </div>
         <div class="profile-skill-info">
           <div class="profile-skill-name-row">
@@ -5209,7 +5213,7 @@ function renderProfileView() {
       <div class="profile-pets-container">
         ${sortedPets.map(pet => {
           const petLvl = getPetLevel(pet.exp, pet.tier);
-          const emoji = getPetEmoji(pet.type);
+          const petIconId = getPetIconId(pet.type);
           const rarityClass = `pet-rarity-${pet.tier?.toLowerCase() || "common"}`;
           const cleanName = pet.type?.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) || "Pet";
           
@@ -5217,8 +5221,7 @@ function renderProfileView() {
             <div class="profile-pet-card ${rarityClass}" title="${pet.tier || "COMMON"} ${cleanName} - Exp: ${formatNum(pet.exp || 0)}">
               ${pet.active ? `<span class="profile-pet-active-badge"></span>` : ""}
               <div class="profile-pet-icon">
-                <img src="${getUniversalItemIconUrl(`PET_${pet.type}`)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToSkyCryptItemOnError(`PET_${pet.type}`)}">
-                <span class="profile-pet-emoji-fallback" style="display: none; font-size: 24px;">${emoji}</span>
+                <img src="${getUniversalItemIconUrl(petIconId)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToSkyCryptItemOnError(petIconId)}">
               </div>
               <div class="profile-pet-level">Lvl ${petLvl}</div>
               <div class="profile-pet-name">${cleanName}</div>
@@ -5234,11 +5237,11 @@ function renderProfileView() {
   } else if (p.inventoryError) {
     gearContentHTML = `
       <div style="padding: 24px; text-align: center; color: var(--text-muted); background: rgba(0,0,0,0.2); border: 1px dashed rgba(255,255,255,0.06); border-radius: 8px;">
-        <div style="font-size: 32px; margin-bottom: 12px;">🔒</div>
+        <div style="margin-bottom: 12px; display: grid; place-items: center;">${gateIconHTML("BARRIER", "Inventory locked")}</div>
         <h4 style="color: #fff; font-family: var(--font-display); font-size: 15px;">${p.inventoryError}</h4>
         <p style="font-size: 12px; margin-top: 8px; line-height: 1.6; max-width: 460px; margin-left: auto; margin-right: auto;">
           To display your equipped gear, weapons, and inventory like SkyCrypt, enable your <strong>Inventory API</strong> in Hypixel settings:
-          in-game open the SkyBlock menu (or run <code>/api</code>) ➔ Settings ➔ API Settings ➔ Enable Inventory API.
+          in-game open the SkyBlock menu (or run <code>/api</code>) to Settings, then API Settings, then Enable Inventory API.
         </p>
       </div>`;
   } else {
@@ -5265,30 +5268,30 @@ function renderProfileView() {
       <div class="profile-gear-container">
         <!-- Armor -->
         <div class="profile-gear-section">
-          <h4>🛡️ Equipped Armor</h4>
+          <h4>${mcIconHTML("DIAMOND_CHESTPLATE", "inline-mc-icon", "Armor")} Equipped Armor</h4>
           <div class="profile-gear-list">
-            ${renderGearSlotHTML(helmet, "🪖", "Helmet")}
-            ${renderGearSlotHTML(chestplate, "👕", "Chestplate")}
-            ${renderGearSlotHTML(leggings, "👖", "Leggings")}
-            ${renderGearSlotHTML(boots, "🥾", "Boots")}
+            ${renderGearSlotHTML(helmet, "DIAMOND_HELMET", "Helmet")}
+            ${renderGearSlotHTML(chestplate, "DIAMOND_CHESTPLATE", "Chestplate")}
+            ${renderGearSlotHTML(leggings, "DIAMOND_LEGGINGS", "Leggings")}
+            ${renderGearSlotHTML(boots, "DIAMOND_BOOTS", "Boots")}
           </div>
         </div>
 
         <!-- Equipment -->
         <div class="profile-gear-section">
-          <h4>⚡ Equipment</h4>
+          <h4>${mcIconHTML("DAY_CRYSTAL", "inline-mc-icon", "Equipment")} Equipment</h4>
           <div class="profile-gear-list">
-            ${renderGearSlotHTML(necklace, "📿", "Necklace")}
-            ${renderGearSlotHTML(cloak, "🧥", "Cloak")}
-            ${renderGearSlotHTML(belt, "🎗️", "Belt")}
-            ${renderGearSlotHTML(gloves, "🧤", "Gloves")}
+            ${renderGearSlotHTML(necklace, "DAY_CRYSTAL", "Necklace")}
+            ${renderGearSlotHTML(cloak, "CLOAK", "Cloak")}
+            ${renderGearSlotHTML(belt, "BELT", "Belt")}
+            ${renderGearSlotHTML(gloves, "GLOVES", "Gloves")}
           </div>
         </div>
       </div>
 
       <!-- Hotbar -->
       <div style="margin-top: 24px;">
-        <h4 style="font-family: var(--font-display); font-size: 14px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 8px; border-left: 3px solid var(--ember); padding-left: 8px;">🎒 Hotbar</h4>
+        <h4 style="font-family: var(--font-display); font-size: 14px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 8px; border-left: 3px solid var(--ember); padding-left: 8px;">${mcIconHTML("CHEST", "inline-mc-icon", "Hotbar")} Hotbar</h4>
         <div class="profile-hotbar-grid">
           ${hotbarSlots.map((it, idx) => renderHotbarSlotHTML(it, idx)).join("")}
         </div>
@@ -5346,19 +5349,19 @@ function renderProfileView() {
             <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
               <img src="${getUniversalItemIconUrl(it.id)}" alt="" style="width: 20px; height: 20px; image-rendering: pixelated; object-fit: contain;" onerror="${fallbackToSkyCryptItemOrHideOnError(it.id)}">
               <span class="profile-accessory-name" style="color: ${getRarityColor(it.tier)}">
-                ${it.recombed ? '✦ ' : ''}${escapeHtml(it.name)}
+                ${it.recombed ? '[R] ' : ''}${escapeHtml(it.name)}
               </span>
             </div>
             <span class="profile-accessory-mp">+${it.mp} MP</span>
             
             <div class="tooltip-content">
               <div class="tooltip-name" style="color: ${getRarityColor(it.tier)}">
-                ${it.recombed ? '✦ ' : ''}${escapeHtml(it.name)}
+                ${it.recombed ? '[R] ' : ''}${escapeHtml(it.name)}
               </div>
               <div class="tooltip-lore">
                 <div>Rarity: <strong style="color: ${getRarityColor(it.tier)};">${it.tier}</strong></div>
                 <div>Magical Power: <strong style="color: #33ccff;">+${it.mp} MP</strong></div>
-                ${it.recombed ? `<div><span style="color: var(--ember);">✦</span> Recombobulated (+${recombGain(state.accessoryCatalog.byId[it.id])?.mpGain || 0} MP)</div>` : ''}
+                ${it.recombed ? `<div><span style="color: var(--ember);">Recombobulated</span> (+${recombGain(state.accessoryCatalog.byId[it.id])?.mpGain || 0} MP)</div>` : ''}
               </div>
             </div>
           </div>
@@ -5369,19 +5372,19 @@ function renderProfileView() {
 
   // Define sub-tabs
   const subtabs = [
-    { id: "overview", label: "Gear & Overview", icon: "🛡️" },
-    { id: "skills", label: "Skills", icon: "📊" },
-    { id: "slayers", label: "Slayers", icon: "⚔️" },
-    { id: "dungeons", label: "Dungeons", icon: "💀" },
-    { id: "pets", label: "Pets", icon: "🐾" },
-    { id: "accessories", label: "Accessories", icon: "💍" }
+    { id: "overview", label: "Gear & Overview", icon: "DIAMOND_CHESTPLATE" },
+    { id: "skills", label: "Skills", icon: "EXPERIENCE_BOTTLE" },
+    { id: "slayers", label: "Slayers", icon: "DIAMOND_SWORD" },
+    { id: "dungeons", label: "Dungeons", icon: "WITHER_SKELETON_SKULL" },
+    { id: "pets", label: "Pets", icon: "BONE" },
+    { id: "accessories", label: "Accessories", icon: "DAY_CRYSTAL" }
   ];
 
   const tabsHTML = `
     <nav class="profile-tabs" role="tablist" aria-label="Profile Sections">
       ${subtabs.map(tab => `
         <button class="profile-tab ${state.profileSubTab === tab.id ? 'active' : ''}" data-subtab="${tab.id}">
-          <span>${tab.icon}</span> ${tab.label}
+          <span>${mcIconHTML(tab.icon, "profile-tab-icon-img", tab.label)}</span> ${tab.label}
         </button>
       `).join("")}
     </nav>
@@ -5395,7 +5398,7 @@ function renderProfileView() {
     activeTabHTML = `
       <section class="profile-section-card" aria-label="Skills progress" style="animation: fadeIn 0.2s ease-out;">
         <h3 class="profile-section-title">
-          <span style="color: var(--ember);">📊</span> Skills Collection
+          ${mcIconHTML("EXPERIENCE_BOTTLE", "inline-mc-icon", "Skills")} Skills Collection
         </h3>
         <div class="profile-items-grid">
           ${skillsHTML}
@@ -5406,7 +5409,7 @@ function renderProfileView() {
     activeTabHTML = `
       <section class="profile-section-card" aria-label="Slayers progress" style="animation: fadeIn 0.2s ease-out;">
         <h3 class="profile-section-title">
-          <span style="color: #ff3333;">⚔️</span> Slayer Bosses
+          ${mcIconHTML("DIAMOND_SWORD", "inline-mc-icon", "Slayers")} Slayer Bosses
         </h3>
         <div class="profile-items-grid">
           ${slayersHTML}
@@ -5417,12 +5420,12 @@ function renderProfileView() {
     activeTabHTML = `
       <section class="profile-section-card" aria-label="Dungeon info" style="animation: fadeIn 0.2s ease-out;">
         <h3 class="profile-section-title">
-          <span style="color: #33ccff;">💀</span> Dungeon &amp; Classes
+          ${mcIconHTML("WITHER_SKELETON_SKULL", "inline-mc-icon", "Dungeons")} Dungeon &amp; Classes
         </h3>
         <div class="profile-items-grid">
           <!-- Catacombs Primary -->
           <div class="profile-skill-row" style="border-color: rgba(90, 185, 255, 0.15);" title="Catacombs Progression Details">
-            <div class="profile-skill-icon" style="background: rgba(90, 185, 255, 0.1); color: #33ccff;">💀</div>
+            <div class="profile-skill-icon" style="background: rgba(90, 185, 255, 0.1); color: #33ccff;">${mcIconHTML("WITHER_SKELETON_SKULL", "profile-skill-icon-img", "Catacombs")}</div>
             <div class="profile-skill-info">
               <div class="profile-skill-name-row">
                 <span class="profile-skill-name" style="color: #fff; font-weight: 800;">Catacombs Level</span>
@@ -5447,7 +5450,7 @@ function renderProfileView() {
     activeTabHTML = `
       <section class="profile-section-card" aria-label="Pets collection" style="animation: fadeIn 0.2s ease-out;">
         <h3 class="profile-section-title">
-          <span style="color: #ffd24d;">🐾</span> Pets Collection (${petsList.length})
+          ${mcIconHTML("BONE", "inline-mc-icon", "Pets")} Pets Collection (${petsList.length})
         </h3>
         ${petsHTML}
       </section>
@@ -5456,7 +5459,7 @@ function renderProfileView() {
     activeTabHTML = `
       <section class="profile-section-card" aria-label="Accessories collection" style="animation: fadeIn 0.2s ease-out;">
         <h3 class="profile-section-title">
-          <span style="color: #33ccff;">💍</span> Accessory Bag &amp; Talismans
+          ${mcIconHTML("DAY_CRYSTAL", "inline-mc-icon", "Accessories")} Accessory Bag &amp; Talismans
         </h3>
         ${accessoriesContentHTML}
       </section>
@@ -5480,7 +5483,7 @@ function renderProfileView() {
               <span class="profile-mode-badge ${gameMode.toLowerCase() === "ironman" ? "ironman" : ""}">${gameMode}</span>
             </h2>
             <div class="profile-selected-name">
-              <span style="color: #47d147;">★</span> Active Profile: <strong style="color: #fff;">${escapeHtml(prof?.cute_name || "Unknown")}</strong>
+              Active Profile: <strong style="color: #fff;">${escapeHtml(prof?.cute_name || "Unknown")}</strong>
             </div>
           </div>
         </div>
@@ -5728,8 +5731,8 @@ function fireSaleFreshnessLabel() {
 function renderP2wTabsHTML() {
   return `
     <div class="p2w-tabs" role="tablist" aria-label="P2W calculator modes">
-      <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "cookies" ? "active" : ""}" data-p2w-tab="cookies" role="tab" aria-selected="${state.p2w.activeTab === "cookies"}">🍪 Booster Cookies</button>
-      <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "firesales" ? "active" : ""}" data-p2w-tab="firesales" role="tab" aria-selected="${state.p2w.activeTab === "firesales"}">🔥 Fire Sales</button>
+      <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "cookies" ? "active" : ""}" data-p2w-tab="cookies" role="tab" aria-selected="${state.p2w.activeTab === "cookies"}">${mcIconHTML("BOOSTER_COOKIE", "inline-mc-icon", "Booster Cookies")} Booster Cookies</button>
+      <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "firesales" ? "active" : ""}" data-p2w-tab="firesales" role="tab" aria-selected="${state.p2w.activeTab === "firesales"}">${mcIconHTML("FIRE_CHARGE", "inline-mc-icon", "Fire Sales")} Fire Sales</button>
     </div>`;
 }
 
@@ -5753,7 +5756,7 @@ function renderFireSalesTabHTML() {
 
   const empty = !rows.length ? `
     <div class="acc-gate p2w-fire-empty">
-      <div class="acc-gate-icon">🔥</div>
+      <div class="acc-gate-icon">${gateIconHTML("FIRE_CHARGE", "Fire Sales")}</div>
       <h2>No current or upcoming Fire Sales</h2>
       <p>Hypixel's Fire Sales endpoint is live, but it returned an empty sale list right now. Use <b>Refresh Fire Sales</b> when a new sale is announced.</p>
     </div>` : "";
@@ -5774,7 +5777,7 @@ function renderFireSalesTabHTML() {
           </div>
         </td>
         <td><span class="pill">${row.time.status}</span><div class="meta-attr">${escapeHtml(row.time.when)}</div></td>
-        <td class="num">${fmtInt(row.gems)} 💎</td>
+        <td class="num">${fmtInt(row.gems)} gems</td>
         <td class="num">${currencySymbol}${realCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
         <td class="num">${ahText}<div class="meta-attr">${fireSaleStockLabel(row)}</div></td>
         <td class="num ${profitClass}">${coinPerUsd}</td>
@@ -5939,7 +5942,7 @@ function renderP2wView() {
       <!-- Left Column: Controls -->
       <div class="p2w-controls-column">
         <div class="p2w-panel card">
-          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;"><span class="emoji">🔍</span> 1. Select SkyBlock Item</h3>
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">${mcIconHTML("COMPASS", "inline-mc-icon", "Search")} 1. Select SkyBlock Item</h3>
           
           <div class="p2w-input-group">
             <label for="p2w-item-search" class="p2w-label">Search Item</label>
@@ -5984,7 +5987,7 @@ function renderP2wView() {
         </div>
 
         <div class="p2w-panel card" style="margin-top: 24px;">
-          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;"><span class="emoji">🍪</span> 2. Booster Cookie Method</h3>
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">${mcIconHTML("BOOSTER_COOKIE", "inline-mc-icon", "Booster Cookie")} 2. Booster Cookie Method</h3>
           
           <div class="p2w-input-group">
             <label class="p2w-label">Selling Method</label>
@@ -6015,7 +6018,7 @@ function renderP2wView() {
         </div>
 
         <div class="p2w-panel card" style="margin-top: 24px;">
-          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;"><span class="emoji">💵</span> 3. Real-Money Currency</h3>
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">${mcIconHTML("EMERALD", "inline-mc-icon", "Currency")} 3. Real-Money Currency</h3>
           <div class="p2w-input-group" style="margin-bottom: 0;">
             <label class="p2w-label">Currency Option</label>
             <div class="toggle-group" style="display: flex; gap: 8px;">
@@ -6047,11 +6050,11 @@ function renderP2wView() {
             </div>
             <div class="result-metric-box" title="Amount of Booster Cookies needed to cover the item cost: itemCost / cookiePrice (rounded up)">
               <div class="metric-label">Cookies Needed</div>
-              <div class="metric-value" style="color: var(--ember-light);">${fmtInt(cookiesNeeded)} 🍪</div>
+              <div class="metric-value" style="color: var(--ember-light);">${fmtInt(cookiesNeeded)} cookies</div>
             </div>
             <div class="result-metric-box" title="Cookies Needed x 325 Gems per cookie">
               <div class="metric-label">Gems Required</div>
-              <div class="metric-value" style="color: var(--info);">${fmtInt(gemsNeeded)} 💎</div>
+              <div class="metric-value" style="color: var(--info);">${fmtInt(gemsNeeded)} gems</div>
             </div>
           </div>
 
@@ -6225,8 +6228,8 @@ function recalculateP2wResultsInline() {
   const elPacksList = pane.querySelector(".packs-list");
 
   if (elItemCost) elItemCost.textContent = fmtCoins(workingCost);
-  if (elCookies) elCookies.textContent = `${fmtInt(cookiesNeeded)} 🍪`;
-  if (elGems) elGems.textContent = `${fmtInt(gemsNeeded)} 💎`;
+  if (elCookies) elCookies.textContent = `${fmtInt(cookiesNeeded)} cookies`;
+  if (elGems) elGems.textContent = `${fmtInt(gemsNeeded)} gems`;
   if (elRealCost) elRealCost.textContent = `${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   
   if (elSurplus) {
