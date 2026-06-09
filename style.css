@@ -420,9 +420,8 @@ input[type="number"]:focus,
   font-weight: 500;
   color: var(--text-muted);
   line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
   max-width: 100%;
 }
 
@@ -1155,9 +1154,9 @@ input[type="number"]:focus,
 .fusion-input-name {
   font-size: 11.5px;
   color: var(--text-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 .fusion-input-price {
   font-family: var(--font-mono);
@@ -3587,7 +3586,7 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 .mutation-profit-list { display: grid; gap: 8px; }
 .mutation-profit-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1.4fr) repeat(4, minmax(86px, .8fr));
+  grid-template-columns: minmax(130px, 1.4fr) repeat(4, minmax(0, .8fr));
   gap: 10px;
   align-items: center;
   border: 1px solid var(--border);
@@ -3599,6 +3598,14 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   cursor: pointer;
 }
 .mutation-profit-row:hover { border-color: rgba(255, 179, 71, .45); }
+.mutation-profit-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mutation-profit-value {
+  white-space: nowrap;
+  font-size: 0.92em;
+}
 .mutation-profit-row span:first-child { text-align: left; }
 .mutation-profit-row small { display: block; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
 .mutation-source {
@@ -3731,7 +3738,7 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 }
 .garden-chip-progress {
   display: grid;
-  grid-template-columns: minmax(168px, 1.6fr) minmax(86px, 0.8fr) minmax(86px, 0.8fr);
+  grid-template-columns: minmax(0, 1.6fr) minmax(72px, 0.8fr) minmax(72px, 0.8fr);
   gap: 8px;
   margin-bottom: 12px;
   padding: 10px;
@@ -3755,9 +3762,10 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 .garden-chip-progress input,
 .garden-chip-progress select {
   width: 100%;
+  min-width: 0;
 }
 .garden-chip-owned-rarity {
-  min-width: 168px;
+  min-width: 0;
 }
 .garden-chip-progress input:disabled {
   opacity: 0.5;

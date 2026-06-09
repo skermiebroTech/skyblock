@@ -4586,7 +4586,7 @@ function renderMutationRecipe(selected, recipe, qty) {
 }
 
 function renderMutationProfitRow(row) {
-  return `<button class="mutation-profit-row" data-mutation-pick="${row.mutation.id}"><span class="mutation-profit-name">${mutationIconHTML(row.mutation, "mutation-img mutation-img-small")}<span><strong>${escapeHtml(row.mutation.name)}</strong><small>${row.mutation.rarity}${row.unlocked ? " · unlocked" : ""}</small></span></span><span>${fmtCoins(row.cost)} cost</span><span>${fmtCoins(row.revenue)} rev</span><span class="${row.profit >= 0 ? "pos" : "neg"}">${fmtCoins(row.profit)}/harvest</span><span>${fmtCoins(row.profitPerHour)}/hr</span></button>`;
+  return `<button class="mutation-profit-row" data-mutation-pick="${row.mutation.id}"><span class="mutation-profit-name">${mutationIconHTML(row.mutation, "mutation-img mutation-img-small")}<span><strong>${escapeHtml(row.mutation.name)}</strong><small>${row.mutation.rarity}${row.unlocked ? " · unlocked" : ""}</small></span></span><span>${fmtCoins(row.cost)} cost</span><span>${fmtCoins(row.revenue)} rev</span><span class="${row.profit >= 0 ? "pos" : "neg"} mutation-profit-value">${fmtCoins(row.profit)}/harv</span><span class="mutation-profit-value">${fmtCoins(row.profitPerHour)}/hr</span></button>`;
 }
 
 function bindMutationEvents(pane) {
