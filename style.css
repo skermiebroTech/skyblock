@@ -1255,6 +1255,13 @@ input[type="number"]:focus,
   color: var(--text);
   background: rgba(255, 107, 53, 0.08);
 }
+.toggle-chip.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.toggle-chip.is-disabled input {
+  cursor: not-allowed;
+}
 
 /* ---------- Table icon column ---------- */
 .th-icon, .cell-icon {

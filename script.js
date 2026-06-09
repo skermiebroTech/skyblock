@@ -80,6 +80,7 @@ const CONFIG = {
   BAZAAR_MODE_STORAGE: "shardmarket.bazaarMode",  // "instaBuy" | "buyOrder"
   PREFER_MAX_STORAGE:  "shardmarket.preferMax",   // "1" | "0"
   ACC_SORT_STORAGE:    "shardmarket.accSortKey",  // "mp" | "costPerMp" | "price"
+  ATTR_USABLE_ONLY_STORAGE: "shardmarket.attributes.usableOnly", // "1" | "0"
 
   /* Filter out dead markets where no shards traded in the past week. */
   MIN_WEEKLY_VOLUME: 1,
@@ -162,6 +163,7 @@ const state = {
   bazaarMode: localStorage.getItem(CONFIG.BAZAAR_MODE_STORAGE) || "instaBuy",
   preferMax:  localStorage.getItem(CONFIG.PREFER_MAX_STORAGE) !== "0",
   accSortKey: localStorage.getItem(CONFIG.ACC_SORT_STORAGE) || "mp",
+  attrUsableOnly: localStorage.getItem(CONFIG.ATTR_USABLE_ONLY_STORAGE) === "1",
   sweepShowCompleted: localStorage.getItem(CONFIG.SWEEP_SHOW_COMPLETED_STORAGE) === "1",
   minionManualTiers: {},
   minionStartFromLvl1: false,
@@ -2288,14 +2290,21 @@ function renderAttributesView() {
     return;
   }
 
-  const visibleRows = a.rows.filter((r) => state.selectedSkills.has(r.skill || "Unknown"));
+  const canFilterByLevel = state.player.huntingLevel != null;
+  const levelFilteredRows = state.attrUsableOnly && canFilterByLevel
+    ? a.rows.filter((r) => r.usable)
+    : a.rows;
+  const hiddenByLevel = a.rows.length - levelFilteredRows.length;
+  const visibleRows = levelFilteredRows.filter((r) => state.selectedSkills.has(r.skill || "Unknown"));
   const unmaxed = a.rows.filter((r) => !r.maxed);
   const missing = a.rows.filter((r) => r.missing);
   updateTabBadge("badge-attributes", unmaxed.length);
 
   const pct = a.totalCount > 0 ? Math.round((a.maxedCount / a.totalCount) * 100) : 0;
   const huntingNote = state.player.huntingLevel != null
-    ? ` Hunting-locked attributes above your level (${state.player.huntingLevel}) stay visible and are labelled.`
+    ? state.attrUsableOnly
+      ? ` Showing only attributes available at your Hunting level (${state.player.huntingLevel}); ${hiddenByLevel} locked attribute${hiddenByLevel === 1 ? " is" : "s are"} hidden.`
+      : ` Hunting-locked attributes above your level (${state.player.huntingLevel}) stay visible and are labelled.`
     : "";
 
   pane.innerHTML = `
@@ -2350,6 +2359,10 @@ function renderAttributesView() {
         <span class="acc-toolbar-label">Skill:</span>
         <div id="attr-skill-filters" class="skill-filters skill-filters--inline" role="group" aria-label="Filter attributes by skill"></div>
       </div>
+      <label class="toggle-chip attr-level-toggle ${canFilterByLevel ? "" : "is-disabled"}" title="${canFilterByLevel ? "Hide attributes that require a higher Hunting level" : "Link a profile to use your Hunting level"}">
+        <input type="checkbox" id="attr-usable-only" ${state.attrUsableOnly ? "checked" : ""} ${canFilterByLevel ? "" : "disabled"}>
+        <span>Available now</span>
+      </label>
     </div>
 
     <div class="attr-grid">
@@ -2370,6 +2383,15 @@ function renderAttributesView() {
   });
 
   renderSkillFilters("#attr-skill-filters", () => renderActiveView());
+
+  const usableOnly = pane.querySelector("#attr-usable-only");
+  if (usableOnly) {
+    usableOnly.addEventListener("change", (e) => {
+      state.attrUsableOnly = e.target.checked;
+      localStorage.setItem(CONFIG.ATTR_USABLE_ONLY_STORAGE, state.attrUsableOnly ? "1" : "0");
+      renderActiveView();
+    });
+  }
 
   bindCopyButtons(pane);
 }

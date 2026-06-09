@@ -96,10 +96,11 @@ missing accessories.
 How many **Attribute Shards** you still need to take each attribute to level 10.
 The report includes the full 189-entry SkyShards catalog, marks attributes you have never
 syphoned as **missing** (`0/max`), and labels attributes above your profile's Hunting level
-as **locked** instead of hiding them. Each card shows current/max progress, the exact shard
-count remaining, and the live bazaar cost to finish when Hypixel exposes that shard as a
-Bazaar product — with a `/bz` command for the source shard. Totals across all attributes are
-shown up top.
+as **locked** instead of hiding them. Use the **Available now** toggle to temporarily hide
+locked attributes and show only shards usable at your current Hunting level. Each card shows
+current/max progress, the exact shard count remaining, and the live bazaar cost to finish when
+Hypixel exposes that shard as a Bazaar product — with a `/bz` command for the source shard.
+Totals across all attributes are shown up top.
 
 The Accessory Path page shows a live **Magical Power progress bar**.
 
