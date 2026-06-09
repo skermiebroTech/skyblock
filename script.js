@@ -851,7 +851,8 @@ async function loadAttributeAnalysis() {
     }
     /* Missing attributes do not appear in profile attributes.stacks at all.
      * Treat a missing stacks object as an empty map so the report can still
-     * show every usable attribute as 0/max instead of rendering an empty page. */
+     * show the full SkyShards catalog as 0/max instead of rendering only the
+     * few attributes the user has already syphoned. */
     const stacks = state.player.attributeStacks || {};
 
     /* Price each attribute's source shard via the live bazaar.
@@ -870,7 +871,7 @@ async function loadAttributeAnalysis() {
     };
 
     state.player.attributeAnalysis = analyseAttributes(state.attributeCatalog, stacks, shardPriceFor, {
-      onlyUsable: true,
+      onlyUsable: false,
       requirementForCode: huntingRequirementForCode,
       canUseCode: (code, requiredLevel) => playerCanUseFusion(requiredLevel),
     });
@@ -949,6 +950,7 @@ function computeMetrics(qs, tax) {
  * Capped at half the weaker market side — you can't move more units than
  * the market absorbs without driving the price. */
 function projectedWeeklyProfit(m) {
+  if (!Number.isFinite(m?.profitPerUnit) || !Number.isFinite(m?.sellWeek) || !Number.isFinite(m?.buyWeek)) return null;
   const throughput = Math.min(m.sellWeek, m.buyWeek) * 0.5;
   return m.profitPerUnit * throughput;
 }
@@ -1094,7 +1096,25 @@ function getShardMeta(id) {
   };
 }
 
-/* Build enriched rows from the raw bazaar payload. */
+function emptyShardMetrics() {
+  return {
+    buyPrice: null,
+    sellPrice: null,
+    spread: null,
+    profitPerUnit: null,
+    marginPercent: null,
+    weeklyVolume: null,
+    sellWeek: null,
+    buyWeek: null,
+    sellOrders: null,
+    buyOrders: null,
+  };
+}
+
+/* Build enriched rows from the full SkyShards catalog, then merge live Bazaar
+ * metrics for shards Hypixel exposes as Bazaar products. Hypixel's Bazaar feed
+ * currently contains only a subset of Attribute Shards; iterating products hid
+ * the rest of the 189-shard SkyShards catalog from Hypixie. */
 function rebuildRows() {
   if (state.raw) state.rows = buildRows(state.raw);
 }
@@ -1103,22 +1123,20 @@ function buildRows(bazaarPayload) {
   if (!bazaarPayload?.products) return [];
   const tax = state.tax;
 
+  const ids = new Set(Object.keys(state.shardsDb || {}));
+
   const rows = [];
-  for (const [id, product] of Object.entries(bazaarPayload.products)) {
-    if (!isShardProduct(id)) continue;
-
+  for (const id of ids) {
+    const product = bazaarPayload.products[id] || null;
     const meta    = getShardMeta(id);
-    const metrics = computeMetrics(product.quick_status, tax);
-
-    /* Filter dead markets. */
-    if (metrics.weeklyVolume < CONFIG.MIN_WEEKLY_VOLUME) continue;
+    const metrics = product?.quick_status ? computeMetrics(product.quick_status, tax) : emptyShardMetrics();
 
     /* Fusion economics. */
     const bestFusion = computeBestFusion(id);
     let fusionProfitPerUnit = null;
     let fusionMarginPercent = null;
     if (bestFusion) {
-      if (bestFusion.huntingLocked) {
+      if (bestFusion.huntingLocked || !Number.isFinite(metrics.buyPrice)) {
         fusionProfitPerUnit = null;
         fusionMarginPercent = null;
       } else {
@@ -1131,13 +1149,14 @@ function buildRows(bazaarPayload) {
 
     /* Investment to syphon to max level using visible insta-buy shard cost. */
     const maxShards = SHARDS_MAX_LEVEL_BY_RARITY[meta.rarity];
-    const maxLevelCost = maxShards ? maxShards * metrics.buyPrice : null;
+    const maxLevelCost = maxShards && Number.isFinite(metrics.buyPrice) ? maxShards * metrics.buyPrice : null;
 
     rows.push({
       id,
       rank: rows.length + 1,
       ...meta,
       ...metrics,
+      marketListed: !!product?.quick_status,
       weeklyExpectedProfit: projectedWeeklyProfit(metrics),
       bestFusion,
       fusionProfitPerUnit,
@@ -1310,7 +1329,9 @@ function renderStats(visibleRows) {
 
   totalEl.textContent = visibleRows.length;
 
-  const topProfit = visibleRows.reduce(
+  const pricedRows = visibleRows.filter((r) => Number.isFinite(r.profitPerUnit) || Number.isFinite(r.spread));
+
+  const topProfit = pricedRows.reduce(
     (best, r) => (r.profitPerUnit > (best?.profitPerUnit ?? -Infinity) ? r : best), null
   );
   topProfitEl.innerHTML = topProfit
@@ -1318,7 +1339,7 @@ function renderStats(visibleRows) {
        <span class="stat-value-minor">${escapeHtml(topProfit.name)}</span>`
     : `<span class="stat-value-major">—</span>`;
 
-  const topSpread = visibleRows.reduce(
+  const topSpread = pricedRows.reduce(
     (best, r) => (r.spread > (best?.spread ?? -Infinity) ? r : best), null
   );
   topSpreadEl.innerHTML = topSpread
@@ -2274,9 +2295,7 @@ function renderAttributesView() {
 
   const pct = a.totalCount > 0 ? Math.round((a.maxedCount / a.totalCount) * 100) : 0;
   const huntingNote = state.player.huntingLevel != null
-    ? ` Showing attributes usable at your Hunting level (${state.player.huntingLevel}).${
-        a.hiddenLockedCount ? ` ${a.hiddenLockedCount} higher-tier locked attribute${a.hiddenLockedCount === 1 ? " is" : "s are"} hidden.` : ""
-      }`
+    ? ` Hunting-locked attributes above your level (${state.player.huntingLevel}) stay visible and are labelled.`
     : "";
 
   pane.innerHTML = `
@@ -2284,7 +2303,7 @@ function renderAttributesView() {
       <div>
         <h2 class="acc-page-title">Attribute Maxing</h2>
         <p class="acc-page-sub">
-          How many Attribute Shards you still need to take each usable attribute to
+          How many Attribute Shards you still need to take each attribute to
           <strong>level 10</strong>, with live bazaar cost. Missing attributes are
           included as <strong>0/max</strong>. You still need
           <strong class="pos">${fmtInt(a.totalShardsNeeded)}</strong> shards
@@ -2336,7 +2355,7 @@ function renderAttributesView() {
     <div class="attr-grid">
       ${visibleRows.length
         ? visibleRows.map(renderAttributeRow).join("")
-        : `<div class="state-empty attr-filter-empty">No usable attributes match the selected skills.</div>`}
+        : `<div class="state-empty attr-filter-empty">No attributes match the selected skills.</div>`}
     </div>`;
 
   /* Wire the bazaar-mode segmented control (re-prices shards, re-renders). */
@@ -2384,6 +2403,9 @@ function renderAttributeRow(r) {
   const statusBadge = r.missing
     ? `<span class="attr-missing-badge">MISSING</span>`
     : `<span class="attr-rarity" style="color:${color}">${r.rarity.toLowerCase()}</span>`;
+  const lockedBadge = !r.usable
+    ? `<span class="attr-locked-badge" title="Requires Hunting ${r.requiredHuntingLevel}+">LOCKED</span>`
+    : "";
   const reqText = r.requiredHuntingLevel > 0 ? ` · Hunting ${r.requiredHuntingLevel}+` : "";
 
   return `
@@ -2393,6 +2415,7 @@ function renderAttributeRow(r) {
         <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
         <span class="attr-skill-badge">${escapeHtml(skillText)}</span>
         ${statusBadge}
+        ${lockedBadge}
       </div>
       <div class="attr-progress"><div class="attr-progress-fill" style="width:${progPct}%;background:${color}"></div></div>
       <div class="attr-foot">

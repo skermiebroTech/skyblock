@@ -20,7 +20,7 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
 
 ## What it does
 
-- Fetches the [Hypixel Bazaar endpoint](https://api.hypixel.net/v2/skyblock/bazaar) every 60 seconds and computes realistic order-flip economics for every Attribute Shard.
+- Fetches the [Hypixel Bazaar endpoint](https://api.hypixel.net/v2/skyblock/bazaar) every 60 seconds and computes realistic order-flip economics for the full 189-shard SkyShards catalog, leaving price fields blank for catalog shards that Hypixel does not expose as live Bazaar products.
 - Detects the best **fusion** craft-and-flip recipes.
 - Link your account (username + API key) to unlock accessory & attribute planning:
   - **Accessory Path** combines missing accessories, family upgrades, and recombobulates into one ranked checklist with `/bz` & `/ahs` copy commands and live prices.
@@ -53,7 +53,7 @@ shard-market/
 ├── attributes.js           ← Attribute catalog + shards-to-max calculation
 ├── CHANGELOG.md            ← Release notes and contributor credits
 ├── data/
-│   ├── fusion-properties.json   ← Per-shard metadata (179 shards, from SkyShards)
+│   ├── fusion-properties.json   ← Per-shard metadata (189 shards, from SkyShards)
 │   ├── fusion-data.json         ← Full fusion recipe graph (~2 MB, from SkyShards)
 │   └── attribute-desc.json      ← Attribute id → rarity/title/effect (from SkyShards)
 └── README.md
@@ -93,11 +93,13 @@ and Shady Ring → Seal of the Family are treated as one upgrade path instead of
 missing accessories.
 
 ### Attributes
-How many **Attribute Shards** you still need to take each usable attribute to level 10.
-The report includes attributes you have never syphoned as **missing** (`0/max`), filters out
-attributes above your profile's Hunting level, then shows current/max progress, the exact
-shard count remaining, and the live bazaar cost to finish — with a `/bz` command for
-the source shard. Totals across all usable attributes are shown up top.
+How many **Attribute Shards** you still need to take each attribute to level 10.
+The report includes the full 189-entry SkyShards catalog, marks attributes you have never
+syphoned as **missing** (`0/max`), and labels attributes above your profile's Hunting level
+as **locked** instead of hiding them. Each card shows current/max progress, the exact shard
+count remaining, and the live bazaar cost to finish when Hypixel exposes that shard as a
+Bazaar product — with a `/bz` command for the source shard. Totals across all attributes are
+shown up top.
 
 The Accessory Path page shows a live **Magical Power progress bar**.
 

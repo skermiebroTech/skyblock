@@ -2005,6 +2005,16 @@ input[type="number"]:focus,
   border-radius: 999px;
   padding: 1px 8px;
 }
+.attr-locked-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #ff9aa8;
+  background: rgba(255, 90, 120, 0.12);
+  border: 1px solid rgba(255, 90, 120, 0.34);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
 .attr-maxed-badge {
   font-size: 10.5px;
   font-weight: 700;
