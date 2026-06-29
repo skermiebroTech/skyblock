@@ -140,6 +140,8 @@ const state = {
     equippedArmor: null,
     equippedEquipment: null,
     hotbar: null,
+    inventory: null,
+    storage: null,
     gardenData: null,
     gardenLoading: false,
     gardenError: null,
@@ -744,6 +746,8 @@ function selectProfile(profileId) {
   state.player.equippedArmor = null;
   state.player.equippedEquipment = null;
   state.player.hotbar = null;
+  state.player.inventory = null;
+  state.player.storage = null;
   state.player.gardenData = null;
   state.player.gardenError = null;
   state.player.gardenLoading = false;
@@ -802,12 +806,14 @@ async function loadGardenData(profileId) {
   }
 }
 
-/* Decode armor, equipment, and hotbar for the Profile Viewer. */
+/* Decode armor, equipment, inventory, and storage for the Profile Viewer. */
 async function loadProfileInventory(rawProfile) {
   state.player.profileInventoryLoading = true;
   state.player.equippedArmor = null;
   state.player.equippedEquipment = null;
   state.player.hotbar = null;
+  state.player.inventory = null;
+  state.player.storage = null;
   state.player.inventoryError = null;
 
   try {
@@ -830,11 +836,33 @@ async function loadProfileInventory(rawProfile) {
       state.player.equippedEquipment = await decodeInventory(member.inventory.equipment_contents.data);
     }
 
-    // Decode hotbar (first 9 slots of inv_contents)
+    // Decode full inventory. Slots 0-8 are the hotbar, 9-35 are the main inventory.
     if (member.inventory.inv_contents?.data) {
       const inv = await decodeInventory(member.inventory.inv_contents.data);
+      state.player.inventory = inv;
       state.player.hotbar = inv.filter((it) => it.slotIndex < 9);
     }
+
+    const backpackEntries = Object.entries(member.inventory.backpack_contents || {});
+    const backpacks = [];
+    for (const [key, slice] of backpackEntries) {
+      if (!slice?.data) continue;
+      backpacks.push({
+        id: key,
+        label: `Backpack ${backpacks.length + 1}`,
+        items: await decodeInventory(slice.data),
+      });
+    }
+
+    state.player.storage = {
+      enderChest: member.inventory.ender_chest_contents?.data
+        ? await decodeInventory(member.inventory.ender_chest_contents.data)
+        : [],
+      personalVault: member.inventory.personal_vault_contents?.data
+        ? await decodeInventory(member.inventory.personal_vault_contents.data)
+        : [],
+      backpacks,
+    };
   } catch (e) {
     console.error("[Hypixie] profile inventory decode failed:", e);
     state.player.inventoryError = "Failed to decode inventory NBT data.";
@@ -894,6 +922,7 @@ function clearPlayer() {
     attributeStacks: null, attributeAnalysis: null, sweepAnalysis: null,
     craftedMinions: null, mutationAnalysis: null,
     equippedArmor: null, equippedEquipment: null, hotbar: null,
+    inventory: null, storage: null,
     gardenData: null, gardenLoading: false, gardenError: null,
     profileInventoryLoading: false, inventoryError: null,
     loading: false, error: null,
@@ -5641,6 +5670,20 @@ function getPetIconId(type) {
   return normalized ? `PET_${normalized}` : "BONE";
 }
 
+function getPetItemId(type, tier) {
+  const normalized = String(type || "").toUpperCase();
+  if (!normalized) return "BONE";
+  const tierIndex = { COMMON: 0, UNCOMMON: 1, RARE: 2, EPIC: 3, LEGENDARY: 4, MYTHIC: 5 };
+  const idx = tierIndex[String(tier || "").toUpperCase()];
+  return `${normalized};${idx ?? 4}`;
+}
+
+function fallbackToPetIconOnError(type, tier) {
+  const fallbackId = getPetIconId(type);
+  const finalFallback = PLACEHOLDER_ICON.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  return `if(!this.dataset.petFallback){this.dataset.petFallback='1';this.src='${skyCryptItemIconUrl(fallbackId)}';}else{this.onerror=null;this.src='${finalFallback}';}`;
+}
+
 /* =========================================================================
  * MINECRAFT COLOR & STYLE HELPERS (SKYCRYPT LOOKS)
  * ======================================================================= */
@@ -5772,6 +5815,121 @@ function renderHotbarSlotHTML(item, index) {
         <div class="tooltip-lore">${loreHTML}</div>
       </div>
     </div>`;
+}
+
+function renderInventorySlotHTML(item, index) {
+  if (!item) {
+    return `<div class="profile-inventory-slot empty" title="Slot ${index + 1}"></div>`;
+  }
+
+  const itemName = item.rawTag?.display?.Name || item.skyblockId || "Unknown Item";
+  const loreLines = item.rawTag?.display?.Lore || [];
+  const loreHTML = loreLines.map(line => `<div>${minecraftToHtml(line)}</div>`).join("");
+
+  return `
+    <div class="profile-inventory-slot tooltip-container">
+      <div class="profile-hotbar-icon">
+        <img src="${getUniversalItemIconUrl(item.skyblockId)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToSkyCryptItemOnError(item.skyblockId)}">
+      </div>
+      ${item.count > 1 ? `<span class="profile-hotbar-count">${item.count}</span>` : ""}
+      <div class="tooltip-content">
+        <div class="tooltip-name" style="color: ${getRarityColor(item.rawTag?.ExtraAttributes?.rarity || 'COMMON')}">
+          ${minecraftToHtml(itemName)}
+        </div>
+        <div class="tooltip-lore">${loreHTML}</div>
+      </div>
+    </div>`;
+}
+
+function renderItemGrid(items, size = 36) {
+  const slots = [];
+  for (let i = 0; i < size; i++) {
+    slots.push((items || []).find(it => it.slotIndex === i) || null);
+  }
+  return slots.map((it, idx) => renderInventorySlotHTML(it, idx)).join("");
+}
+
+function renderProfileStorageSection(title, icon, items, emptyLabel, size = 54) {
+  const hasItems = Array.isArray(items) && items.length > 0;
+  return `
+    <section class="profile-storage-section">
+      <h4>${mcIconHTML(icon, "inline-mc-icon", title)} ${escapeHtml(title)}</h4>
+      ${hasItems
+        ? `<div class="profile-inventory-grid profile-storage-grid">${renderItemGrid(items, size)}</div>`
+        : `<div class="profile-storage-empty">${escapeHtml(emptyLabel)}</div>`}
+    </section>`;
+}
+
+function bindProfilePinnedTooltips(pane) {
+  const closePinned = () => {
+    pane.querySelectorAll(".tooltip-pinned").forEach((el) => {
+      const tooltip = el.querySelector(".tooltip-content");
+      el.classList.remove("tooltip-pinned");
+      if (tooltip) {
+        tooltip.style.left = "";
+        tooltip.style.top = "";
+      }
+    });
+  };
+
+  const positionTooltip = (container) => {
+    const tooltip = container.querySelector(".tooltip-content");
+    if (!tooltip) return;
+
+    tooltip.style.left = "0px";
+    tooltip.style.top = "0px";
+    const triggerRect = container.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const gap = 10;
+    const margin = 8;
+
+    let left = triggerRect.right + gap;
+    if (left + tooltipRect.width > window.innerWidth - margin) {
+      left = triggerRect.left - tooltipRect.width - gap;
+    }
+    if (left < margin) {
+      left = Math.min(window.innerWidth - tooltipRect.width - margin, Math.max(margin, triggerRect.left));
+    }
+
+    let top = triggerRect.top + (triggerRect.height / 2) - (tooltipRect.height / 2);
+    top = Math.min(window.innerHeight - tooltipRect.height - margin, Math.max(margin, top));
+
+    tooltip.style.left = `${Math.max(margin, left)}px`;
+    tooltip.style.top = `${Math.max(margin, top)}px`;
+  };
+
+  pane.querySelectorAll(".tooltip-container").forEach((container) => {
+    if (!container.querySelector(".tooltip-content")) return;
+    container.addEventListener("click", (event) => {
+      if (event.target.closest(".tooltip-content")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const wasPinned = container.classList.contains("tooltip-pinned");
+      closePinned();
+      if (!wasPinned) {
+        container.classList.add("tooltip-pinned");
+        positionTooltip(container);
+      }
+    });
+  });
+
+  if (!bindProfilePinnedTooltips.bound) {
+    bindProfilePinnedTooltips.bound = true;
+    document.addEventListener("click", (event) => {
+      const profilePane = $("#view-profile");
+      if (!profilePane || profilePane.hidden || profilePane.contains(event.target)) return;
+      profilePane.querySelectorAll(".tooltip-pinned").forEach((el) => el.classList.remove("tooltip-pinned"));
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      $("#view-profile")?.querySelectorAll(".tooltip-pinned").forEach((el) => el.classList.remove("tooltip-pinned"));
+    });
+    window.addEventListener("resize", () => {
+      const pinned = $("#view-profile")?.querySelector(".tooltip-pinned");
+      if (pinned) bindProfilePinnedTooltips.positionPinned?.(pinned);
+    });
+  }
+  bindProfilePinnedTooltips.positionPinned = positionTooltip;
 }
 
 function renderProfileView() {
@@ -5958,7 +6116,7 @@ function renderProfileView() {
       <div class="profile-pets-container">
         ${sortedPets.map(pet => {
           const petLvl = getPetLevel(pet.exp, pet.tier);
-          const petIconId = getPetIconId(pet.type);
+          const petIconId = getPetItemId(pet.type, pet.tier);
           const rarityClass = `pet-rarity-${pet.tier?.toLowerCase() || "common"}`;
           const cleanName = pet.type?.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) || "Pet";
           
@@ -5966,7 +6124,7 @@ function renderProfileView() {
             <div class="profile-pet-card ${rarityClass}" title="${pet.tier || "COMMON"} ${cleanName} - Exp: ${formatNum(pet.exp || 0)}">
               ${pet.active ? `<span class="profile-pet-active-badge"></span>` : ""}
               <div class="profile-pet-icon">
-                <img src="${getUniversalItemIconUrl(petIconId)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToSkyCryptItemOnError(petIconId)}">
+                <img src="${skyCryptItemIconUrl(petIconId)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToPetIconOnError(pet.type, pet.tier)}">
               </div>
               <div class="profile-pet-level">Lvl ${petLvl}</div>
               <div class="profile-pet-name">${cleanName}</div>
@@ -5993,6 +6151,7 @@ function renderProfileView() {
     const armor = p.equippedArmor || [];
     const equip = p.equippedEquipment || [];
     const hotbar = p.hotbar || [];
+    const inventory = p.inventory || hotbar || [];
 
     const helmet = armor.find(it => it.slotIndex === 3);
     const chestplate = armor.find(it => it.slotIndex === 2);
@@ -6041,7 +6200,35 @@ function renderProfileView() {
           ${hotbarSlots.map((it, idx) => renderHotbarSlotHTML(it, idx)).join("")}
         </div>
       </div>
+
+      <div style="margin-top: 24px;">
+        <h4 style="font-family: var(--font-display); font-size: 14px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 8px; border-left: 3px solid var(--ember); padding-left: 8px;">${mcIconHTML("CHEST", "inline-mc-icon", "Inventory")} Inventory</h4>
+        <div class="profile-inventory-grid">
+          ${renderItemGrid(inventory, 36)}
+        </div>
+      </div>
     `;
+  }
+
+  let storageContentHTML = "";
+  if (p.profileInventoryLoading) {
+    storageContentHTML = `<div style="padding: 40px; text-align: center;"><span class="spinner"></span> Decoding storage NBT...</div>`;
+  } else if (p.inventoryError) {
+    storageContentHTML = `
+      <div style="padding: 24px; text-align: center; color: var(--text-muted); background: rgba(0,0,0,0.2); border: 1px dashed rgba(255,255,255,0.06); border-radius: 8px;">
+        <div style="margin-bottom: 12px; display: grid; place-items: center;">${gateIconHTML("BARRIER", "Storage locked")}</div>
+        <h4 style="color: #fff; font-family: var(--font-display); font-size: 15px;">${p.inventoryError}</h4>
+      </div>`;
+  } else {
+    const storage = p.storage || { enderChest: [], personalVault: [], backpacks: [] };
+    storageContentHTML = `
+      <div class="profile-storage-container">
+        ${renderProfileStorageSection("Ender Chest", "ENDER_CHEST", storage.enderChest, "No ender chest items found.", 54)}
+        ${renderProfileStorageSection("Personal Vault / Bank", "CHEST", storage.personalVault, "No personal vault items found.", 54)}
+        ${(storage.backpacks || []).length
+          ? storage.backpacks.map((bag) => renderProfileStorageSection(bag.label, "BACKPACK", bag.items, "This backpack is empty.", 54)).join("")
+          : `<section class="profile-storage-section"><h4>${mcIconHTML("BACKPACK", "inline-mc-icon", "Backpacks")} Backpacks</h4><div class="profile-storage-empty">No backpacks found.</div></section>`}
+      </div>`;
   }
 
   // 6. Accessories tab content
@@ -6122,6 +6309,7 @@ function renderProfileView() {
     { id: "slayers", label: "Slayers", icon: "DIAMOND_SWORD" },
     { id: "dungeons", label: "Dungeons", icon: "WITHER_SKELETON_SKULL" },
     { id: "pets", label: "Pets", icon: "BONE" },
+    { id: "storage", label: "Storage", icon: "ENDER_CHEST" },
     { id: "accessories", label: "Accessories", icon: "DAY_CRYSTAL" }
   ];
 
@@ -6200,6 +6388,15 @@ function renderProfileView() {
         ${petsHTML}
       </section>
     `;
+  } else if (state.profileSubTab === "storage") {
+    activeTabHTML = `
+      <section class="profile-section-card" aria-label="Storage" style="animation: fadeIn 0.2s ease-out;">
+        <h3 class="profile-section-title">
+          ${mcIconHTML("ENDER_CHEST", "inline-mc-icon", "Storage")} Storage
+        </h3>
+        ${storageContentHTML}
+      </section>
+    `;
   } else if (state.profileSubTab === "accessories") {
     activeTabHTML = `
       <section class="profile-section-card" aria-label="Accessories collection" style="animation: fadeIn 0.2s ease-out;">
@@ -6270,6 +6467,7 @@ function renderProfileView() {
       renderActiveView();
     });
   });
+  bindProfilePinnedTooltips(pane);
 }
 
 /* =========================================================================
