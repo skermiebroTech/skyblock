@@ -854,12 +854,13 @@ async function loadProfileInventory(rawProfile) {
       });
     }
 
+    const personalVaultSlice = member.inventory.personal_vault_contents || member.inventory.personal_vault;
     state.player.storage = {
       enderChest: member.inventory.ender_chest_contents?.data
         ? await decodeInventory(member.inventory.ender_chest_contents.data)
         : [],
-      personalVault: member.inventory.personal_vault_contents?.data
-        ? await decodeInventory(member.inventory.personal_vault_contents.data)
+      personalVault: personalVaultSlice?.data
+        ? await decodeInventory(personalVaultSlice.data)
         : [],
       backpacks,
     };
@@ -1337,9 +1338,9 @@ function fusionRecipeInlineHTML(r) {
 /* Inline SVG placeholder shown when a texture URL fails to load. */
 const PLACEHOLDER_ICON =
   "data:image/svg+xml;utf8," + encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
-       <path d='M16 3 L28 14 L20 30 L12 30 L4 14 Z'
-             fill='#1a2033' stroke='#3a4670' stroke-width='1.5'/>
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+       <path d="M16 3 L28 14 L20 30 L12 30 L4 14 Z"
+             fill="#1a2033" stroke="#3a4670" stroke-width="1.5"/>
      </svg>`
   );
 
@@ -1602,7 +1603,7 @@ function renderBestFusionsPanel() {
     <article class="fusion-card" style="--rarity-color:${RARITY_COLORS[r.rarity]}">
       <div class="fusion-card-head">
         <img class="fusion-icon" src="${iconUrl(r.id)}" alt="" loading="lazy"
-             onerror="this.src='${PLACEHOLDER_ICON}'"/>
+             onerror="${fallbackToSkyCryptItemOnError(r.id)}"/>
         <div class="fusion-card-titles">
           <div class="fusion-card-name">
             ${escapeHtml(r.name)}
@@ -1629,7 +1630,7 @@ function renderBestFusionsPanel() {
         ${r.bestFusion.inputs.map((inp) => `
           <div class="fusion-input">
             <img class="fusion-input-icon" src="${iconUrl(inp.bazaarId)}" alt="" loading="lazy"
-                 onerror="this.src='${PLACEHOLDER_ICON}'"/>
+                 onerror="${fallbackToSkyCryptItemOnError(inp.bazaarId)}"/>
             <div class="fusion-input-meta">
               <div class="fusion-input-name">${inp.qty || 1}× ${escapeHtml(inp.name)}</div>
               <div class="fusion-input-price">${fmtCoins(inp.price)}/ea · ${fmtCoins(inp.total ?? inp.price)}</div>
@@ -2440,7 +2441,7 @@ function renderAttributeRow(r) {
     return `
       <article class="attr-card attr-card--maxed" style="--tier-color:${color}">
         <div class="attr-card-head" style="display: flex; align-items: center; gap: 8px;">
-          <img src="${iconUrl(shardBazaarId)}" alt="" style="width: 18px; height: 18px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0;" onerror="this.style.display='none';">
+          <img src="${iconUrl(shardBazaarId)}" alt="" style="width: 18px; height: 18px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0;" onerror="${fallbackToSkyCryptItemOrHideOnError(shardBazaarId)}">
           <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
           <span class="attr-skill-badge">${escapeHtml(skillText)}</span>
           <span class="attr-maxed-badge">MAX</span>
@@ -2701,6 +2702,53 @@ function sweepToolbarHTML() {
     </div>`;
 }
 
+/* Sweep sources use slug ids (e.g. "fig-tree-gifts") that aren't real SkyBlock
+ * item ids, so sky.shiiyu's item API returns its red "missing item" tile for
+ * them. Map each source to a representative item/shard icon that actually
+ * resolves; fall back to a cost item, then a foraging-themed default. */
+const SWEEP_ICON_BY_ID = {
+  "fig-tree-gifts": "FIG_LOG",
+  "mangrove-tree-gifts": "MANGROVE_LOG",
+  "agathas-power": "AGATHA_COUPON",
+  "fig-personal-best": "FIG_LOG",
+  "mangrove-personal-best": "MANGROVE_LOG",
+  "jade-dragon-pet": "BONE",
+  "monkey-pet": "BONE",
+  "canopy-armor": "CANOPY_HELMET",
+  "fig-armor": "FIG_HELMET",
+  "spruce-axe": "JUNGLE_AXE",
+  "seriously-damaged-axe": "SERIOUSLY_DAMAGED_AXE",
+  "fig-hew": "FIG_AXE",
+  "decent-axe": "DECENT_AXE",
+  "figstone-splitter": "FIG_AXE",
+  "treecapitator": "JUNGLE_AXE",
+  "davids-cloak": "DAVIDS_CLOAK",
+  "mangrove-grippers": "MANGROVE_GRIPPERS",
+  "mangrove-locket": "MANGROVE_LOCKET",
+  "mangrove-vine": "MANGROVE_VINE",
+  "first-impression-v": "ENCHANTED_BOOK",
+  "crow-attribute": "SHARD_CROW",
+  "heron-attribute": "SHARD_HERON",
+  "phanpyre-attribute": "SHARD_PHANPYRE",
+  "bambuleaf-attribute": "SHARD_BAMBULEAF",
+  "mochibear-attribute": "SHARD_MOCHIBEAR",
+  "tadgang-attribute": "SHARD_TADGANG",
+  "sweep-booster-axe": "SWEEP_BOOSTER",
+  "sweep-booster-armor": "SWEEP_BOOSTER",
+  "sweep-booster-equipment": "SWEEP_BOOSTER",
+  "hotf-sweep": "JUNGLE_SAPLING",
+  "hotf-center": "JUNGLE_SAPLING",
+  "hotf-foraging-madness": "JUNGLE_SAPLING",
+  "hotf-early-bird": "JUNGLE_SAPLING",
+  "hotf-precision-cutting": "JUNGLE_SAPLING",
+  "hotf-half-full-empty": "JUNGLE_SAPLING",
+  "hotf-maniac-slicer": "JUNGLE_SAPLING",
+};
+
+function sweepIconId(row) {
+  return row.icon || SWEEP_ICON_BY_ID[row.id] || row.costs?.[0]?.id || "JUNGLE_AXE";
+}
+
 function renderSweepCard(row, index) {
   const priced = Number.isFinite(row.totalCost);
   const completed = row.completion?.completed === true;
@@ -2723,7 +2771,7 @@ function renderSweepCard(row, index) {
         <div class="sweep-card-head">
           <div style="display: flex; align-items: center; gap: 12px;">
             <div class="sweep-card-icon-wrapper" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-line); border-radius: var(--r-md); padding: 4px; flex-shrink: 0;">
-              <img src="${getUniversalItemIconUrl(row.id)}" alt="" class="sweep-card-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="${fallbackToSkyCryptItemOnError(row.id)}">
+              <img src="${getUniversalItemIconUrl(sweepIconId(row))}" alt="" class="sweep-card-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="${fallbackToSkyCryptItemOnError(sweepIconId(row))}">
             </div>
             <div>
               <h3>${escapeHtml(row.name)}</h3>
@@ -2884,7 +2932,7 @@ function renderTable() {
       <td class="cell-rank">${idx + 1}</td>
       <td class="cell-icon">
         <img class="shard-icon" src="${iconUrl(r.id)}" alt="" loading="lazy"
-             onerror="this.src='${PLACEHOLDER_ICON}'"/>
+             onerror="${fallbackToSkyCryptItemOnError(r.id)}"/>
       </td>
       <td class="cell-shard">
         <div class="shard-name">
@@ -3315,7 +3363,7 @@ function renderHomeView() {
 
       <article class="home-card" data-go="garden-chips">
         <div class="home-card-header">
-          <div class="home-card-icon" style="background: rgba(85, 255, 255, 0.1);">${homeIconHTML("GREEN_THUMB_1", "Garden Chips")}</div>
+          <div class="home-card-icon" style="background: rgba(85, 255, 255, 0.1);">${homeIconHTML("HYPERCHARGE_GARDEN_CHIP", "Garden Chips")}</div>
           <span class="home-card-badge">10 Chips</span>
         </div>
         <h3 class="home-card-title">Garden Chips</h3>
@@ -5059,7 +5107,7 @@ function renderGreenhouseTracker(greenhouse, targetSlots, vinesNeeded, vineCost,
       <div class="mutation-greenhouse-grid" aria-label="Greenhouse plant slots">${grid}</div>
       <div class="mutation-greenhouse-details">
         ${mutationUpgradeBarHTML("Growth Speed", upgrades.growthSpeed, 9, "SEEDS")}
-        ${mutationUpgradeBarHTML("Plant Yield", upgrades.yield, 9, "FLOWER_POT_ITEM")}
+        ${mutationUpgradeBarHTML("Plant Yield", upgrades.yield, 9, "FLOWER_POT")}
         ${mutationUpgradeBarHTML("Plot Limit", upgrades.plotLimit, 2, "GRASS")}
         <div class="mutation-greenhouse-note">
           <span><strong>Last growth stage:</strong> ${formatGreenhouseTime(greenhouse?.lastGrowthStageTime)}</span>
@@ -5358,9 +5406,14 @@ function minionsToolbarHTML() {
     </div>`;
 }
 
+/* sky.shiiyu serves a few minion generator icons only under their legacy ids,
+ * so map our normalized minion id back when building the icon URL. */
+const MINION_ICON_ID_OVERRIDES = { END_STONE: "ENDER_STONE", CAVE_SPIDER: "CAVESPIDER" };
+
 function renderMinionCard(item, idx) {
   const { minion, currentTier, nextTier, isMaxed, totalCost, items } = item;
-  const minionItemId = `${minion.id}_GENERATOR_${currentTier || 1}`;
+  const minionIconBase = MINION_ICON_ID_OVERRIDES[minion.id] || minion.id;
+  const minionItemId = `${minionIconBase}_GENERATOR_${currentTier || 1}`;
 
   let selectOpts = `<option value="0" ${currentTier === 0 ? "selected" : ""}>Uncrafted (T0)</option>`;
   for (let t = 1; t <= (minion.maxTier || 11); t++) {
@@ -5665,11 +5718,6 @@ function getPetLevel(xp, rarity) {
   return Math.max(1, Math.min(99, level));
 }
 
-function getPetIconId(type) {
-  const normalized = String(type || "").toUpperCase();
-  return normalized ? `PET_${normalized}` : "BONE";
-}
-
 function getPetItemId(type, tier) {
   const normalized = String(type || "").toUpperCase();
   if (!normalized) return "BONE";
@@ -5678,10 +5726,51 @@ function getPetItemId(type, tier) {
   return `${normalized};${idx ?? 4}`;
 }
 
-function fallbackToPetIconOnError(type, tier) {
-  const fallbackId = getPetIconId(type);
-  const finalFallback = PLACEHOLDER_ICON.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-  return `if(!this.dataset.petFallback){this.dataset.petFallback='1';this.src='${skyCryptItemIconUrl(fallbackId)}';}else{this.onerror=null;this.src='${finalFallback}';}`;
+/* Pet head-texture resolver.
+ * SkyCrypt's /api/item endpoint does not serve pets, so pet icons come from
+ * their Minecraft head texture. The NEU item repo stores that texture as a
+ * base64 SkullOwner blob inside each pet's `nbttag`; we decode it to a texture
+ * hash and render it via sky.shiiyu's head API. Results are cached per
+ * "TYPE;tierIndex" so repeat visits to the Pets tab cost nothing. */
+const PET_TEXTURE_CACHE = {};   // key -> hash string | null (null = resolved, none found)
+const PET_TEXTURE_PENDING = {}; // key -> Promise<string|null>
+
+async function resolvePetTextureHash(type, tier) {
+  const id = getPetItemId(type, tier); // e.g. "ENDERMAN;4"
+  if (Object.prototype.hasOwnProperty.call(PET_TEXTURE_CACHE, id)) return PET_TEXTURE_CACHE[id];
+  if (PET_TEXTURE_PENDING[id]) return PET_TEXTURE_PENDING[id];
+
+  PET_TEXTURE_PENDING[id] = (async () => {
+    try {
+      const url = `https://raw.githubusercontent.com/NotEnoughUpdates/NotEnoughUpdates-REPO/master/items/${encodeURIComponent(id)}.json`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`neu ${res.status}`);
+      const data = await res.json();
+      const b64 = /Value:"([A-Za-z0-9+/=]+)"/.exec(data.nbttag || "")?.[1];
+      const decoded = b64 ? atob(b64) : "";
+      const hash = /texture\/([a-f0-9]+)/i.exec(decoded)?.[1] || null;
+      PET_TEXTURE_CACHE[id] = hash;
+      return hash;
+    } catch {
+      PET_TEXTURE_CACHE[id] = null;
+      return null;
+    } finally {
+      delete PET_TEXTURE_PENDING[id];
+    }
+  })();
+  return PET_TEXTURE_PENDING[id];
+}
+
+/* After the profile pane renders, swap each pet placeholder for its real head. */
+function enhancePetIcons(container) {
+  if (!container) return;
+  container.querySelectorAll("img[data-pet-type]").forEach((img) => {
+    const { petType, petTier } = img.dataset;
+    if (!petType) return;
+    resolvePetTextureHash(petType, petTier).then((hash) => {
+      if (hash && img.isConnected) img.src = `https://sky.shiiyu.moe/api/head/${hash}`;
+    });
+  });
 }
 
 /* =========================================================================
@@ -6116,7 +6205,6 @@ function renderProfileView() {
       <div class="profile-pets-container">
         ${sortedPets.map(pet => {
           const petLvl = getPetLevel(pet.exp, pet.tier);
-          const petIconId = getPetItemId(pet.type, pet.tier);
           const rarityClass = `pet-rarity-${pet.tier?.toLowerCase() || "common"}`;
           const cleanName = pet.type?.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) || "Pet";
           
@@ -6124,7 +6212,7 @@ function renderProfileView() {
             <div class="profile-pet-card ${rarityClass}" title="${pet.tier || "COMMON"} ${cleanName} - Exp: ${formatNum(pet.exp || 0)}">
               ${pet.active ? `<span class="profile-pet-active-badge"></span>` : ""}
               <div class="profile-pet-icon">
-                <img src="${skyCryptItemIconUrl(petIconId)}" alt="" class="profile-gear-icon-img" onerror="${fallbackToPetIconOnError(pet.type, pet.tier)}">
+                <img src="${PLACEHOLDER_ICON}" data-pet-type="${escapeHtml(pet.type || "")}" data-pet-tier="${escapeHtml(pet.tier || "")}" alt="" class="profile-gear-icon-img" onerror="this.onerror=null;this.src='${PLACEHOLDER_ICON}'">
               </div>
               <div class="profile-pet-level">Lvl ${petLvl}</div>
               <div class="profile-pet-name">${cleanName}</div>
@@ -6468,6 +6556,7 @@ function renderProfileView() {
     });
   });
   bindProfilePinnedTooltips(pane);
+  enhancePetIcons(pane);
 }
 
 /* =========================================================================
