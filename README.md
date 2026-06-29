@@ -30,7 +30,7 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
 - **P2W Calculator** has a Booster Cookies tab plus a Fire Sales tab. Fire Sales are fetched from Hypixel's `/v2/skyblock/firesales` API for current/upcoming cosmetics, then priced from the live Auction House lowest-BIN scan to estimate coins per USD.
 - Every item links to the **Hypixel Wiki**; **soulbound** items are flagged (can't be bought on the AH).
 - Player panel shows coin purse, bank, SkyBlock level, Hunting/Combat levels, slayer XP, and fairy souls.
-- Stores responses in `localStorage` with short TTLs so quick reloads don't hammer the API.
+- Caches in two layers so the Hypixel API is never hammered: a shared Cloudflare Worker **edge cache** for public data (Bazaar / Auctions / Fire Sales), plus per-browser `localStorage` with short TTLs for instant reloads.
 
 ---
 
@@ -190,7 +190,8 @@ Current fusion gates use the shard rarity ladder: Common 0, Uncommon 10, Rare 20
 > NBT. No third-party SkyBlock API (SkyCrypt, Coflnet, etc.) allows browser CORS, so
 > the site decodes the NBT itself client-side using the native `DecompressionStream`
 > API and a tiny hand-written NBT parser (`nbt.js`). Nothing leaves your browser except
-> the calls to `api.hypixel.net` and the Mojang username proxy.
+> the calls to the Hypixel API (via the project's Cloudflare Worker proxy, which only
+> injects the API key and caches public data) and the Mojang username proxy.
 
 ---
 
@@ -382,11 +383,18 @@ In `script.js`, edit `CONFIG.CACHE_TTL_BAZAAR_MS`. The Hypixel Bazaar publishes 
 
 ---
 
-## API rate limits & etiquette
+## Caching & API etiquette
+
+Hypixie caches in **two layers** so the same data is never fetched more than it needs to be:
+
+1. **Edge cache (shared across all visitors).** Every request goes through a Cloudflare Worker (`cloudflare-worker.js`) that injects the API key server-side and caches public, identical-for-everyone responses at the edge with the Cache API: `/skyblock/bazaar` 60 s, `/skyblock/auctions` 120 s per page, `/skyblock/firesales` 60 s. The cache key is the upstream URL only, so concurrent visitors share one cached copy — the ~49-page Auction House scan reaches Hypixel at most **once per 120 s globally, not once per user**. Responses carry an `X-Edge-Cache: HIT|MISS` header. Account-specific endpoints (`/skyblock/profiles`, `/skyblock/garden`) are **never** edge-cached.
+2. **Browser cache (per visitor).** Responses are also stored in `localStorage` with short TTLs (Bazaar 60 s, lowest-BIN scan 5 min, profiles 5 min, static item resources 24 h) so quick reloads and tab-switches skip the network entirely. Tune these via `CONFIG.CACHE_TTL_*` in `script.js`.
+
+Etiquette:
 
 - The Bazaar endpoint is **unauthenticated** and globally throttled. Spamming `/refresh` is rude — the cache exists precisely so you don't have to.
 - Authenticated endpoints (player data, profile data, etc.) are rate-limited per API key: typically **120 requests per minute**. The Bazaar endpoint doesn't count against your key.
-- If you ever start hitting `429 Too Many Requests`, raise `CACHE_TTL_MS` and back off for a minute.
+- If you ever start hitting `429 Too Many Requests`, the Worker simply falls through and retries live (errors are never cached); raise the client TTLs and back off for a minute.
 
 ---
 

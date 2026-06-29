@@ -3541,6 +3541,68 @@ function renderCalendarView() {
           <p class="cal-foot">Dark Auction &amp; Jacob's Contest recur every 3 SkyBlock days; exact in-game timing (and contest crops) may shift slightly.</p>
         </section>
       </div>
+
+      <section class="cal-convert-card">
+        <h3 class="cal-events-title">Date → Discord Timestamp</h3>
+        <p class="cal-convert-intro">Pick a SkyBlock date to find the real-world moment it happens, in your local time zone, plus a copy-paste Discord timestamp that renders in everyone's own time zone.</p>
+
+        <div class="cal-convert-form">
+          <div class="cal-field">
+            <label for="conv-year">Year</label>
+            <input type="number" id="conv-year" min="1" inputmode="numeric" />
+          </div>
+          <div class="cal-field cal-field--wide">
+            <label for="conv-month">Month</label>
+            <select id="conv-month" class="select-native">
+              ${SB_MONTHS.map((m, i) => `<option value="${i}">${m}</option>`).join("")}
+            </select>
+          </div>
+          <div class="cal-field">
+            <label for="conv-day">Day</label>
+            <input type="number" id="conv-day" min="1" max="31" inputmode="numeric" />
+          </div>
+          <div class="cal-field">
+            <label for="conv-time">In-game time</label>
+            <input type="time" id="conv-time" value="00:00" />
+          </div>
+          <button class="btn-ghost btn-small cal-now-btn" id="conv-now" type="button">Use current time</button>
+        </div>
+
+        <div class="cal-convert-out">
+          <div class="cal-out-row">
+            <span class="cal-out-label">Your local time</span>
+            <span class="cal-out-value" id="conv-local">—</span>
+          </div>
+          <div class="cal-out-row">
+            <span class="cal-out-label" id="conv-tz-label">UTC</span>
+            <span class="cal-out-value" id="conv-utc">—</span>
+          </div>
+          <div class="cal-out-row">
+            <span class="cal-out-label">Relative</span>
+            <span class="cal-out-value" id="conv-relative">—</span>
+          </div>
+
+          <div class="cal-discord">
+            <div class="cal-discord-head">
+              <label for="conv-format">Discord style</label>
+              <select id="conv-format" class="select-native">
+                <option value="F">F — Sat, June 29, 2026 9:01 PM</option>
+                <option value="f">f — June 29, 2026 9:01 PM</option>
+                <option value="R">R — in 3 days (relative)</option>
+                <option value="D">D — June 29, 2026</option>
+                <option value="d">d — 06/29/2026</option>
+                <option value="T">T — 9:01:00 PM</option>
+                <option value="t">t — 9:01 PM</option>
+              </select>
+            </div>
+            <div class="cal-code-wrap">
+              <code class="cal-discord-code" id="conv-discord-code">—</code>
+              <button class="btn-secondary btn-small btn-copy cal-copy-btn" id="conv-copy" data-copy="" type="button">Copy</button>
+            </div>
+            <p class="cal-discord-preview">Renders in Discord as <span id="conv-preview" class="cal-discord-pill">—</span></p>
+          </div>
+        </div>
+      </section>
     </div>
   `;
 
@@ -3558,10 +3620,123 @@ function renderCalendarView() {
     });
   }
 
+  setupCalendarConverter(pane);
+
   calState.eventOrder = null; // force a fresh list build for the new DOM
   renderCalendarGrid();
   updateCalendarLive();
   startCalendarTicker();
+}
+
+/* ---- SkyBlock date → real time → Discord timestamp converter ---- */
+
+/* Reverse of skyblockNow(): a SkyBlock date back to a real timestamp (ms). */
+function skyblockToRealMs({ year, month, day, hour = 0, min = 0 }) {
+  return SB_EPOCH_MS
+    + (year - 1) * SB_YEAR_MS
+    + month * SB_MONTH_MS
+    + (day - 1) * SB_DAY_MS
+    + ((hour * 60 + min) / 1440) * SB_DAY_MS;
+}
+
+/* How Discord renders <t:…:style> in the viewer's own locale/time zone. */
+function discordPreview(realMs, style) {
+  const d = new Date(realMs);
+  switch (style) {
+    case "t": return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    case "T": return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+    case "d": return d.toLocaleDateString([], { year: "numeric", month: "2-digit", day: "2-digit" });
+    case "D": return d.toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" });
+    case "f": return d.toLocaleString([], { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+    case "R": return formatRelativeTime(realMs - Date.now());
+    case "F":
+    default:  return d.toLocaleString([], { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+}
+
+function formatRelativeTime(deltaMs) {
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  const units = [
+    ["year", 31536000000], ["month", 2592000000], ["day", 86400000],
+    ["hour", 3600000], ["minute", 60000], ["second", 1000],
+  ];
+  for (const [unit, span] of units) {
+    if (Math.abs(deltaMs) >= span || unit === "second") {
+      return rtf.format(Math.round(deltaMs / span), unit);
+    }
+  }
+  return "now";
+}
+
+function setupCalendarConverter(pane) {
+  const now = skyblockNow();
+  const yEl = pane.querySelector("#conv-year");
+  const mEl = pane.querySelector("#conv-month");
+  const dEl = pane.querySelector("#conv-day");
+  const tEl = pane.querySelector("#conv-time");
+  if (!yEl) return;
+
+  // Default the form to the current SkyBlock moment.
+  yEl.value = now.year;
+  mEl.value = String(now.month);
+  dEl.value = now.day + 1;
+  tEl.value = `${String(now.hour).padStart(2, "0")}:${String(now.min).padStart(2, "0")}`;
+
+  // Show the viewer's time-zone name on the second output row.
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const tzLabel = pane.querySelector("#conv-tz-label");
+    if (tz && tzLabel) tzLabel.textContent = `UTC · ${tz}`;
+  } catch { /* ignore */ }
+
+  ["#conv-year", "#conv-month", "#conv-day", "#conv-time", "#conv-format"].forEach((sel) => {
+    pane.querySelector(sel).addEventListener("input", updateConverterOutput);
+  });
+  pane.querySelector("#conv-now").addEventListener("click", () => {
+    const n = skyblockNow();
+    yEl.value = n.year;
+    mEl.value = String(n.month);
+    dEl.value = n.day + 1;
+    tEl.value = `${String(n.hour).padStart(2, "0")}:${String(n.min).padStart(2, "0")}`;
+    updateConverterOutput();
+  });
+
+  bindCopyButtons(pane);
+  updateConverterOutput();
+}
+
+/* Reads the converter inputs and refreshes all outputs. Text-only updates,
+ * safe to call from the per-second ticker so the relative time stays live. */
+function updateConverterOutput() {
+  const yEl = $("#conv-year");
+  if (!yEl) return;
+  const year  = Math.max(1, Math.floor(Number(yEl.value) || 1));
+  const month = Math.min(11, Math.max(0, Math.floor(Number($("#conv-month").value) || 0)));
+  const day   = Math.min(31, Math.max(1, Math.floor(Number($("#conv-day").value) || 1)));
+  const [hh, mm] = ($("#conv-time").value || "00:00").split(":").map((n) => Number(n) || 0);
+  const style = $("#conv-format").value || "F";
+
+  const realMs = skyblockToRealMs({ year, month, day, hour: hh, min: mm });
+  const unix = Math.floor(realMs / 1000);
+  const d = new Date(realMs);
+
+  const localEl = $("#conv-local");
+  if (localEl) localEl.textContent = d.toLocaleString([], {
+    weekday: "short", year: "numeric", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit",
+  });
+  const utcEl = $("#conv-utc");
+  if (utcEl) utcEl.textContent = d.toLocaleString([], { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" });
+  const relEl = $("#conv-relative");
+  if (relEl) relEl.textContent = formatRelativeTime(realMs - Date.now());
+
+  const code = `<t:${unix}:${style}>`;
+  const codeEl = $("#conv-discord-code");
+  if (codeEl) codeEl.textContent = code;
+  const copyBtn = $("#conv-copy");
+  if (copyBtn) copyBtn.dataset.copy = code;
+  const previewEl = $("#conv-preview");
+  if (previewEl) previewEl.textContent = discordPreview(realMs, style);
 }
 
 function renderCalendarGrid() {
@@ -3620,6 +3795,7 @@ function updateCalendarLive() {
   if (calState.offset === 0 && dayKey !== calState.lastDayKey) renderCalendarGrid();
 
   updateCalendarEvents(now.realMs);
+  updateConverterOutput();
 }
 
 /* Events sorted for display: active first, then by soonest start. */

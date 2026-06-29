@@ -4427,3 +4427,166 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   .cal-event-count { grid-column: 2; text-align: left; align-items: flex-start; }
   .cal-event-icon { width: 32px; height: 32px; }
 }
+
+
+/* --- Calendar: SkyBlock date → Discord timestamp converter --- */
+.cal-convert-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-lg);
+  padding: 18px;
+}
+.cal-convert-intro {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 0 0 16px;
+  max-width: 70ch;
+}
+.cal-convert-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.cal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.cal-field label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.cal-field input,
+.cal-field select {
+  height: 40px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--surface-line);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  padding: 0 10px;
+}
+.cal-field input[type="number"] { width: 84px; }
+.cal-field input[type="time"] { width: 130px; }
+.cal-field--wide select { min-width: 150px; }
+.cal-field input:focus,
+.cal-field select:focus {
+  outline: none;
+  border-color: var(--ember);
+  box-shadow: 0 0 0 2px var(--ember-glow);
+}
+.cal-now-btn { height: 40px; }
+
+.cal-convert-out {
+  background: var(--bg-elevated);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.cal-out-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.cal-out-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.cal-out-value {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  color: var(--text);
+  text-align: right;
+}
+.cal-discord {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--surface-line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cal-discord-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cal-discord-head label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.cal-discord-head select {
+  height: 36px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--surface-line);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 0 8px;
+  flex: 1;
+  min-width: 0;
+}
+.cal-code-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.cal-discord-code {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--ember-light);
+  background: var(--bg);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--r-sm);
+  padding: 9px 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+.cal-copy-btn { white-space: nowrap; }
+.cal-discord-preview {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+.cal-discord-pill {
+  display: inline-block;
+  font-weight: 600;
+  color: #dbdee1;
+  background: #4e5058;
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .cal-convert-form { gap: 10px; }
+  .cal-field input[type="number"] { width: 100%; }
+  .cal-field, .cal-field--wide { flex: 1 1 100%; }
+  .cal-field input[type="time"] { width: 100%; }
+  .cal-now-btn { flex: 1 1 100%; }
+  .cal-out-value { font-size: 0.82rem; }
+}
