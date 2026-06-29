@@ -3558,6 +3558,7 @@ function renderCalendarView() {
     });
   }
 
+  calState.eventOrder = null; // force a fresh list build for the new DOM
   renderCalendarGrid();
   updateCalendarLive();
   startCalendarTicker();
@@ -3618,36 +3619,72 @@ function updateCalendarLive() {
   const dayKey = `${now.year}-${now.month}-${now.day}`;
   if (calState.offset === 0 && dayKey !== calState.lastDayKey) renderCalendarGrid();
 
-  const list = $("#cal-event-list");
-  if (list) {
-    const nowMs = now.realMs;
-    const rows = SB_EVENTS
-      .map((ev) => ({ ev, occ: nextEventOccurrence(ev, nowMs) }))
-      .filter((r) => r.occ)
-      .sort((a, b) => (b.occ.active - a.occ.active) || (a.occ.start - b.occ.start));
+  updateCalendarEvents(now.realMs);
+}
 
-    list.innerHTML = rows.map(({ ev, occ }) => {
-      const when = skyblockNow(occ.start);
-      const dateLabel = `${skyblockDateShort(when)} · ${formatSbClock(when)}`;
-      const countMain = occ.active
-        ? "LIVE NOW"
-        : `in ${formatCountdown(occ.start - nowMs)}`;
-      const countSub = occ.active
-        ? `ends in ${formatCountdown(occ.end - nowMs)}`
-        : dateLabel;
-      return `
-        <li class="cal-event${occ.active ? " is-live" : ""}" style="--ev:${ev.color}">
-          <span class="cal-event-icon">${mcIconHTML(ev.icon, "cal-event-icon-img", ev.name)}</span>
-          <div class="cal-event-body">
-            <div class="cal-event-name">${escapeHtml(ev.name)}${ev.approx ? `<span class="cal-event-tag">~approx</span>` : ""}</div>
-            <div class="cal-event-blurb">${escapeHtml(ev.blurb)}</div>
-          </div>
-          <div class="cal-event-count">
-            <span class="cal-event-count-val">${countMain}</span>
-            <span class="cal-event-count-sub">${escapeHtml(countSub)}</span>
-          </div>
-        </li>`;
-    }).join("");
+/* Events sorted for display: active first, then by soonest start. */
+function calendarEventRows(nowMs) {
+  return SB_EVENTS
+    .map((ev) => ({ ev, occ: nextEventOccurrence(ev, nowMs) }))
+    .filter((r) => r.occ)
+    .sort((a, b) => (b.occ.active - a.occ.active) || (a.occ.start - b.occ.start));
+}
+
+function eventCountLabels(occ, nowMs) {
+  const when = skyblockNow(occ.start);
+  return {
+    main: occ.active ? "LIVE NOW" : `in ${formatCountdown(occ.start - nowMs)}`,
+    sub: occ.active
+      ? `ends in ${formatCountdown(occ.end - nowMs)}`
+      : `${skyblockDateShort(when)} · ${formatSbClock(when)}`,
+  };
+}
+
+/* Build the event list from scratch — runs once on render and again only when
+ * the ordering changes. Kept separate so the per-second tick never recreates
+ * the <img> icons (which caused them to flicker as they re-fetched). */
+function renderCalendarEventList(nowMs) {
+  const list = $("#cal-event-list");
+  if (!list) return;
+  const rows = calendarEventRows(nowMs);
+  list.innerHTML = rows.map(({ ev, occ }) => {
+    const { main, sub } = eventCountLabels(occ, nowMs);
+    return `
+      <li class="cal-event${occ.active ? " is-live" : ""}" data-event-id="${ev.id}" style="--ev:${ev.color}">
+        <span class="cal-event-icon">${mcIconHTML(ev.icon, "cal-event-icon-img", ev.name)}</span>
+        <div class="cal-event-body">
+          <div class="cal-event-name">${escapeHtml(ev.name)}${ev.approx ? `<span class="cal-event-tag">~approx</span>` : ""}</div>
+          <div class="cal-event-blurb">${escapeHtml(ev.blurb)}</div>
+        </div>
+        <div class="cal-event-count">
+          <span class="cal-event-count-val">${escapeHtml(main)}</span>
+          <span class="cal-event-count-sub">${escapeHtml(sub)}</span>
+        </div>
+      </li>`;
+  }).join("");
+  calState.eventOrder = rows.map((r) => r.ev.id).join(",");
+}
+
+/* Per-tick update: refresh countdown text in place. Only rebuilds the list
+ * (recreating icons) when the sort order actually shifts. */
+function updateCalendarEvents(nowMs) {
+  const list = $("#cal-event-list");
+  if (!list) return;
+  const rows = calendarEventRows(nowMs);
+  const order = rows.map((r) => r.ev.id).join(",");
+  if (order !== calState.eventOrder) {
+    renderCalendarEventList(nowMs);
+    return;
+  }
+  for (const { ev, occ } of rows) {
+    const li = list.querySelector(`[data-event-id="${ev.id}"]`);
+    if (!li) continue;
+    li.classList.toggle("is-live", occ.active);
+    const { main, sub } = eventCountLabels(occ, nowMs);
+    const valEl = li.querySelector(".cal-event-count-val");
+    const subEl = li.querySelector(".cal-event-count-sub");
+    if (valEl) valEl.textContent = main;
+    if (subEl) subEl.textContent = sub;
   }
 }
 
