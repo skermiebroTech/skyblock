@@ -120,7 +120,7 @@ With a linked profile, the page decodes inventory/armor/equipment/wardrobe/backp
 
 An interactive, live-priced minion upgrade planner designed to help you unlock maximum minion slots for the absolute lowest coin cost.
 
-- **Automated Profile Syncing**: When an account is linked, the calculator decodes the active profile's `crafted_generators` array to automatically import your exact crafted level for the 60 current SkyCrypt minion families.
+- **Automated Profile Syncing**: When an account is linked, the calculator decodes the active profile's `crafted_generators` array to automatically import your exact crafted level for the 61 current official minion families.
 - **Cheapest Next Upgrade Sorting**: Computes the exact crafting ingredients and coin cost to take each standard bazaar-material minion to its next tier (e.g. T4 -> T5). It then ranks the entire minion list ascending, showing you the absolute cheapest minion upgrades available on your profile. Special/non-bazaar minions stay visible for progress tracking without invented costs.
 - **Start from Scratch Toggle**: Want to plan minion crafting from the ground up? Toggle **Start upgrades from Level 1 (T0)** to calculate the upgrade cost assuming you have zero levels, ignoring your profile.
 - **Interactive Level Override**: Every minion card features a manual dropdown level selector from T0 to that minion family's real max tier (T11 or T12). This allows you to manually mock up other setups, modify levels, or simulate progress in real-time.

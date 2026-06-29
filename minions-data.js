@@ -19,18 +19,18 @@ const MINIONS_DATA = [
   { id: "EMERALD", name: "Emerald", category: "Mining", rawId: "EMERALD", enchId: "ENCHANTED_EMERALD", maxTier: 12 },
   { id: "REDSTONE", name: "Redstone", category: "Mining", rawId: "REDSTONE", enchId: "ENCHANTED_REDSTONE", maxTier: 12 },
   { id: "LAPIS", name: "Lapis", category: "Mining", rawId: "INK_SACK:4", enchId: "ENCHANTED_LAPIS_LAZULI", maxTier: 12 },
-  { id: "QUARTZ", name: "Quartz", category: "Mining", rawId: "NETHER_QUARTZ", enchId: "ENCHANTED_QUARTZ", maxTier: 12 },
+  { id: "QUARTZ", name: "Quartz", category: "Mining", rawId: "QUARTZ", enchId: "ENCHANTED_QUARTZ", maxTier: 12 },
   { id: "OBSIDIAN", name: "Obsidian", category: "Mining", rawId: "OBSIDIAN", enchId: "ENCHANTED_OBSIDIAN", maxTier: 12 },
   { id: "GLOWSTONE", name: "Glowstone", category: "Mining", rawId: "GLOWSTONE_DUST", enchId: "ENCHANTED_GLOWSTONE_DUST", maxTier: 12 },
   { id: "MITHRIL", name: "Mithril", category: "Mining", rawId: "MITHRIL_ORE", enchId: "ENCHANTED_MITHRIL", maxTier: 12 },
   { id: "HARD_STONE", name: "Hard Stone", category: "Mining", rawId: "HARD_STONE", enchId: "ENCHANTED_HARD_STONE", maxTier: 12 },
   { id: "GRAVEL", name: "Gravel", category: "Mining", rawId: "FLINT", enchId: "ENCHANTED_FLINT", maxTier: 11 },
-  { id: "END_STONE", name: "End Stone", category: "Mining", rawId: "END_STONE", enchId: "ENCHANTED_END_STONE", maxTier: 11 },
+  { id: "END_STONE", name: "End Stone", category: "Mining", rawId: "ENDER_STONE", enchId: "ENCHANTED_ENDSTONE", maxTier: 11 },
   { id: "MYCELIUM", name: "Mycelium", category: "Mining", rawId: "MYCEL", enchId: "ENCHANTED_MYCELIUM", maxTier: 12 },
   { id: "SAND", name: "Sand", category: "Mining", rawId: "SAND", enchId: "ENCHANTED_SAND", maxTier: 11 },
   { id: "ICE", name: "Ice", category: "Mining", rawId: "ICE", enchId: "ENCHANTED_ICE", maxTier: 12 },
   { id: "SNOW", name: "Snow", category: "Mining", rawId: "SNOW_BALL", enchId: "ENCHANTED_SNOW_BLOCK", maxTier: 12 },
-  { id: "RED_SAND", name: "Red Sand", category: "Mining", rawId: "RED_SAND", enchId: "ENCHANTED_RED_SAND", maxTier: 12 },
+  { id: "RED_SAND", name: "Red Sand", category: "Mining", rawId: "SAND:1", enchId: "ENCHANTED_RED_SAND", maxTier: 12 },
 
   // Foraging (7)
   { id: "OAK", name: "Oak", category: "Foraging", rawId: "LOG", enchId: "ENCHANTED_OAK_LOG", maxTier: 11 },
@@ -44,7 +44,7 @@ const MINIONS_DATA = [
   // Combat (15)
   { id: "ZOMBIE", name: "Zombie", category: "Combat", rawId: "ROTTEN_FLESH", enchId: "ENCHANTED_ROTTEN_FLESH", maxTier: 11 },
   { id: "SKELETON", name: "Skeleton", category: "Combat", rawId: "BONE", enchId: "ENCHANTED_BONE", maxTier: 11 },
-  { id: "CREEPER", name: "Creeper", category: "Combat", rawId: "GUNPOWDER", enchId: "ENCHANTED_GUNPOWDER", maxTier: 11 },
+  { id: "CREEPER", name: "Creeper", category: "Combat", rawId: "SULPHUR", enchId: "ENCHANTED_GUNPOWDER", maxTier: 11 },
   { id: "SPIDER", name: "Spider", category: "Combat", rawId: "STRING", enchId: "ENCHANTED_STRING", maxTier: 11 },
   { id: "CAVE_SPIDER", name: "Cave Spider", category: "Combat", rawId: "SPIDER_EYE", enchId: "ENCHANTED_SPIDER_EYE", maxTier: 11 },
   { id: "ENDERMAN", name: "Enderman", category: "Combat", rawId: "ENDER_PEARL", enchId: "ENCHANTED_ENDER_PEARL", maxTier: 11 },
@@ -76,9 +76,10 @@ const MINIONS_DATA = [
   { id: "RABBIT", name: "Rabbit", category: "Farming", rawId: "RABBIT", enchId: "ENCHANTED_RABBIT", maxTier: 12 },
   { id: "SUNFLOWER", name: "Sunflower", category: "Farming", rawId: null, enchId: null, maxTier: 12, specialRecipe: true },
 
-  // Fishing (2)
+  // Fishing (3)
   { id: "FISHING", name: "Fishing", category: "Fishing", rawId: "RAW_FISH", enchId: "ENCHANTED_RAW_FISH", maxTier: 12 },
-  { id: "CLAY", name: "Clay", category: "Fishing", rawId: "CLAY_BALL", enchId: "ENCHANTED_CLAY", maxTier: 12 }
+  { id: "CLAY", name: "Clay", category: "Fishing", rawId: "CLAY_BALL", enchId: "ENCHANTED_CLAY_BALL", maxTier: 12 },
+  { id: "LILY_PAD", name: "Lily Pad", category: "Fishing", rawId: "WATER_LILY", enchId: "ENCHANTED_WATER_LILY", maxTier: 12 }
 ];
 
 /* Helper to get the ingredient count and type for a minion tier upgrade.

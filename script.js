@@ -1636,6 +1636,7 @@ function setView(view) {
 
   /* Toggle panes. */
   $("#view-home").hidden       = view !== "home";
+  $("#view-calendar").hidden   = view !== "calendar";
   $("#view-shards").hidden     = view !== "shards";
   $("#view-missing").hidden    = view !== "missing";
   $("#view-upgrades").hidden   = view !== "upgrades";
@@ -1661,7 +1662,11 @@ function setView(view) {
 }
 
 function renderActiveView() {
+  /* Tear down the calendar's live ticker whenever we leave the page. */
+  if (state.view !== "calendar") stopCalendarTicker();
+
   if (state.view === "home")       renderHomeView();
+  if (state.view === "calendar")   renderCalendarView();
   if (state.view === "missing")    renderMissingView();
   if (state.view === "upgrades")   renderUpgradesView();
   if (state.view === "attributes") renderAttributesView();
@@ -2483,12 +2488,16 @@ function sweepBazaarCommand(id) {
     "POTATO_ITEM": "Potato",
     "CARROT_ITEM": "Carrot",
     "CLAY_BALL": "Clay",
+    "ENCHANTED_CLAY_BALL": "Enchanted Clay",
     "LOG": "Oak Wood",
     "LOG:1": "Spruce Wood",
     "LOG:2": "Birch Wood",
     "LOG:3": "Jungle Wood",
     "LOG_2": "Acacia Wood",
     "LOG_2:1": "Dark Oak Wood",
+    "SAND:1": "Red Sand",
+    "SULPHUR": "Gunpowder",
+    "ENCHANTED_ENDSTONE": "Enchanted End Stone",
     "FIG_LOG": "Fig Log",
     "MANGROVE_LOG": "Mangrove Log",
     "RAW_FISH": "Raw Fish",
@@ -3032,7 +3041,9 @@ function bindUI() {
   const setPanelOpen = (open) => {
     settingsPanel.classList.toggle("open", open);
     settingsPanel.setAttribute("aria-hidden", open ? "false" : "true");
+    settingsPanel.toggleAttribute("inert", !open);
   };
+  setPanelOpen(false);
   $("#settings-toggle").addEventListener("click", () => {
     setPanelOpen(!settingsPanel.classList.contains("open"));
   });
@@ -3203,6 +3214,16 @@ function renderHomeView() {
     </div>
 
     <div class="home-grid">
+      <article class="home-card" data-go="calendar">
+        <div class="home-card-header">
+          <div class="home-card-icon" style="background: rgba(90, 185, 255, 0.1);">${homeIconHTML("CLOCK", "Calendar")}</div>
+          <span class="home-card-badge">${escapeHtml(skyblockDateShort(skyblockNow()))}</span>
+        </div>
+        <h3 class="home-card-title">SkyBlock Calendar</h3>
+        <p class="home-card-desc">Track the live SkyBlock date, browse the month grid, and count down to the Dark Auction, Jacob's Contests, Spooky Festival, Traveling Zoo, mayor elections, and more.</p>
+        <button class="btn-secondary btn-small home-card-btn">Open Calendar →</button>
+      </article>
+
       <article class="home-card" data-go="shards">
         <div class="home-card-header">
           <div class="home-card-icon" style="background: rgba(255, 179, 71, 0.1);">${homeIconHTML("ANVIL", "Shard Market")}</div>
@@ -3312,6 +3333,334 @@ function renderHomeView() {
       setView(targetView);
     });
   });
+}
+
+
+/* =========================================================================
+ * SKYBLOCK CALENDAR
+ * -----------------------------------------------------------------------
+ * SkyBlock time runs ~72× real time: a day is 20 real minutes, a month is
+ * 31 days, and a year is 12 months (= 5 real days, 4 hours). The epoch below
+ * is the moment SkyBlock Year 1 began. From it we derive the live in-game
+ * date and count down to recurring events. The clock and countdowns refresh
+ * once per second while the page is open (see startCalendarTicker).
+ * ======================================================================= */
+
+const SB_EPOCH_MS = 1560275700000;      // Year 1, Early Spring 1st, 00:00 (real time)
+const SB_HOUR_MS  = 50 * 1000;          // 50 real seconds
+const SB_DAY_MS   = 24 * SB_HOUR_MS;    // 20 real minutes (1,200,000 ms)
+const SB_MONTH_MS = 31 * SB_DAY_MS;     // 620 real minutes
+const SB_YEAR_MS  = 12 * SB_MONTH_MS;   // 124 real hours (5d 4h)
+
+const SB_MONTHS = [
+  "Early Spring", "Spring", "Late Spring",
+  "Early Summer", "Summer", "Late Summer",
+  "Early Autumn", "Autumn", "Late Autumn",
+  "Early Winter", "Winter", "Late Winter",
+];
+
+/* Recurring SkyBlock events.
+ *  - "fixed":    happens on the same SkyBlock date(s) every year. `slots` are
+ *                {month (0-based), day (1-based)} pairs; `durationDays` is span.
+ *  - "interval": repeats on a fixed real-time cadence anchored to the epoch.
+ *                Dark Auction & Jacob's Contest both fire every 3 SkyBlock days
+ *                (= 1 real hour, 124× per SkyBlock year). */
+const SB_EVENTS = [
+  {
+    id: "dark-auction", name: "Dark Auction", icon: "GOLD_INGOT", color: "#a067ff",
+    type: "interval", intervalMs: 3 * SB_DAY_MS, phaseMs: 0, durationMs: 3 * SB_HOUR_MS,
+    blurb: "Bid on rare items at the Dark Auctioneer — every 3 SkyBlock days.",
+  },
+  {
+    id: "jacob", name: "Jacob's Farming Contest", icon: "GOLDEN_HOE", color: "#ffd34d",
+    type: "interval", intervalMs: 3 * SB_DAY_MS, phaseMs: SB_DAY_MS, durationMs: SB_DAY_MS,
+    approx: true,
+    blurb: "Farm 3 random crops against the server — every 3 SkyBlock days (~20 min).",
+  },
+  {
+    id: "zoo", name: "Traveling Zoo", icon: "EGG", color: "#5ad17a",
+    type: "fixed", slots: [{ month: 3, day: 1 }, { month: 9, day: 1 }], durationDays: 3,
+    blurb: "Oringo the Travelling Zookeeper sells pets — Early Summer & Early Winter 1st.",
+  },
+  {
+    id: "spooky", name: "Spooky Festival", icon: "PUMPKIN", color: "#ff7a1a",
+    type: "fixed", slots: [{ month: 7, day: 29 }], durationDays: 3,
+    blurb: "Trick-or-treat for candy and spooky loot — Autumn 29th–31st.",
+  },
+  {
+    id: "jerry", name: "Season of Jerry", icon: "SNOW_BLOCK", color: "#7ec8ff",
+    type: "fixed", slots: [{ month: 11, day: 1 }], durationDays: 31,
+    blurb: "Jerry's Workshop & the Winter Island open all of Late Winter.",
+  },
+  {
+    id: "newyear", name: "New Year Celebration", icon: "CAKE", color: "#ff5673",
+    type: "fixed", slots: [{ month: 11, day: 29 }], durationDays: 3,
+    blurb: "Collect a unique New Year Cake from the baker — Late Winter 29th–31st.",
+  },
+  {
+    id: "election-open", name: "Mayor Election Opens", icon: "BOOK", color: "#5ab9ff",
+    type: "fixed", slots: [{ month: 5, day: 27 }], durationDays: 1,
+    blurb: "The voting booth opens for the next mayoral election — Late Summer 27th.",
+  },
+  {
+    id: "new-mayor", name: "New Mayor Takes Office", icon: "NETHER_STAR", color: "#2ee07a",
+    type: "fixed", slots: [{ month: 2, day: 27 }], durationDays: 1,
+    blurb: "The newly elected mayor and their perks go live — Late Spring 27th.",
+  },
+];
+
+/* Module state for the calendar page. `offset` is how many SkyBlock months the
+ * grid is shifted from the current one; `lastDayKey` lets the ticker re-render
+ * the grid only when the in-game day actually advances. */
+const calState = { offset: 0, lastDayKey: null };
+let calendarTicker = null;
+
+/* Break a real timestamp down into its SkyBlock date/time parts. */
+function skyblockNow(realMs = Date.now()) {
+  const elapsed = realMs - SB_EPOCH_MS;
+  const inYear  = ((elapsed % SB_YEAR_MS) + SB_YEAR_MS) % SB_YEAR_MS;
+  const year    = Math.floor(elapsed / SB_YEAR_MS) + 1;   // in-game years are 1-indexed
+  const month   = Math.floor(inYear / SB_MONTH_MS);       // 0..11
+  const inMonth = inYear % SB_MONTH_MS;
+  const day     = Math.floor(inMonth / SB_DAY_MS);        // 0..30
+  const inDay   = inMonth % SB_DAY_MS;
+  const minOfDay = (inDay / SB_DAY_MS) * 24 * 60;         // 0..1440 in-game minutes
+  const hour    = Math.floor(minOfDay / 60);
+  const min     = Math.floor((minOfDay % 60) / 10) * 10;  // in-game clock ticks every 10 min
+  return { year, month, day, hour, min, realMs, dayProgress: inDay / SB_DAY_MS };
+}
+
+function ordinal(n) {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  return n + (["th", "st", "nd", "rd"][n % 10] || "th");
+}
+
+/* "Autumn 14th" — used on the home badge and the clock card. */
+function skyblockDateShort(sb) {
+  return `${SB_MONTHS[sb.month]} ${ordinal(sb.day + 1)}`;
+}
+
+function formatSbClock(sb) {
+  const ap = sb.hour < 12 ? "AM" : "PM";
+  let hh = sb.hour % 12;
+  if (hh === 0) hh = 12;
+  return `${hh}:${String(sb.min).padStart(2, "0")} ${ap}`;
+}
+
+/* Human countdown, e.g. "2d 4h 11m" or "3m 09s". */
+function formatCountdown(ms) {
+  let s = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600);  s -= h * 3600;
+  const m = Math.floor(s / 60);    s -= m * 60;
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m ${String(s).padStart(2, "0")}s`;
+  if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
+  return `${s}s`;
+}
+
+/* Next (or currently-active) occurrence of an event after `nowMs`.
+ * Returns { start, end, active }. */
+function nextEventOccurrence(ev, nowMs) {
+  if (ev.type === "interval") {
+    const base = SB_EPOCH_MS + (ev.phaseMs || 0);
+    const k = Math.floor((nowMs - base) / ev.intervalMs);
+    const start = base + k * ev.intervalMs;
+    const end = start + (ev.durationMs || ev.intervalMs);
+    if (nowMs >= start && nowMs < end) return { start, end, active: true };
+    const ns = start + ev.intervalMs;
+    return { start: ns, end: ns + (ev.durationMs || ev.intervalMs), active: false };
+  }
+  // Fixed yearly event — scan this year and the next couple to find the soonest.
+  const curYear = skyblockNow(nowMs).year;
+  let upcoming = null;
+  for (let y = curYear - 1; y <= curYear + 2; y++) {
+    const yearStart = SB_EPOCH_MS + (y - 1) * SB_YEAR_MS;
+    for (const slot of ev.slots) {
+      const start = yearStart + slot.month * SB_MONTH_MS + (slot.day - 1) * SB_DAY_MS;
+      const end = start + (ev.durationDays || 1) * SB_DAY_MS;
+      if (nowMs >= start && nowMs < end) return { start, end, active: true };
+      if (start >= nowMs && (!upcoming || start < upcoming.start)) {
+        upcoming = { start, end, active: false };
+      }
+    }
+  }
+  return upcoming;
+}
+
+/* Fixed events overlapping a given SkyBlock month/day (1-based day). */
+function eventsOnDay(month, day1) {
+  const hits = [];
+  for (const ev of SB_EVENTS) {
+    if (ev.type !== "fixed") continue;
+    for (const slot of ev.slots) {
+      if (slot.month !== month) continue;
+      if (day1 >= slot.day && day1 < slot.day + (ev.durationDays || 1)) {
+        hits.push(ev);
+        break;
+      }
+    }
+  }
+  return hits;
+}
+
+function renderCalendarView() {
+  const pane = $("#view-calendar");
+  if (!pane) return;
+
+  pane.innerHTML = `
+    <div class="cal-wrap">
+      <section class="cal-hero">
+        <div class="cal-clock">
+          <div class="cal-clock-label">Current SkyBlock time</div>
+          <div class="cal-clock-time" id="cal-clock-time">—</div>
+          <div class="cal-clock-date"><span id="cal-clock-date">—</span> · <span id="cal-clock-year">—</span></div>
+        </div>
+        <div class="cal-hero-side">
+          <div class="cal-progress-label">Day progress</div>
+          <div class="cal-progress"><span id="cal-progress-bar"></span></div>
+          <p class="cal-hero-note">A SkyBlock day lasts 20 real minutes; a full year is 5d 4h. Times update live.</p>
+        </div>
+      </section>
+
+      <div class="cal-main">
+        <section class="cal-grid-card">
+          <div class="cal-grid-head">
+            <button class="cal-nav" data-cal-nav="-1" aria-label="Previous month">‹</button>
+            <div class="cal-grid-title" id="cal-month-title">—</div>
+            <button class="cal-nav" data-cal-nav="1" aria-label="Next month">›</button>
+          </div>
+          <div class="cal-grid" id="cal-grid"></div>
+          <button class="cal-today-btn" id="cal-today-btn" hidden>Jump to today</button>
+        </section>
+
+        <section class="cal-events-card">
+          <h3 class="cal-events-title">Upcoming Events</h3>
+          <ul class="cal-event-list" id="cal-event-list"></ul>
+          <p class="cal-foot">Dark Auction &amp; Jacob's Contest recur every 3 SkyBlock days; exact in-game timing (and contest crops) may shift slightly.</p>
+        </section>
+      </div>
+    </div>
+  `;
+
+  pane.querySelectorAll("[data-cal-nav]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      calState.offset += Number(btn.dataset.calNav);
+      renderCalendarGrid();
+    });
+  });
+  const todayBtn = pane.querySelector("#cal-today-btn");
+  if (todayBtn) {
+    todayBtn.addEventListener("click", () => {
+      calState.offset = 0;
+      renderCalendarGrid();
+    });
+  }
+
+  renderCalendarGrid();
+  updateCalendarLive();
+  startCalendarTicker();
+}
+
+function renderCalendarGrid() {
+  const grid = $("#cal-grid");
+  const title = $("#cal-month-title");
+  if (!grid || !title) return;
+
+  const now = skyblockNow();
+  const totalMonths = (now.year - 1) * 12 + now.month + calState.offset;
+  const dispYear = Math.floor(totalMonths / 12) + 1;
+  const dispMonth = ((totalMonths % 12) + 12) % 12;
+  const isCurrentMonth = dispYear === now.year && dispMonth === now.month;
+
+  title.textContent = `${SB_MONTHS[dispMonth]} · Year ${dispYear}`;
+  const todayBtn = $("#cal-today-btn");
+  if (todayBtn) todayBtn.hidden = calState.offset === 0;
+
+  let html = "";
+  for (let d = 1; d <= 31; d++) {
+    const evs = eventsOnDay(dispMonth, d);
+    const isToday = isCurrentMonth && d === now.day + 1;
+    const classes = ["cal-day"];
+    if (isToday) classes.push("is-today");
+    if (evs.length) classes.push("has-event");
+
+    const chips = evs.map((ev) =>
+      `<span class="cal-chip" style="--ev:${ev.color}" title="${escapeHtml(ev.name)}">${escapeHtml(ev.name)}</span>`
+    ).join("");
+
+    html += `
+      <div class="${classes.join(" ")}">
+        <span class="cal-day-num">${d}</span>
+        ${isToday ? `<span class="cal-day-today">Today</span>` : ""}
+        <div class="cal-day-events">${chips}</div>
+      </div>`;
+  }
+  grid.innerHTML = html;
+  calState.lastDayKey = `${now.year}-${now.month}-${now.day}`;
+}
+
+function updateCalendarLive() {
+  const now = skyblockNow();
+
+  const timeEl = $("#cal-clock-time");
+  if (!timeEl) return; // page no longer mounted
+  timeEl.textContent = formatSbClock(now);
+  const dateEl = $("#cal-clock-date");
+  const yearEl = $("#cal-clock-year");
+  if (dateEl) dateEl.textContent = skyblockDateShort(now);
+  if (yearEl) yearEl.textContent = `Year ${now.year}`;
+  const bar = $("#cal-progress-bar");
+  if (bar) bar.style.width = `${(now.dayProgress * 100).toFixed(1)}%`;
+
+  // Move the "today" highlight when the in-game day rolls over (only if viewing now).
+  const dayKey = `${now.year}-${now.month}-${now.day}`;
+  if (calState.offset === 0 && dayKey !== calState.lastDayKey) renderCalendarGrid();
+
+  const list = $("#cal-event-list");
+  if (list) {
+    const nowMs = now.realMs;
+    const rows = SB_EVENTS
+      .map((ev) => ({ ev, occ: nextEventOccurrence(ev, nowMs) }))
+      .filter((r) => r.occ)
+      .sort((a, b) => (b.occ.active - a.occ.active) || (a.occ.start - b.occ.start));
+
+    list.innerHTML = rows.map(({ ev, occ }) => {
+      const when = skyblockNow(occ.start);
+      const dateLabel = `${skyblockDateShort(when)} · ${formatSbClock(when)}`;
+      const countMain = occ.active
+        ? "LIVE NOW"
+        : `in ${formatCountdown(occ.start - nowMs)}`;
+      const countSub = occ.active
+        ? `ends in ${formatCountdown(occ.end - nowMs)}`
+        : dateLabel;
+      return `
+        <li class="cal-event${occ.active ? " is-live" : ""}" style="--ev:${ev.color}">
+          <span class="cal-event-icon">${mcIconHTML(ev.icon, "cal-event-icon-img", ev.name)}</span>
+          <div class="cal-event-body">
+            <div class="cal-event-name">${escapeHtml(ev.name)}${ev.approx ? `<span class="cal-event-tag">~approx</span>` : ""}</div>
+            <div class="cal-event-blurb">${escapeHtml(ev.blurb)}</div>
+          </div>
+          <div class="cal-event-count">
+            <span class="cal-event-count-val">${countMain}</span>
+            <span class="cal-event-count-sub">${escapeHtml(countSub)}</span>
+          </div>
+        </li>`;
+    }).join("");
+  }
+}
+
+function startCalendarTicker() {
+  stopCalendarTicker();
+  calendarTicker = setInterval(updateCalendarLive, 1000);
+}
+
+function stopCalendarTicker() {
+  if (calendarTicker) {
+    clearInterval(calendarTicker);
+    calendarTicker = null;
+  }
 }
 
 
@@ -6256,7 +6605,7 @@ function renderP2wView() {
                   }).join("")
               }
             </div>
-            <div class="packs-surplus" style="margin-top: 10px; color: var(--text-soft); font-size: 0.85em;">
+            <div class="packs-surplus" style="margin-top: 10px; color: var(--text-soft); font-size: 0.85em;" aria-label="Gems Obtained: ${fmtInt(optResult.gemsObtained)}; Leftover Surplus: ${fmtInt(optResult.surplus)} gems">
               Gems Obtained: <strong style="color: var(--info);">${fmtInt(optResult.gemsObtained)}</strong> / Leftover Surplus: <strong style="color: var(--pos);">${fmtInt(optResult.surplus)} gems</strong>
             </div>
           </div>
@@ -6402,6 +6751,10 @@ function recalculateP2wResultsInline() {
   if (elRealCost) elRealCost.textContent = `${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   
   if (elSurplus) {
+    elSurplus.setAttribute(
+      "aria-label",
+      `Gems Obtained: ${fmtInt(optResult.gemsObtained)}; Leftover Surplus: ${fmtInt(optResult.surplus)} gems`
+    );
     elSurplus.innerHTML = `Gems Obtained: <strong style="color: var(--info);">${fmtInt(optResult.gemsObtained)}</strong> / Leftover Surplus: <strong style="color: var(--pos);">${fmtInt(optResult.surplus)} gems</strong>`;
   }
 
