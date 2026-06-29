@@ -2308,7 +2308,7 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   align-items: center;
   background: rgba(255, 255, 255, 0.03);
   padding: 6px 12px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 .minion-recipe-item {
@@ -2586,7 +2586,7 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 .profile-header-stat-box {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   padding: 10px 16px;
   min-width: 130px;
   display: flex;
@@ -2639,32 +2639,44 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 }
 
 .profile-items-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
 }
 
 .profile-skill-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.01);
-  border: 1px solid rgba(255, 255, 255, 0.03);
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--surface-line);
+  padding: 11px 13px;
+  border-radius: var(--r-md);
   position: relative;
   overflow: hidden;
+  transition: border-color 0.15s, background 0.15s;
+}
+.profile-skill-row:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: var(--surface-hi);
 }
 
 .profile-skill-icon {
-  font-size: 18px;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+.profile-skill-icon-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
 .profile-skill-info {
@@ -2727,7 +2739,7 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 .profile-pet-card {
   background: rgba(255, 255, 255, 0.01);
   border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   padding: 12px;
   text-align: center;
   display: flex;
@@ -2810,7 +2822,7 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   appearance: none;
   background: transparent;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   color: var(--text-muted);
   font-family: var(--font-body);
   font-size: 13px;
@@ -2830,6 +2842,17 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   color: #fff;
   background: var(--ember);
   box-shadow: 0 4px 12px rgba(255, 77, 46, 0.3);
+}
+.profile-tab > span {
+  display: inline-flex;
+  align-items: center;
+}
+.profile-tab-icon-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
 }
 
 /* --- Gear & Inventory Layout --- */
@@ -2930,13 +2953,13 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   margin-top: 6px;
   background: rgba(0, 0, 0, 0.2);
   padding: 10px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   border: 1px solid rgba(255, 255, 255, 0.04);
 }
 .profile-hotbar-slot {
   background: rgba(255, 255, 255, 0.01);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   aspect-ratio: 1;
   display: flex;
   align-items: center;
@@ -2987,7 +3010,7 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   transform: translateX(-50%);
   background: #0d1117;
   border: 2px solid #30363d;
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   padding: 12px;
   width: 290px;
   max-height: 340px;
@@ -4206,6 +4229,12 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+}
+.cal-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
 }
 .cal-grid-card,
 .cal-events-card {

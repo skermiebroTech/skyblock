@@ -3509,6 +3509,17 @@ function renderCalendarView() {
   const pane = $("#view-calendar");
   if (!pane) return;
 
+  /* The calendar is fully driven by its own 1s ticker and never depends on
+   * bazaar data. Rebuilding it on a background data refresh would reset the
+   * converter inputs the user typed (and restart the ticker / re-flash icons).
+   * So once built, just make sure the ticker is live and refresh the dynamic
+   * bits in place — don't blow away the DOM. */
+  if (pane.dataset.built === "1" && $("#cal-clock-time")) {
+    updateCalendarLive();
+    startCalendarTicker();
+    return;
+  }
+
   pane.innerHTML = `
     <div class="cal-wrap">
       <section class="cal-hero">
@@ -3525,6 +3536,7 @@ function renderCalendarView() {
       </section>
 
       <div class="cal-main">
+        <div class="cal-left-col">
         <section class="cal-grid-card">
           <div class="cal-grid-head">
             <button class="cal-nav" data-cal-nav="-1" aria-label="Previous month">‹</button>
@@ -3535,14 +3547,7 @@ function renderCalendarView() {
           <button class="cal-today-btn" id="cal-today-btn" hidden>Jump to today</button>
         </section>
 
-        <section class="cal-events-card">
-          <h3 class="cal-events-title">Upcoming Events</h3>
-          <ul class="cal-event-list" id="cal-event-list"></ul>
-          <p class="cal-foot">Dark Auction &amp; Jacob's Contest recur every 3 SkyBlock days; exact in-game timing (and contest crops) may shift slightly.</p>
-        </section>
-      </div>
-
-      <section class="cal-convert-card">
+        <section class="cal-convert-card">
         <h3 class="cal-events-title">Date → Discord Timestamp</h3>
         <p class="cal-convert-intro">Pick a SkyBlock date to find the real-world moment it happens, in your local time zone, plus a copy-paste Discord timestamp that renders in everyone's own time zone.</p>
 
@@ -3603,6 +3608,14 @@ function renderCalendarView() {
           </div>
         </div>
       </section>
+        </div><!-- /cal-left-col -->
+
+        <section class="cal-events-card">
+          <h3 class="cal-events-title">Upcoming Events</h3>
+          <ul class="cal-event-list" id="cal-event-list"></ul>
+          <p class="cal-foot">Dark Auction &amp; Jacob's Contest recur every 3 SkyBlock days; exact in-game timing (and contest crops) may shift slightly.</p>
+        </section>
+      </div>
     </div>
   `;
 
@@ -3622,6 +3635,7 @@ function renderCalendarView() {
 
   setupCalendarConverter(pane);
 
+  pane.dataset.built = "1";
   calState.eventOrder = null; // force a fresh list build for the new DOM
   renderCalendarGrid();
   updateCalendarLive();
