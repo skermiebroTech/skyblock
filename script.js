@@ -2488,12 +2488,16 @@ function sweepBazaarCommand(id) {
     "POTATO_ITEM": "Potato",
     "CARROT_ITEM": "Carrot",
     "CLAY_BALL": "Clay",
+    "ENCHANTED_CLAY_BALL": "Enchanted Clay",
     "LOG": "Oak Wood",
     "LOG:1": "Spruce Wood",
     "LOG:2": "Birch Wood",
     "LOG:3": "Jungle Wood",
     "LOG_2": "Acacia Wood",
     "LOG_2:1": "Dark Oak Wood",
+    "SAND:1": "Red Sand",
+    "SULPHUR": "Gunpowder",
+    "ENCHANTED_ENDSTONE": "Enchanted End Stone",
     "FIG_LOG": "Fig Log",
     "MANGROVE_LOG": "Mangrove Log",
     "RAW_FISH": "Raw Fish",
@@ -3037,7 +3041,9 @@ function bindUI() {
   const setPanelOpen = (open) => {
     settingsPanel.classList.toggle("open", open);
     settingsPanel.setAttribute("aria-hidden", open ? "false" : "true");
+    settingsPanel.toggleAttribute("inert", !open);
   };
+  setPanelOpen(false);
   $("#settings-toggle").addEventListener("click", () => {
     setPanelOpen(!settingsPanel.classList.contains("open"));
   });
@@ -6599,7 +6605,7 @@ function renderP2wView() {
                   }).join("")
               }
             </div>
-            <div class="packs-surplus" style="margin-top: 10px; color: var(--text-soft); font-size: 0.85em;">
+            <div class="packs-surplus" style="margin-top: 10px; color: var(--text-soft); font-size: 0.85em;" aria-label="Gems Obtained: ${fmtInt(optResult.gemsObtained)}; Leftover Surplus: ${fmtInt(optResult.surplus)} gems">
               Gems Obtained: <strong style="color: var(--info);">${fmtInt(optResult.gemsObtained)}</strong> / Leftover Surplus: <strong style="color: var(--pos);">${fmtInt(optResult.surplus)} gems</strong>
             </div>
           </div>
@@ -6745,6 +6751,10 @@ function recalculateP2wResultsInline() {
   if (elRealCost) elRealCost.textContent = `${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   
   if (elSurplus) {
+    elSurplus.setAttribute(
+      "aria-label",
+      `Gems Obtained: ${fmtInt(optResult.gemsObtained)}; Leftover Surplus: ${fmtInt(optResult.surplus)} gems`
+    );
     elSurplus.innerHTML = `Gems Obtained: <strong style="color: var(--info);">${fmtInt(optResult.gemsObtained)}</strong> / Leftover Surplus: <strong style="color: var(--pos);">${fmtInt(optResult.surplus)} gems</strong>`;
   }
 

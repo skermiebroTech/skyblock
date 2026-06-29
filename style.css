@@ -265,12 +265,21 @@ code {
   border-left: 1px solid var(--surface-line);
   box-shadow: -16px 0 48px rgba(0,0,0,0.5);
   transform: translateX(100%);
-  transition: transform .3s cubic-bezier(.22,.61,.36,1);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform .3s cubic-bezier(.22,.61,.36,1),
+    visibility 0s linear .3s;
   z-index: 50;
   overflow-y: auto;
 }
 .settings-panel.open {
   transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform .3s cubic-bezier(.22,.61,.36,1),
+    visibility 0s;
 }
 .settings-head {
   display: flex;
@@ -1956,8 +1965,9 @@ input[type="number"]:focus,
 /* ---------- Attributes grid ---------- */
 .attr-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: 12px;
+  min-width: 0;
 }
 .attr-card {
   background: var(--surface);
@@ -1968,6 +1978,8 @@ input[type="number"]:focus,
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .attr-card--maxed { opacity: 0.62; }
 .attr-card--missing {
@@ -1979,6 +1991,8 @@ input[type="number"]:focus,
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 .attr-name {
   font-weight: 700;
@@ -2489,6 +2503,11 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 
 .profile-avatar-wrapper {
   position: relative;
+  width: 72px;
+  min-width: 72px;
+  display: grid;
+  place-items: center;
+  overflow: visible;
 }
 
 .profile-avatar {
@@ -2503,7 +2522,7 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 .profile-sb-level-badge {
   position: absolute;
   bottom: -8px;
-  right: -8px;
+  right: 0;
   background: linear-gradient(135deg, #ffd700, #ffaa00);
   color: #000;
   font-family: var(--font-display);
