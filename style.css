@@ -473,7 +473,8 @@ input[type="number"]:focus,
   color: var(--text-muted);
   pointer-events: none;
 }
-#search-input {
+#search-input,
+.search-wrap input[type="search"] {
   padding-left: 40px;
 }
 
@@ -1569,6 +1570,7 @@ input[type="number"]:focus,
   background: var(--ember);
   color: #1a0f08;
 }
+.tab-badge[hidden] { display: none; }
 .view-pane[hidden] { display: none; }
 
 /* ---------- Accessory page head ---------- */

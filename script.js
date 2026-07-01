@@ -4674,7 +4674,7 @@ function renderGardenChipsView() {
             <div class="garden-chip-metrics">
               <div><span>Live price</span><strong>${fmtCoins(r.buyPrice)}</strong></div>
               <div><span>Remaining copies</span><strong style="color:${rarityColor}">${fmtInt(r.remainingCopies)} (${fmtCoins(r.copyCost)})</strong></div>
-              <div><span>Legendary copies</span><strong>${fmtCoins(r.legendaryCost)}</strong></div>
+              <div><span>Legendary cost</span><strong>${fmtCoins(r.legendaryCost)}</strong></div>
               <div><span>Remaining Sowdust</span><strong>${fmtCoins(r.sowdustToTarget)}</strong></div>
               <div><span>Spread</span><strong>${fmtCoins(r.spread)}</strong></div>
               <div><span>Vol / wk</span><strong>${fmtInt(r.weeklyVolume)}</strong></div>
@@ -5344,7 +5344,7 @@ function renderMinionsView() {
         <div class="stat-label">Cost to Max All</div>
         <div class="stat-value stat-value-stacked">
           <span class="stat-value-major">${totalCostToMax > 0 ? fmtCoins(totalCostToMax) : "0"}</span>
-          <span class="stat-value-minor">T${state.minionStartFromLvl1 ? "0" : "current"} to max tier from bazaar</span>
+          <span class="stat-value-minor">${state.minionStartFromLvl1 ? "T0" : "Current tier"} to max tier from bazaar</span>
         </div>
       </div>
       <div class="stat-card">
@@ -5493,7 +5493,7 @@ function renderMinionCard(item, idx) {
           </div>
           <div class="minion-max-details" id="max-details-${minion.id}" style="display: ${isExpanded ? "block" : "none"};">
             <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; display: flex; justify-content: space-between; padding: 0 4px;">
-              <span>Total T11 Cost:</span>
+              <span>Total T${minion.maxTier || 11} Cost:</span>
               <span style="font-weight: bold; color: var(--ember-light);">${maxUpgrade.totalCost != null ? fmtCoins(maxUpgrade.totalCost) : "unknown"}</span>
             </div>
             <div class="minion-recipe-list">
