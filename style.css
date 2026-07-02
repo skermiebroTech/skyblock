@@ -3779,6 +3779,10 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   .mutation-recipe-cols { grid-template-columns: 1fr; }
   .mutation-profit-row { grid-template-columns: 1fr 1fr; text-align: left; }
 }
+@media (max-width: 560px) {
+  .mutation-greenhouse-body { grid-template-columns: 1fr; }
+  .mutation-greenhouse-grid { justify-self: center; }
+}
 
 /* ==========================================================================
    Garden Chips tab

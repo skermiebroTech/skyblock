@@ -20,6 +20,20 @@ const EDGE_CACHE_TTL = {
   "/skyblock/firesales": 60,
 };
 
+/* Endpoints that actually require an API key. Everything else (bazaar,
+ * auctions, firesales, items, resources) is public and is requested WITHOUT
+ * a key — attaching an invalid/expired key to a public endpoint makes
+ * Hypixel reject the request (403), which would needlessly take down the
+ * whole site instead of just the account-linked features. */
+const KEYED_ENDPOINTS = new Set([
+  "/skyblock/profiles",
+  "/skyblock/garden",
+  "/skyblock/profile",
+  "/skyblock/museum",
+  "/skyblock/bingo",
+  "/player",
+]);
+
 export default {
   async fetch(request, env, ctx) {
     const corsHeaders = {
@@ -87,10 +101,12 @@ export default {
       }
     }
 
-    // Prefer the Worker secret, but allow a browser-provided key as a fallback
-    // for local testing or when the deployed Worker secret is missing/stale.
+    // Only authenticated endpoints get the key. Prefer the Worker secret, but
+    // allow a browser-provided key as a fallback for local testing or when the
+    // deployed Worker secret is missing/stale.
+    const needsKey = KEYED_ENDPOINTS.has(url.pathname);
     const hypixelApiKey = env.HYPIXEL_API_KEY || request.headers.get("API-Key") || "";
-    if (!hypixelApiKey) {
+    if (needsKey && !hypixelApiKey) {
       return new Response(JSON.stringify({ success: false, cause: "Missing Hypixel API key. Add HYPIXEL_API_KEY to the Worker or save an API key in Hypixie settings." }), {
         status: 500,
         headers: {
@@ -101,8 +117,11 @@ export default {
     }
 
     const headers = new Headers();
-    headers.set("API-Key", hypixelApiKey);
+    if (needsKey) headers.set("API-Key", hypixelApiKey);
     headers.set("Accept", "application/json");
+    // Workers' fetch sends no User-Agent by default, which trips Hypixel's
+    // Cloudflare bot challenge ("Just a moment..." HTML with a 403 status).
+    headers.set("User-Agent", "Hypixie/1.0 (Hypixel SkyBlock optimizer; +https://skermiebrotech.github.io/skyblock/)");
 
     try {
       const response = await fetch(targetUrl, {

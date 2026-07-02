@@ -291,7 +291,7 @@ async function apiFetch(path, { useCache = true, cacheKey = null, cacheTtl = 60_
     } catch { /* not JSON */ }
 
     switch (resp.status) {
-      case 403: throw new Error(`API rejected the request (403). ${detail || "Your API key may be invalid."}`);
+      case 403: throw new Error(`API rejected the request (403). ${detail || "Likely a temporary upstream block — retry in a minute. If it persists, the proxy's API key may be invalid."}`);
       case 422: throw new Error(`Malformed request (422). ${detail}`);
       case 429: throw new Error(`Rate limited (429). Slow down — wait a minute and retry.`);
       case 503: throw new Error(`Hypixel API is warming up (503). Try again in a few seconds.`);
@@ -5075,7 +5075,7 @@ function mutationUpgradeBarHTML(label, value, max, itemId) {
   const safe = Math.max(0, Math.min(max, Number(value) || 0));
   const pct = max > 0 ? (safe / max) * 100 : 0;
   return `<div class="mutation-upgrade-row">
-    ${mcIconHTML(itemId, label, "mutation-upgrade-icon")}
+    ${mcIconHTML(itemId, "mutation-upgrade-icon", label)}
     <div class="mutation-upgrade-main">
       <div class="mutation-upgrade-head"><strong>${escapeHtml(label)}</strong><span>${safe} / ${max}</span></div>
       <div class="mutation-upgrade-bar"><span style="width:${pct}%"></span></div>
