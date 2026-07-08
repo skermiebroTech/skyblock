@@ -112,7 +112,7 @@ A cost-ranked checklist for increasing **Sweep**. It uses the Sweep wiki source 
 - **Auction House lowest BIN**: pets, foraging armor, axes, and equipment.
 - **Progression / situational sources**: Tree Gift milestones, Heart of the Forest perks, David's Cloak milestones, and other sources that do not have a direct coin price.
 
-Attribute entries assume the Tier X target shown on the wiki and estimate maxing from Tier I shards (`512×` Tier I shards). The page sorts live-priced methods from cheapest to most expensive and also shows cost per Sweep where the source has a numeric Sweep gain.
+Attribute entries assume the level X target shown on the wiki and estimate maxing from the shard's rarity total (Common 96, Uncommon 64, Rare 48, Epic 32, Legendary 24 shards). The page sorts live-priced methods from cheapest to most expensive and also shows cost per Sweep where the source has a numeric Sweep gain.
 
 With a linked profile, the page decodes inventory/armor/equipment/wardrobe/backpacks, pets, attributes, collections/personal bests, Tree Gift progress, and Heart of the Forest nodes to mark sources as **Recommended**, **Partly done**, or **Already have**. Already-completed sources are hidden by default so the checklist focuses on ways to gain more Sweep. Gear alternatives are treated as tiered progressions: owning a completed higher tier such as **Fig Armor** or **Figstone Splitter** suppresses lower-tier recommendations like Canopy Armor, Spruce Axe, or Treecapitator.
 
@@ -167,7 +167,7 @@ The bundled constants live in `farming-data.js`: crop IDs, NPC values, drop coun
 
 When you link a profile, the app reads `members[uuid].player_data.experience.SKILL_HUNTING` from the Hypixel Profiles API and converts XP to a Hunting level with the standard skill XP table. Fusion craft flips are then personalized: recipes above your Hunting level are shown as locked and excluded from the Best Fusions/profitable-fusion rankings, so the top craft flips are ones your profile can actually perform.
 
-Current fusion gates use the shard rarity ladder: Common 0, Uncommon 10, Rare 20, Epic 30, Legendary 40. If Hypixel changes fusion requirements, update `FUSION_HUNTING_REQUIREMENT_BY_RARITY` in `script.js`.
+Current gates use the shard rarity ladder from the wiki's syphon requirements: Common 0, Uncommon 5, Rare 10, Epic 15, Legendary 20. If Hypixel changes the requirements, update `FUSION_HUNTING_REQUIREMENT_BY_RARITY` in `script.js`.
 
 ### Real prices
 

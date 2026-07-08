@@ -74,9 +74,9 @@
       <section class="setting-group">
         <label class="setting-label" for="api-key-input">Hypixel API key (optional)</label>
         <p class="setting-help">
-          The Bazaar endpoint is public and works without a key. A key is only useful if you later extend
-          the tool with authenticated calls. Stored locally in your browser — never sent anywhere except
-          to <code>api.hypixel.net</code>.
+          Optional: requests go through the Hypixie proxy, which supplies its own key for public and
+          profile data. Set a personal key only if the proxy is rate-limited. Stored locally in your
+          browser and sent only with Hypixie's API requests.
         </p>
         <input type="password" id="api-key-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
         <div class="setting-actions">
@@ -216,21 +216,21 @@
       <div id="fusion-help-panel" class="fusion-help-panel" hidden>
         <div class="fusion-help-grid">
           <div class="fusion-help-card">
-            <h4><img class="inline-mc-icon" src="https://sky.shiiyu.moe/api/item/ANVIL" alt="Shard Upgrades" loading="lazy"> Shard Upgrades (Tier I to X)</h4>
-            <p>Combine two shards of the <strong>exact same attribute and tier</strong> to get one shard of the next tier up (e.g., <code>Tier I + Tier I to Tier II</code>).</p>
-            <p>To reach a maxed <strong>Tier X</strong> attribute, you need 512 Tier I shards in total! The number of shards needed to max out an attribute depends on its base rarity.</p>
+            <h4><img class="inline-mc-icon" src="https://sky.shiiyu.moe/api/item/ANVIL" alt="Syphoning" loading="lazy"> Leveling Attributes (Syphoning)</h4>
+            <p>Right-click Attribute Shards to send them to your <strong>Hunting Box</strong>, then syphon them to level the matching attribute from <code>I</code> up to <code>X</code>.</p>
+            <p>Total shards to max an attribute depends on the shard's rarity: <strong>Common 96 · Uncommon 64 · Rare 48 · Epic 32 · Legendary 24</strong>.</p>
           </div>
           <div class="fusion-help-card">
-            <h4><img class="inline-mc-icon" src="https://sky.shiiyu.moe/api/item/DIAMOND_SWORD" alt="Applying to Gear" loading="lazy"> Applying to Gear (Syphoning)</h4>
-            <p>Take an Attribute Shard to the <strong>Fusion Machine</strong> (Cathedral at Crimson Isle) or use <code>/fusion</code> to syphon its attribute onto any compatible armor/weapon.</p>
-            <p>If the gear already has that attribute, syphoning a higher-tier shard will instantly upgrade the gear's attribute level to the shard's level.</p>
+            <h4><img class="inline-mc-icon" src="https://sky.shiiyu.moe/api/item/DIAMOND_SWORD" alt="Fusion Machine" loading="lazy"> Fusing New Shards</h4>
+            <p>The <strong>Fusion Machine</strong> in the Fusion House at <strong>Tangleburg</strong> (or Kysha's Abiphone contact) combines two shard types into new shards.</p>
+            <p>Most inputs consume <strong>5×</strong> of a shard; Reptile, Amphibian, and Elemental shards consume <strong>2×</strong>; a Chameleon Shard consumes just <strong>1×</strong>.</p>
           </div>
           <div class="fusion-help-card">
-            <h4><img class="inline-mc-icon" src="https://sky.shiiyu.moe/api/item/DIAMOND_CHESTPLATE" alt="Gear Fusion Rules" loading="lazy"> Gear Fusion Rules</h4>
-            <p>You can also fuse <strong>two items of the same gear type</strong> (e.g., Crimson Helmet + Crimson Helmet) to combine their attributes:</p>
+            <h4><img class="inline-mc-icon" src="https://sky.shiiyu.moe/api/item/LEAD" alt="Hunting Requirements" loading="lazy"> Hunting Level Requirements</h4>
+            <p>Syphoning shards requires a minimum <strong>Hunting</strong> skill level based on rarity:</p>
             <ul>
-              <li>If they have the same attribute, it upgrades by 1 level (up to max level 10).</li>
-              <li>If they have different attributes, the output gear will keep both attributes.</li>
+              <li>Common — no requirement</li>
+              <li>Uncommon 5 · Rare 10 · Epic 15 · Legendary 20</li>
             </ul>
           </div>
         </div>
@@ -372,14 +372,14 @@
   <!-- Scripts: data + helpers load before script.js which references them -->
   <script src="shards-data.js?v=20260603"></script>
   <script src="nbt.js?v=20260603"></script>
-  <script src="prices.js?v=20260603-reforge-audit"></script>
-  <script src="accessories.js?v=20260603-accessory-recomb-mp-overrides"></script>
+  <script src="prices.js?v=20260708-firesale-cosmetics"></script>
+  <script src="accessories.js?v=20260709-bingo-soulbound"></script>
   <script src="attributes.js?v=20260603-attr-cheapest-max"></script>
   <script src="sweep-data.js?v=20260603"></script>
   <script src="minions-data.js?v=20260604-minion-aliases"></script>
   <script src="mutations-data.js?v=20260603"></script>
   <script src="garden-chips-data.js?v=20260606-garden-chips"></script>
   <script src="farming-data.js?v=20260608-farming-rebuild"></script>
-  <script src="script.js?v=20260702-review-fixes-2"></script>
+  <script src="script.js?v=20260709-wiki-audit"></script>
 </body>
 </html>

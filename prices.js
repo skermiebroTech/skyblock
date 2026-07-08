@@ -17,7 +17,8 @@
  * which have stable, unique names.
  *
  * Exposes on window:
- *   loadLowestBins(catalog) -> Promise<Map<bazaarId, price>>
+ *   loadLowestBins(catalog) -> Promise<{ bins: Map<bazaarId, price>,
+ *                                        cosmetics: Map<tokenKey, {price, name}> }>
  *   resolvePrice(id, opts)  -> { market, instaBuy, buyOrder, bin, best, label }
  * ======================================================================= */
 
@@ -40,17 +41,23 @@ const ACCESSORY_REFORGE_PREFIXES = new Set([
   "RENOWNED", "GIANT", "TITANIC", "SPIKED", "SUBMERGED", "LUSH", "BLOOMING",
 ]);
 
-/* Normalise an auction item_name to a comparable base name:
- *   decorated "Gilded Scavenger Artifact" -> "scavenger artifact"
- * Strips leading symbols, reforge prefix, and surrounding whitespace. */
-function normalizeAuctionName(rawName) {
-  let n = rawName
+/* Strip color codes, pet level prefixes, and symbol decorations from an
+ * auction item_name, keeping the display casing and word order. */
+function cleanAuctionName(rawName) {
+  return rawName
     .replace(/§[0-9a-fk-or]/gi, "")          // legacy color codes
     .replace(/\[[^\]]*Lvl\s*\d+[^\]]*\]/gi, "") // pet level prefix: [Lvl 100]
     .replace(/\bLvl\s*\d+\b/gi, "")         // occasional unbracketed pet level text
     .replace(/[\u272A\u269A\u2726\u00AE\u2122\u278A\u278B\u278C\u278D\u278E\u278F\u2790\u2791\u2792\u2793]/g, "")     // star / symbol decorations
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/* Normalise an auction item_name to a comparable base name:
+ *   decorated "Gilded Scavenger Artifact" -> "scavenger artifact"
+ * Strips symbols and the reforge prefix, then lowercases. */
+function normalizeAuctionName(rawName) {
+  let n = cleanAuctionName(rawName);
 
   /* Strip leading reforge prefix (supports single and multi-word like Green Thumb). */
   const parts = n.split(" ");
@@ -63,6 +70,14 @@ function normalizeAuctionName(rawName) {
     n = parts.join(" ");
   }
   return n.toLowerCase();
+}
+
+/* Order-insensitive join key for matching a cosmetic's item id to its auction
+ * display name. Hypixel reorders words between the two (fire sale item
+ * PET_SKIN_JADE_DRAGON_BABY lists on the AH as "Baby Jade Dragon Skin"), but
+ * the word set matches, so sorted lowercase tokens make a stable key. */
+function cosmeticTokenKey(words) {
+  return words.slice().sort().join(" ");
 }
 
 /* Build a name → item id lookup from any catalog with a byId map.
@@ -83,20 +98,35 @@ function buildNameIndex(catalog) {
 
 /* Scan ALL auction pages, compute lowest BIN per matched accessory.
  * Fetches page 0 to learn page count, then the rest in parallel batches.
- * Returns Map<bazaarId, lowestBinPrice>. */
+ * Returns { bins: Map<bazaarId, lowestBinPrice>,
+ *           cosmetics: Map<tokenKey, { price, name }> }.
+ * `cosmetics` covers skin/dye/rune listings whose ids are NOT in the item
+ * catalog yet — brand-new Fire Sale cosmetics appear on the AH days before
+ * Hypixel adds them to the items resource, so they can only be priced by
+ * matching the listing name's token set against the sale's item id. */
 async function loadLowestBins(catalog, { batchSize = 8, onProgress = null } = {}) {
   const nameIdx = buildNameIndex(catalog);
   const lowest = new Map();
+  const cosmetics = new Map();
 
   const ingest = (auctions) => {
     for (const a of auctions) {
       if (!a.bin) continue;
-      const base = normalizeAuctionName(a.item_name);
-      const id = nameIdx.get(base);
-      if (!id) continue;
+      const cleaned = cleanAuctionName(a.item_name);
+      const lower = cleaned.toLowerCase();
       const price = a.starting_bid;
-      const cur = lowest.get(id);
-      if (cur == null || price < cur) lowest.set(id, price);
+
+      const id = nameIdx.get(normalizeAuctionName(a.item_name));
+      if (id) {
+        const cur = lowest.get(id);
+        if (cur == null || price < cur) lowest.set(id, price);
+      }
+
+      if (/(?:skin|dye|rune)$/.test(lower)) {
+        const key = cosmeticTokenKey(lower.split(" "));
+        const cur = cosmetics.get(key);
+        if (!cur || price < cur.price) cosmetics.set(key, { price, name: cleaned });
+      }
     }
   };
 
@@ -128,7 +158,7 @@ async function loadLowestBins(catalog, { batchSize = 8, onProgress = null } = {}
     }
   }
 
-  return lowest;
+  return { bins: lowest, cosmetics };
 }
 
 /* Resolve the best price for an item given the current market state.
@@ -169,3 +199,4 @@ function resolvePrice(id, { bazaar, bins, bazaarMode = "instaBuy" } = {}) {
 window.loadLowestBins = loadLowestBins;
 window.resolvePrice   = resolvePrice;
 window.normalizeAuctionName = normalizeAuctionName;
+window.cosmeticTokenKey = cosmeticTokenKey;

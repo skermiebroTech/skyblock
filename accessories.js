@@ -149,6 +149,13 @@ const ACCESSORY_ALIASES = {
   DANTE_TALISMAN: ["DANTE_RING"],
 };
 
+/* Accessories the Hypixel items API does not flag as soulbound but which the
+ * wiki confirms cannot be traded or auctioned (e.g. the Bingo line comes only
+ * from Bingo event ranks). Treated exactly like API-flagged soulbound items. */
+const SOULBOUND_ACCESSORY_OVERRIDES = new Set([
+  "BINGO_TALISMAN", "BINGO_RING", "BINGO_ARTIFACT", "BINGO_RELIC", "BINGO_HEIRLOOM",
+]);
+
 const ACCESSORY_ALIAS_TO_CANONICAL = Object.fromEntries(
   Object.entries(ACCESSORY_ALIASES).flatMap(([canonical, aliases]) => aliases.map((alias) => [alias, canonical]))
 );
@@ -238,14 +245,15 @@ function buildAccessoryCatalog(itemsPayload) {
 
   const byId = {};
   for (const it of all) {
+    const soulbound = !!it.soulbound || SOULBOUND_ACCESSORY_OVERRIDES.has(it.id);
     byId[it.id] = {
       id:         it.id,
       name:       it.name,
       tier:       it.tier || "COMMON",
       mp:         accessoryMP(it),
-      soulbound:  !!it.soulbound,                 // SOLO or COOP — can't be bought on AH
-      soulboundType: it.soulbound || null,        // "SOLO" | "COOP" | null
-      canAuction: it.can_auction !== false && !it.soulbound,
+      soulbound,                                  // SOLO or COOP — can't be bought on AH
+      soulboundType: it.soulbound || (soulbound ? "SOLO" : null), // "SOLO" | "COOP" | null
+      canAuction: it.can_auction !== false && !soulbound,
       canRecomb:  it.can_recombobulate !== false, // default true unless explicitly false
       base:       accessoryFamilyBase(it.name),
       skinTextureId: getSkinTextureId(it),

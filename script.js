@@ -69,7 +69,7 @@ const CONFIG = {
   CACHE_KEY_FUSION_DATA:   "shardmarket.cache.fusionData.v1",
   CACHE_KEY_ITEMS:         "shardmarket.cache.items.v1",
   CACHE_KEY_ATTR_DESC:     "shardmarket.cache.attrDesc.v1",
-  CACHE_KEY_BINS:          "shardmarket.cache.lowestBins.v2",
+  CACHE_KEY_BINS:          "shardmarket.cache.lowestBins.v3",
   CACHE_KEY_FIRESALES:     "shardmarket.cache.fireSales.v1",
   CACHE_KEY_PROFILE_PREFIX: "shardmarket.cache.profile.",  // + uuid
   CACHE_KEY_GARDEN_PREFIX:  "shardmarket.cache.garden.",   // + profile id
@@ -156,6 +156,7 @@ const state = {
   sweepCatalog: null,
   attributeCatalog: null,    // from attribute-desc.json
   lowestBins: null,          // Map<id, price> | null (not loaded)
+  cosmeticBins: null,        // Map<tokenKey, {price, name}> | null — skins/dyes/runes by name tokens
   binsLoading: false,
   binsProgress: 0,           // 0..1
 
@@ -563,6 +564,15 @@ const SWEEP_ATTR_BY_SOURCE_ID = {
   "tadgang-attribute": "unity_is_strength",
 };
 
+/* Shards needed to max (level X) the attribute granted by a shard, from the
+ * shard's rarity (wiki: Common 96, Uncommon 64, Rare 48, Epic 32,
+ * Legendary 24). Falls back to the Common total when the shard is unknown. */
+function attributeMaxShardsForShardId(shardId) {
+  const code = state.bazaarToCode?.[shardId];
+  const rarity = code ? (RARITY_FROM_CODE[code[0]] || "UNKNOWN") : "UNKNOWN";
+  return (window.ATTR_MAX_SHARDS_BY_RARITY || {})[rarity] || 96;
+}
+
 const SWEEP_ARMOR_IDS = new Set(["CANOPY_HELMET", "CANOPY_CHESTPLATE", "CANOPY_LEGGINGS", "CANOPY_BOOTS", "FIG_HELMET", "FIG_CHESTPLATE", "FIG_LEGGINGS", "FIG_BOOTS"]);
 const SWEEP_EQUIPMENT_IDS = new Set(["DAVIDS_CLOAK", "MANGROVE_GRIPPERS", "MANGROVE_LOCKET", "MANGROVE_VINE"]);
 const SWEEP_AXE_ID_RE = /(AXE|TREECAPITATOR)/i;
@@ -670,9 +680,9 @@ function sweepSourceCompletion(src, ctx) {
   const attrId = SWEEP_ATTR_BY_SOURCE_ID[src.id];
   if (attrId) {
     const current = Number(stacks[attrId] || 0);
-    const max = 512;
-    if (current >= max) return sweepDone(true, `${attrId.replaceAll("_", " ")} is already Tier X/maxed.`, current, max);
-    if (current > 0) return sweepPartial(`${current}/${max} shard stacks invested in ${attrId.replaceAll("_", " ")}.`, current, max);
+    const max = attributeMaxShardsForShardId(src.shardId);
+    if (current >= max) return sweepDone(true, `${attrId.replaceAll("_", " ")} is already level X/maxed.`, current, max);
+    if (current > 0) return sweepPartial(`${current}/${max} shards syphoned into ${attrId.replaceAll("_", " ")}.`, current, max);
     return sweepDone(false, `${attrId.replaceAll("_", " ")} not started.`, 0, max);
   }
   if (src.id === "fig-tree-gifts") {
@@ -987,15 +997,17 @@ function projectedWeeklyProfit(m) {
   return m.profitPerUnit * throughput;
 }
 
-/* Hunting skill gates shard fusion. Before a player links their account we
- * keep every recipe visible; once linked, craft-flip rankings only count
- * recipes they can actually run at their current Hunting level. */
+/* Hunting skill gates shard syphoning (wiki: Attributes → Requirements —
+ * Common 0, Uncommon 5, Rare 10, Epic 15, Legendary 20). Before a player
+ * links their account we keep every recipe visible; once linked, craft-flip
+ * rankings only count recipes they can actually run at their current
+ * Hunting level. */
 const FUSION_HUNTING_REQUIREMENT_BY_RARITY = {
   COMMON: 0,
-  UNCOMMON: 10,
-  RARE: 20,
-  EPIC: 30,
-  LEGENDARY: 40,
+  UNCOMMON: 5,
+  RARE: 10,
+  EPIC: 15,
+  LEGENDARY: 20,
   UNKNOWN: 0,
 };
 
@@ -1807,8 +1819,9 @@ async function loadLowestBinsIfNeeded(force = false) {
   /* Try cache first. */
   if (!force) {
     const cached = cache.read(CONFIG.CACHE_KEY_BINS, CONFIG.CACHE_TTL_BINS_MS);
-    if (cached) {
-      state.lowestBins = new Map(cached.data);
+    if (cached?.data?.bins) {
+      state.lowestBins = new Map(cached.data.bins);
+      state.cosmeticBins = new Map(cached.data.cosmetics || []);
       renderActiveView();
       return;
     }
@@ -1821,7 +1834,7 @@ async function loadLowestBinsIfNeeded(force = false) {
   renderActiveView();
 
   try {
-    const bins = await loadLowestBins(combinedCatalog, {
+    const { bins, cosmetics } = await loadLowestBins(combinedCatalog, {
       onProgress: (done, total) => {
         state.binsProgress = done / total;
         /* Throttle re-render to every ~8 pages to avoid thrashing. */
@@ -1829,7 +1842,11 @@ async function loadLowestBinsIfNeeded(force = false) {
       },
     });
     state.lowestBins = bins;
-    cache.write(CONFIG.CACHE_KEY_BINS, Array.from(bins.entries()));
+    state.cosmeticBins = cosmetics;
+    cache.write(CONFIG.CACHE_KEY_BINS, {
+      bins: Array.from(bins.entries()),
+      cosmetics: Array.from(cosmetics.entries()),
+    });
   } catch (e) {
     console.error("[Hypixie] BIN scan failed:", e);
   } finally {
@@ -2511,36 +2528,44 @@ function sweepPriceForItem(id) {
   });
 }
 
-function sweepBazaarCommand(id) {
-  const overrides = {
-    "INK_SACK:4": "Lapis Lazuli",
-    "INK_SACK:3": "Cocoa Beans",
-    "POTATO_ITEM": "Potato",
-    "CARROT_ITEM": "Carrot",
-    "CLAY_BALL": "Clay",
-    "ENCHANTED_CLAY_BALL": "Enchanted Clay",
-    "LOG": "Oak Wood",
-    "LOG:1": "Spruce Wood",
-    "LOG:2": "Birch Wood",
-    "LOG:3": "Jungle Wood",
-    "LOG_2": "Acacia Wood",
-    "LOG_2:1": "Dark Oak Wood",
-    "SAND:1": "Red Sand",
-    "SULPHUR": "Gunpowder",
-    "ENCHANTED_ENDSTONE": "Enchanted End Stone",
-    "FIG_LOG": "Fig Log",
-    "MANGROVE_LOG": "Mangrove Log",
-    "RAW_FISH": "Raw Fish",
-    "ENCHANTED_OAK_LOG": "Enchanted Oak Wood",
-    "ENCHANTED_SPRUCE_LOG": "Enchanted Spruce Wood",
-    "ENCHANTED_BIRCH_LOG": "Enchanted Birch Wood",
-    "ENCHANTED_JUNGLE_LOG": "Enchanted Jungle Wood",
-    "ENCHANTED_ACACIA_LOG": "Enchanted Acacia Wood",
-    "ENCHANTED_DARK_OAK_LOG": "Enchanted Dark Oak Wood"
-  };
+const BAZAAR_NAME_OVERRIDES = {
+  "INK_SACK:4": "Lapis Lazuli",
+  "INK_SACK:3": "Cocoa Beans",
+  "POTATO_ITEM": "Potato",
+  "CARROT_ITEM": "Carrot",
+  "CLAY_BALL": "Clay",
+  "ENCHANTED_CLAY_BALL": "Enchanted Clay",
+  "LOG": "Oak Wood",
+  "LOG:1": "Spruce Wood",
+  "LOG:2": "Birch Wood",
+  "LOG:3": "Jungle Wood",
+  "LOG_2": "Acacia Wood",
+  "LOG_2:1": "Dark Oak Wood",
+  "SAND:1": "Red Sand",
+  "SULPHUR": "Gunpowder",
+  "ENCHANTED_ENDSTONE": "Enchanted End Stone",
+  "FIG_LOG": "Fig Log",
+  "MANGROVE_LOG": "Mangrove Log",
+  "RAW_FISH": "Raw Fish",
+  "ENCHANTED_OAK_LOG": "Enchanted Oak Wood",
+  "ENCHANTED_SPRUCE_LOG": "Enchanted Spruce Wood",
+  "ENCHANTED_BIRCH_LOG": "Enchanted Birch Wood",
+  "ENCHANTED_JUNGLE_LOG": "Enchanted Jungle Wood",
+  "ENCHANTED_ACACIA_LOG": "Enchanted Acacia Wood",
+  "ENCHANTED_DARK_OAK_LOG": "Enchanted Dark Oak Wood"
+};
 
-  if (overrides[id]) {
-    return `/bz ${overrides[id]}`;
+/* Human-readable bazaar product name — resolves legacy data-value ids like
+ * SAND:1 → "Red Sand" instead of stripping the suffix and mislabeling. */
+function bazaarDisplayName(id) {
+  if (BAZAAR_NAME_OVERRIDES[id]) return BAZAAR_NAME_OVERRIDES[id];
+  return String(id).replace(/:.*$/, "").replace(/_/g, " ")
+    .toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function sweepBazaarCommand(id) {
+  if (BAZAAR_NAME_OVERRIDES[id]) {
+    return `/bz ${BAZAAR_NAME_OVERRIDES[id]}`;
   }
 
   let name = id;
@@ -2601,9 +2626,9 @@ function resolveSweepSource(src) {
   } else if (src.costKind === "attribute") {
     const p = sweepPriceForItem(src.shardId);
     market = "bazaar";
-    const shardsToTierX = 512;
-    totalCost = p.best == null ? null : p.best * shardsToTierX;
-    details.push(`512× Tier I shard to fuse Tier X @ ${p.best != null ? fmtCoins(p.best) : "unknown"}/ea`);
+    const shardsToMax = attributeMaxShardsForShardId(src.shardId);
+    totalCost = p.best == null ? null : p.best * shardsToMax;
+    details.push(`${shardsToMax}× shard to syphon to level X @ ${p.best != null ? fmtCoins(p.best) : "unknown"}/ea`);
     command = sweepBazaarCommand(src.shardId, src.name);
   } else if (src.costKind === "auction") {
     const id = src.itemIds?.[0];
@@ -2651,11 +2676,12 @@ function getSweepRows() {
           }
         } else if (src.costKind === "attribute" && Number.isFinite(completion.current)) {
           const p = sweepPriceForItem(src.shardId);
-          const remaining = Math.max(0, 512 - completion.current);
+          const maxShards = attributeMaxShardsForShardId(src.shardId);
+          const remaining = Math.max(0, maxShards - completion.current);
           row.totalCost = p.best == null ? null : p.best * remaining;
-          row.details = [`${remaining}× Tier I shards to finish Tier X @ ${p.best != null ? fmtCoins(p.best) : "unknown"}/ea`].concat(row.details.slice(1));
+          row.details = [`${remaining}× shards to finish level X @ ${p.best != null ? fmtCoins(p.best) : "unknown"}/ea`].concat(row.details.slice(1));
           if (row.sweep) {
-            const remainingSweep = (remaining / 512) * src.sweep;
+            const remainingSweep = (remaining / maxShards) * src.sweep;
             row.costPerSweep = row.totalCost != null && remainingSweep > 0 ? row.totalCost / remainingSweep : null;
           }
         }
@@ -5445,7 +5471,7 @@ function renderMinionCard(item, idx) {
       return `
         <div class="minion-recipe-row">
           <span class="minion-recipe-item">
-            <span class="pos" style="font-weight: bold;">${it.qty}×</span> ${escapeHtml(it.id.replace(/_/g, " ").replace(/:.*/g, ""))}
+            <span class="pos" style="font-weight: bold;">${it.qty}×</span> ${escapeHtml(bazaarDisplayName(it.id))}
             <span class="num-muted">(@ ${it.unitPrice ? fmtCoins(it.unitPrice) : "unknown"})</span>
           </span>
           <button class="btn-copy btn-small" data-copy="${escapeHtml(bzCmd)}" title="Copy /bz command">Copy</button>
@@ -5472,7 +5498,7 @@ function renderMinionCard(item, idx) {
         return `
           <div class="minion-recipe-row">
             <span class="minion-recipe-item">
-              <span class="pos" style="font-weight: bold;">${it.qty}×</span> ${escapeHtml(it.id.replace(/_/g, " ").replace(/:.*/g, ""))}
+              <span class="pos" style="font-weight: bold;">${it.qty}×</span> ${escapeHtml(bazaarDisplayName(it.id))}
               <span class="num-muted">(@ ${it.unitPrice ? fmtCoins(it.unitPrice) : "unknown"})</span>
             </span>
             <button class="btn-copy btn-small" data-copy="${escapeHtml(bzCmd)}" title="Copy /bz command">Copy</button>
@@ -6563,12 +6589,15 @@ function renderProfileView() {
  * VIEW: P2W CALCULATOR
  * ======================================================================= */
 
+/* Hypixel Store gem bundles, base USD prices per the wiki (SkyBlock Gems).
+ * Regional sales tax (e.g. 10% GST in Australia) is added by the store at
+ * checkout and is NOT included here. */
 const GEM_PACKAGES = [
-  { gems: 17000, cost: 131.99, name: "17,000 SkyBlock Gems" },
-  { gems: 7600,  cost: 65.99,  name: "7,600 SkyBlock Gems" },
-  { gems: 3750,  cost: 32.99,  name: "3,750 SkyBlock Gems" },
-  { gems: 1800,  cost: 16.49,  name: "1,800 SkyBlock Gems" },
-  { gems: 700,   cost: 6.59,   name: "700 SkyBlock Gems" }
+  { gems: 17000, cost: 119.99, name: "17,000 SkyBlock Gems" },
+  { gems: 7600,  cost: 59.99,  name: "7,600 SkyBlock Gems" },
+  { gems: 3750,  cost: 29.99,  name: "3,750 SkyBlock Gems" },
+  { gems: 1800,  cost: 14.99,  name: "1,800 SkyBlock Gems" },
+  { gems: 700,   cost: 5.99,   name: "700 SkyBlock Gems" }
 ];
 
 function optimizeGems(targetGems) {
@@ -6620,8 +6649,8 @@ function optimizeGems(targetGems) {
   }
   
   let curr = targetUnits;
-  let totalCost = preBuyCount * 131.99;
-  let totalGems = preBuyCount * 17000;
+  let totalCost = preBuyCount * GEM_PACKAGES[0].cost;
+  let totalGems = preBuyCount * GEM_PACKAGES[0].gems;
   
   while (curr > 0 && parent[curr] !== -1) {
     const p = chosenPack[curr];
@@ -6703,9 +6732,54 @@ function getFireSaleItemId(sale) {
   return sale.item_id || sale.itemId || sale.item || sale.id || "";
 }
 
-function getFireSaleItemName(sale) {
+/* Price lookup that also works for brand-new cosmetics Hypixel has not added
+ * to the items resource yet (Fire Sale skins/dyes), where a direct id lookup
+ * into the BIN map misses. Falls back to the cosmetic name index built during
+ * the AH scan, matching the id's word set against listing names
+ * ("PET_SKIN_JADE_DRAGON_BABY" lists as "Baby Jade Dragon Skin"). Shared by
+ * the Fire Sales table and the Booster Cookie calculator. Returns
+ * { price, name } or null; name is null when the direct id lookup already hit. */
+function cosmeticMarketMatch(id) {
+  if (!id) return null;
+  const direct = state.lowestBins?.get(id);
+  if (direct != null) return { price: direct, name: null };
+  if (!state.cosmeticBins) return null;
+  const tokens = String(id).toLowerCase().split("_").filter(Boolean);
+  const keys = [cosmeticTokenKey(tokens)];
+  if (tokens[0] === "pet" && tokens[1] === "skin") {
+    keys.push(cosmeticTokenKey(tokens.slice(1))); // AH names drop the "Pet" word
+  }
+  for (const key of keys) {
+    const hit = state.cosmeticBins.get(key);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/* Synthetic id for a cosmetic that only exists in the AH name index:
+ * "Baby Jade Dragon Skin" → "BABY_JADE_DRAGON_SKIN". Token-order matches the
+ * listing name, so cosmeticMarketMatch resolves it via the same token key. */
+function cosmeticIdFromName(name) {
+  return String(name).toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+/* "PET_SKIN_JADE_DRAGON_BABY" → "Jade Dragon Baby Pet Skin" — last-resort
+ * display name when neither the item catalog nor the AH knows the id. */
+function prettifyFireSaleId(id) {
+  let tokens = String(id).split("_").filter(Boolean);
+  if (!tokens.length) return "";
+  let suffix = "";
+  if (tokens[0] === "PET" && tokens[1] === "SKIN") {
+    tokens = tokens.slice(2);
+    suffix = " Pet Skin";
+  }
+  return (tokens.map((t) => t[0] + t.slice(1).toLowerCase()).join(" ") + suffix).trim();
+}
+
+function getFireSaleItemName(sale, match) {
   const id = getFireSaleItemId(sale);
-  return state.allItemsById?.get(id)?.name || sale.item_name || sale.itemName || sale.name || id || "Unknown cosmetic";
+  return state.allItemsById?.get(id)?.name || sale.item_name || sale.itemName || sale.name
+    || match?.name || prettifyFireSaleId(id) || "Unknown cosmetic";
 }
 
 function getFireSaleGemPrice(sale) {
@@ -6714,20 +6788,46 @@ function getFireSaleGemPrice(sale) {
   return Number.isFinite(n) ? n : 0;
 }
 
+/* ---- Auction House fee model (Hypixel) ----
+ * Creating a BIN listing costs 1% of the price below 10m coins, 2% from 10m
+ * to 100m, and 2.5% above 100m. Claiming a sold auction over 1m coins pays
+ * up to 1% tax, capped so the payout never drops below 1m coins.
+ * Net proceeds from an AH insta-sell = price - creation fee - claim tax. */
+function ahCreationFeeRate(price) {
+  return price > 100_000_000 ? 0.025 : price >= 10_000_000 ? 0.02 : 0.01;
+}
+
+function ahCreationFee(price) {
+  if (!Number.isFinite(price) || price <= 0) return 0;
+  return price * ahCreationFeeRate(price);
+}
+
+function ahClaimTax(price) {
+  if (!Number.isFinite(price) || price <= 1_000_000) return 0;
+  return Math.min(price * 0.01, price - 1_000_000);
+}
+
+function ahNetProceeds(price) {
+  if (!Number.isFinite(price) || price <= 0) return 0;
+  return Math.max(0, price - ahCreationFee(price) - ahClaimTax(price));
+}
+
 function getFireSaleRows() {
   const sales = state.p2w.fireSales || [];
   return sales.map((sale) => {
     const id = getFireSaleItemId(sale);
-    const name = getFireSaleItemName(sale);
+    const match = cosmeticMarketMatch(id);
+    const name = getFireSaleItemName(sale, match);
     const gems = getFireSaleGemPrice(sale);
-    const ahPrice = state.lowestBins?.get(id) ?? null;
+    const ahPrice = match?.price ?? null;
+    const netCoins = ahPrice != null ? ahNetProceeds(ahPrice) : null;
     const opt = optimizeGems(gems);
     const usdCost = opt.cost;
-    const coinPerUsd = usdCost > 0 && ahPrice != null ? ahPrice / usdCost : null;
+    const coinPerUsd = usdCost > 0 && netCoins != null ? netCoins / usdCost : null;
     const sold = Number(sale.sold || sale.amount_sold || sale.amountSold || 0);
     const amount = Number(sale.amount || sale.total || sale.stock || 0);
     const time = fireSaleTimeLabel(sale);
-    return { sale, id, name, gems, ahPrice, opt, usdCost, coinPerUsd, sold, amount, time };
+    return { sale, id, name, gems, ahPrice, netCoins, opt, usdCost, coinPerUsd, sold, amount, time };
   }).sort((a, b) => {
     const sr = fireSaleStatusRank(a.time.status) - fireSaleStatusRank(b.time.status);
     if (sr) return sr;
@@ -6742,6 +6842,14 @@ function fireSaleStatusRank(status) {
   if (status === "Live") return 0;
   if (status === "Upcoming") return 1;
   return 2;
+}
+
+/* The sale the Fire Sales calculator flips: the best net-coins-per-USD sale
+ * that has an AH price, preferring Live sales over upcoming/past ones.
+ * getFireSaleRows() is already sorted Live-first then by value. */
+function getBestFireSaleFlip() {
+  const usable = getFireSaleRows().filter((r) => r.netCoins > 0 && r.usdCost > 0);
+  return usable.find((r) => r.time.status === "Live") || usable[0] || null;
 }
 
 function fireSaleStockLabel(row) {
@@ -6760,6 +6868,144 @@ function fireSaleFreshnessLabel() {
   return `updated ${Math.floor(sec / 3600)}h ago`;
 }
 
+/* ---- Shared P2W panels ----
+ * Both calculators (Booster Cookies and Fire Sales) render the same item
+ * search, currency controls, and results card, sharing element ids — only
+ * one tab is in the DOM at a time, so the bindings in renderP2wView work
+ * for whichever tab is active. */
+function p2wItemSelectPanelHTML(resolvedPriceSource) {
+  return `
+        <div class="p2w-panel card">
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">${mcIconHTML("COMPASS", "inline-mc-icon", "Search")} 1. Select SkyBlock Item</h3>
+
+          <div class="p2w-input-group">
+            <label for="p2w-item-search" class="p2w-label">Search Item</label>
+            <div class="search-wrap" style="width: 100%;">
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input type="search" id="p2w-item-search" placeholder="Type to search (e.g. Hyperion)..." value="${escapeHtml(state.p2w.searchQuery)}" autocomplete="off" style="width: 100%;" />
+            </div>
+            <!-- Search Results Dropdown -->
+            <div id="p2w-search-results" class="p2w-dropdown-results" hidden></div>
+          </div>
+
+          <div class="p2w-input-group">
+            <label class="p2w-label">Selected Item</label>
+            <div class="p2w-selected-info" style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--r-md); border: 1px solid var(--surface-line);">
+              <div class="p2w-item-icon-wrapper" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-line); border-radius: var(--r-md); padding: 4px; flex-shrink: 0;">
+                <img src="${getUniversalItemIconUrl(state.p2w.selectedItemId)}" alt="" class="p2w-item-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="${fallbackToSkyCryptItemOnError(state.p2w.selectedItemId)}">
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span class="p2w-item-name-tag" style="color: var(--ember-light); font-weight: bold; font-size: 1.05em;">
+                  ${escapeHtml(state.p2w.selectedItemName)}
+                </span>
+                <span class="p2w-item-id-tag" style="font-family: var(--font-mono); font-size: 0.8em; color: var(--text-muted);">
+                  ID: ${escapeHtml(state.p2w.selectedItemId)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="p2w-input-group">
+            <label for="p2w-item-cost" class="p2w-label">In-Game Coin Cost</label>
+            <div class="input-with-button">
+              <input type="number" id="p2w-item-cost" class="input-native" value="${state.p2w.customPrice}" min="0" step="100000" style="font-family: var(--font-mono); font-weight: bold; color: var(--text);" />
+              <button class="btn-ghost btn-small" id="p2w-reset-cost" title="Reset to live market price" style="white-space: nowrap; padding: 0 16px;">Reset</button>
+            </div>
+            <p class="p2w-help-text" id="p2w-price-source-label" style="font-weight: 500; color: var(--text-muted); margin-top: 6px;">
+              Source: <span style="color: var(--info);">${resolvedPriceSource}</span>
+            </p>
+          </div>
+        </div>`;
+}
+
+function p2wCurrencyPanelHTML() {
+  return `
+        <div class="p2w-panel card" style="margin-top: 24px;">
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">${mcIconHTML("EMERALD", "inline-mc-icon", "Currency")} 3. Real-Money Currency</h3>
+          <div class="p2w-input-group" style="margin-bottom: 0;">
+            <label class="p2w-label">Currency Option</label>
+            <div class="toggle-group" style="display: flex; gap: 8px;">
+              <button class="btn-toggle ${state.p2w.currency === "USD" ? "active" : ""}" id="p2w-currency-usd" style="flex: 1;">
+                USD ($)
+              </button>
+              <button class="btn-toggle ${state.p2w.currency === "AUD" ? "active" : ""}" id="p2w-currency-aud" style="flex: 1;">
+                AUD ($)
+              </button>
+            </div>
+            <div class="exchange-rate-input-wrap" id="exchange-rate-group" style="margin-top: 16px; display: ${state.p2w.currency === "AUD" ? "block" : "none"};">
+              <label for="p2w-exchange-rate" class="p2w-label">USD to AUD Exchange Rate</label>
+              <input type="number" id="p2w-exchange-rate" class="input-native" value="${state.p2w.exchangeRate}" step="0.01" style="width: 100%; font-family: var(--font-mono); font-weight: bold; color: var(--text);" />
+              <p class="p2w-help-text">Dynamic exchange rate fetched from Open ER API. Custom changes update pricing instantly.</p>
+            </div>
+          </div>
+        </div>`;
+}
+
+function p2wResultsCardHTML({ workingCost, midTitle, midLabel, midValue, gemsNeeded, optResult }) {
+  let finalCost = optResult.cost;
+  let currencySymbol = "USD $";
+  if (state.p2w.currency === "AUD") {
+    finalCost = optResult.cost * state.p2w.exchangeRate;
+    currencySymbol = "AUD $";
+  }
+  return `
+        <div class="p2w-result-card card">
+          <div class="result-header">Real-World Pricing Result</div>
+
+          <div class="result-metric-grid">
+            <div class="result-metric-box">
+              <div class="metric-label">Item Coin Cost</div>
+              <div class="metric-value" style="color: var(--text);">${fmtCoins(workingCost)}</div>
+            </div>
+            <div class="result-metric-box" title="${escapeHtml(midTitle)}">
+              <div class="metric-label">${escapeHtml(midLabel)}</div>
+              <div class="metric-value" style="color: var(--ember-light);">${midValue}</div>
+            </div>
+            <div class="result-metric-box" title="Total store gems needed to cover the item cost">
+              <div class="metric-label">Gems Required</div>
+              <div class="metric-value" style="color: var(--info);">${fmtInt(gemsNeeded)} gems</div>
+            </div>
+          </div>
+
+          <div class="result-total-cost-box">
+            <div class="total-cost-label">Estimated Real-World Cost</div>
+            <div class="total-cost-value" id="result-real-cost">${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div class="total-cost-subtitle" style="font-weight: 500;">Optimal real-money gem packages combination to yield ${fmtInt(gemsNeeded)} gems.</div>
+          </div>
+
+          <div class="optimal-packs-section">
+            <h4 style="margin-bottom: 12px; font-weight: bold;">Optimal Gem Package Combination</h4>
+            <div class="packs-list">
+              ${Object.entries(optResult.packages).length === 0
+                ? `<div class="pack-item" style="color: var(--text-muted); font-style: italic;">No packages required</div>`
+                : Object.entries(optResult.packages).sort((a,b) => b[0] - a[0]).map(([gems, count]) => {
+                    const packInfo = GEM_PACKAGES.find(p => p.gems === parseInt(gems));
+                    const unitPrice = packInfo ? packInfo.cost : 0;
+                    const displayCost = state.p2w.currency === "AUD" ? unitPrice * state.p2w.exchangeRate : unitPrice;
+                    return `
+                      <div class="pack-item">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span class="pack-count-badge">×${count}</span>
+                          <span style="font-weight: 600;">${packInfo ? packInfo.name : gems + " gems"}</span>
+                        </div>
+                        <span style="font-family: var(--font-mono); color: var(--text-soft); font-weight: bold;">
+                          ${currencySymbol}${(displayCost * count).toFixed(2)}
+                        </span>
+                      </div>
+                    `;
+                  }).join("")
+              }
+            </div>
+            <div class="packs-surplus" style="margin-top: 10px; color: var(--text-soft); font-size: 0.85em;" aria-label="Gems Obtained: ${fmtInt(optResult.gemsObtained)}; Leftover Surplus: ${fmtInt(optResult.surplus)} gems">
+              Gems Obtained: <strong style="color: var(--info);">${fmtInt(optResult.gemsObtained)}</strong> / Leftover Surplus: <strong style="color: var(--pos);">${fmtInt(optResult.surplus)} gems</strong>
+            </div>
+          </div>
+        </div>`;
+}
+
 function renderP2wTabsHTML() {
   return `
     <div class="p2w-tabs" role="tablist" aria-label="P2W calculator modes">
@@ -6768,7 +7014,7 @@ function renderP2wTabsHTML() {
     </div>`;
 }
 
-function renderFireSalesTabHTML() {
+function renderFireSalesTabHTML({ workingCost, resolvedPriceSource }) {
   if (state.p2w.fireSalesLoading && !state.p2w.fireSales) {
     return `<div class="acc-loading"><span class="spinner"></span> Loading current and upcoming Fire Sales from Hypixel…</div>`;
   }
@@ -6778,7 +7024,56 @@ function renderFireSalesTabHTML() {
   const upcoming = rows.filter((r) => r.time.status === "Upcoming");
   const priced = rows.filter((r) => r.ahPrice != null && r.usdCost > 0);
   const best = priced[0] || null;
-  const totalPotential = priced.reduce((sum, r) => sum + (r.ahPrice || 0), 0);
+  const totalPotential = priced.reduce((sum, r) => sum + (r.netCoins || 0), 0);
+
+  /* Target-item flip calculation — mirrors the Booster Cookie calculator but
+   * converts coins via "buy sale item with gems → AH insta-sell at lowest
+   * BIN, net of AH taxes" instead of selling cookies on the bazaar. */
+  const flip = getBestFireSaleFlip();
+  const itemsNeeded = flip && workingCost > 0 ? Math.ceil(workingCost / flip.netCoins) : 0;
+  const gemsNeeded = flip ? itemsNeeded * flip.gems : 0;
+  const optResult = optimizeGems(gemsNeeded);
+  const flipFeeRate = flip ? ahCreationFeeRate(flip.ahPrice) : 0;
+  const flipMethodPanel = `
+        <div class="p2w-panel card" style="margin-top: 24px;">
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">${mcIconHTML("FIRE_CHARGE", "inline-mc-icon", "Fire Sale")} 2. Fire Sale Flip Method</h3>
+          ${flip ? `
+          <div class="p2w-cookie-price-display">
+            <div class="cookie-stat-row">
+              <span>Flipping:</span>
+              <span style="font-weight: bold; color: var(--ember-light);">${escapeHtml(flip.name)}</span>
+            </div>
+            <div class="cookie-stat-row">
+              <span>Gem Price:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold;">${fmtInt(flip.gems)} gems</span>
+            </div>
+            <div class="cookie-stat-row">
+              <span>AH Insta-Sell (lowest BIN):</span>
+              <span style="font-family: var(--font-mono); font-weight: bold;">${fmtCoins(flip.ahPrice)}</span>
+            </div>
+            <div class="cookie-stat-row">
+              <span>Listing fee (${(flipFeeRate * 100).toLocaleString()}%):</span>
+              <span style="font-family: var(--font-mono); color: var(--neg);">-${fmtCoins(ahCreationFee(flip.ahPrice))}</span>
+            </div>
+            <div class="cookie-stat-row">
+              <span>Claim tax (up to 1%):</span>
+              <span style="font-family: var(--font-mono); color: var(--neg);">-${fmtCoins(ahClaimTax(flip.ahPrice))}</span>
+            </div>
+            <div class="cookie-stat-row" style="border-top: 1px dashed var(--surface-line); padding-top: 8px; margin-top: 8px;">
+              <span>Net Coins per Item:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold; color: var(--pos);">${fmtCoins(flip.netCoins)}</span>
+            </div>
+          </div>
+          <p class="p2w-help-text" style="margin-top: 10px; font-size: 0.85em;">
+            Sell method: list each sale item at the current lowest BIN for an instant sale.
+            Net value is after the AH listing fee (1% under 10m / 2% to 100m / 2.5% above) and the claim tax (1%, capped so the payout never drops below 1m).
+            Assumes multiple purchases of the sale item — in-game per-player limits may apply.
+          </p>` : `
+          <p class="p2w-help-text" style="font-size: 0.9em;">
+            No Fire Sale with a live AH price right now. ${rows.length ? "The current sale item has no lowest BIN yet — " : "There is no current or upcoming sale — "}
+            run the AH scan or refresh Fire Sales, then this calculator can price items via sale flipping.
+          </p>`}
+        </div>`;
   const binsState = state.binsLoading
     ? `<span class="ah-status">Scanning AH… ${Math.round(state.binsProgress * 100)}%</span>`
     : state.lowestBins
@@ -6831,24 +7126,42 @@ function renderFireSalesTabHTML() {
 
       ${state.p2w.fireSalesError ? `<div class="error-box">Fire Sales API error: ${escapeHtml(state.p2w.fireSalesError)}</div>` : ""}
 
+      <div class="p2w-container" style="margin-bottom: 24px;">
+        <div class="p2w-controls-column">
+          ${p2wItemSelectPanelHTML(resolvedPriceSource)}
+          ${flipMethodPanel}
+          ${p2wCurrencyPanelHTML()}
+        </div>
+        <div class="p2w-results-column">
+          ${p2wResultsCardHTML({
+            workingCost,
+            midTitle: "Fire Sale items to flip: item cost / net coins per sale item (rounded up)",
+            midLabel: "Sale Items Needed",
+            midValue: flip ? `${fmtInt(itemsNeeded)} items` : "—",
+            gemsNeeded,
+            optResult,
+          })}
+        </div>
+      </div>
+
       <section class="stats-grid p2w-fire-stats" aria-label="Fire Sale overview">
         <div class="stat-card"><div class="stat-label">Live sales</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${live.length}</span><span class="stat-value-minor">${upcoming.length} upcoming · ${fireSaleFreshnessLabel()}</span></div></div>
         <div class="stat-card"><div class="stat-label">Priced from AH</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${priced.length} / ${rows.length}</span><span class="stat-value-minor">lowest BIN scan powers prices</span></div></div>
         <div class="stat-card"><div class="stat-label">Best coins / USD</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${best?.coinPerUsd ? fmtCoins(best.coinPerUsd) : "—"}</span><span class="stat-value-minor">${best ? escapeHtml(best.name) : "no AH-priced sale yet"}</span></div></div>
-        <div class="stat-card"><div class="stat-label">AH value tracked</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${totalPotential ? fmtCoins(totalPotential) : "—"}</span><span class="stat-value-minor">gross lowest-BIN value</span></div></div>
+        <div class="stat-card"><div class="stat-label">AH value tracked</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${totalPotential ? fmtCoins(totalPotential) : "—"}</span><span class="stat-value-minor">net coins after AH taxes</span></div></div>
       </section>
 
       ${empty || `
         <section class="table-section p2w-fire-table-section">
           <div class="table-scroll">
             <table class="shard-table p2w-fire-table">
-              <thead><tr><th class="th-rank">#</th><th>Fire Sale Item</th><th>Status</th><th class="th-num">Gem Price</th><th class="th-num">Real Cost</th><th class="th-num">AH Lowest BIN</th><th class="th-num">Coins / USD</th></tr></thead>
+              <thead><tr><th class="th-rank">#</th><th>Fire Sale Item</th><th>Status</th><th class="th-num">Gem Price</th><th class="th-num">Real Cost</th><th class="th-num">AH Lowest BIN</th><th class="th-num" title="Net coins per USD after AH listing fee and claim tax">Net Coins / USD</th></tr></thead>
               <tbody>${rowHTML}</tbody>
             </table>
           </div>
         </section>`}
 
-      <div class="p2w-help-text p2w-fire-note">Note: Auction values are gross lowest-BIN prices from the current AH scan. Fire Sale API responses can be empty between sales, and upcoming cosmetics may not have an AH price until players receive and list them.</div>
+      <div class="p2w-help-text p2w-fire-note">Note: AH Lowest BIN shows the gross listing price from the current AH scan; Net Coins / USD deducts the AH listing fee and claim tax. Fire Sale API responses can be empty between sales, and upcoming cosmetics may not have an AH price until players receive and list them.</div>
     </section>`;
 }
 
@@ -6902,9 +7215,11 @@ function renderP2wView() {
   let cookieLabel = "";
 
   if (state.p2w.cookieMethod === "instantSell") {
-    cookieEffectivePrice = cookieSellPrice || 12300000; // fallback if api fails
-    cookieDisplayPrice = cookieSellPrice || 12300000;
-    cookieLabel = "Instant Sell price";
+    // The 1.25% bazaar tax applies to ALL bazaar sales (wiki: Bazaar →
+    // Trading), instant sells included — not just sell-offer payouts.
+    cookieDisplayPrice = cookieSellPrice || 12300000; // fallback if api fails
+    cookieEffectivePrice = cookieDisplayPrice * (1 - state.tax);
+    cookieLabel = "Instant Sell price (after tax)";
   } else {
     cookieDisplayPrice = cookieBuyPrice || 12900000;
     cookieEffectivePrice = cookieBuyPrice ? cookieBuyPrice * (1 - state.tax) : 12900000 * (1 - state.tax);
@@ -6916,9 +7231,15 @@ function renderP2wView() {
   let resolvedPriceSource = "";
   
   const pObj = resolvePrice(state.p2w.selectedItemId, { bazaar: state.raw?.products, bins: state.lowestBins, bazaarMode: state.bazaarMode });
+  const cosmeticMatch = pObj.best == null ? cosmeticMarketMatch(state.p2w.selectedItemId) : null;
   if (pObj.best != null) {
     resolvedPriceVal = pObj.best;
     resolvedPriceSource = pObj.market === "bazaar" ? "Live price from Bazaar" : "Live price from Auction House (lowest BIN)";
+  } else if (cosmeticMatch) {
+    // Brand-new cosmetics (Fire Sale skins/dyes) are priced via the AH name
+    // index — same fallback the Fire Sales calculator uses.
+    resolvedPriceVal = cosmeticMatch.price;
+    resolvedPriceSource = "Live price from Auction House (lowest BIN)";
   } else {
     // Hardcode fallback for Hyperion if AH lowest-BIN has not completed yet
     if (state.p2w.selectedItemId === "HYPERION") {
@@ -6941,14 +7262,6 @@ function renderP2wView() {
   const gemsNeeded = cookiesNeeded * 325;
   const optResult = optimizeGems(gemsNeeded);
 
-  // Convert pricing to chosen currency
-  let finalCost = optResult.cost;
-  let currencySymbol = "USD $";
-  if (state.p2w.currency === "AUD") {
-    finalCost = optResult.cost * state.p2w.exchangeRate;
-    currencySymbol = "AUD $";
-  }
-
   // AH scan status text for toolbar integration
   const binsState = state.binsLoading
     ? `<span class="ah-status">Scanning AH… ${Math.round(state.binsProgress * 100)}%</span>`
@@ -6959,8 +7272,8 @@ function renderP2wView() {
   pane.innerHTML = `
     <header class="view-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
       <div>
-        <h2 class="view-title" style="margin-bottom: 4px;">P2W Cookie Calculator</h2>
-        <p class="view-subtitle" style="margin: 0;">Find out how many real-world dollars (USD/AUD) are needed to buy any item in Hypixel SkyBlock by selling store-bought Booster Cookies.</p>
+        <h2 class="view-title" style="margin-bottom: 4px;">P2W Calculator</h2>
+        <p class="view-subtitle" style="margin: 0;">Find out how many real-world dollars (USD/AUD) are needed to buy any item in Hypixel SkyBlock — by selling store-bought Booster Cookies or by flipping Fire Sale items on the Auction House.</p>
       </div>
       <div class="acc-toolbar-ah" style="background: var(--bg-elevated); padding: 8px 16px; border-radius: var(--r-sm); border: 1px solid var(--surface-line); font-size: 0.85em; display: flex; align-items: center; gap: 10px;">
         ${binsState}
@@ -6969,54 +7282,11 @@ function renderP2wView() {
 
     ${renderP2wTabsHTML()}
 
-    ${state.p2w.activeTab === "firesales" ? renderFireSalesTabHTML() : `
+    ${state.p2w.activeTab === "firesales" ? renderFireSalesTabHTML({ workingCost, resolvedPriceSource }) : `
     <div class="p2w-container">
       <!-- Left Column: Controls -->
       <div class="p2w-controls-column">
-        <div class="p2w-panel card">
-          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">${mcIconHTML("COMPASS", "inline-mc-icon", "Search")} 1. Select SkyBlock Item</h3>
-          
-          <div class="p2w-input-group">
-            <label for="p2w-item-search" class="p2w-label">Search Item</label>
-            <div class="search-wrap" style="width: 100%;">
-              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-              <input type="search" id="p2w-item-search" placeholder="Type to search (e.g. Hyperion)..." value="${escapeHtml(state.p2w.searchQuery)}" autocomplete="off" style="width: 100%;" />
-            </div>
-            <!-- Search Results Dropdown -->
-            <div id="p2w-search-results" class="p2w-dropdown-results" hidden></div>
-          </div>
-          
-          <div class="p2w-input-group">
-            <label class="p2w-label">Selected Item</label>
-            <div class="p2w-selected-info" style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--r-md); border: 1px solid var(--surface-line);">
-              <div class="p2w-item-icon-wrapper" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-line); border-radius: var(--r-md); padding: 4px; flex-shrink: 0;">
-                <img src="${getUniversalItemIconUrl(state.p2w.selectedItemId)}" alt="" class="p2w-item-icon" style="max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;" onerror="${fallbackToSkyCryptItemOnError(state.p2w.selectedItemId)}">
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 2px;">
-                <span class="p2w-item-name-tag" style="color: var(--ember-light); font-weight: bold; font-size: 1.05em;">
-                  ${escapeHtml(state.p2w.selectedItemName)}
-                </span>
-                <span class="p2w-item-id-tag" style="font-family: var(--font-mono); font-size: 0.8em; color: var(--text-muted);">
-                  ID: ${escapeHtml(state.p2w.selectedItemId)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="p2w-input-group">
-            <label for="p2w-item-cost" class="p2w-label">In-Game Coin Cost</label>
-            <div class="input-with-button">
-              <input type="number" id="p2w-item-cost" class="input-native" value="${state.p2w.customPrice}" min="0" step="100000" style="font-family: var(--font-mono); font-weight: bold; color: var(--text);" />
-              <button class="btn-ghost btn-small" id="p2w-reset-cost" title="Reset to live market price" style="white-space: nowrap; padding: 0 16px;">Reset</button>
-            </div>
-            <p class="p2w-help-text" id="p2w-price-source-label" style="font-weight: 500; color: var(--text-muted); margin-top: 6px;">
-              Source: <span style="color: var(--info);">${resolvedPriceSource}</span>
-            </p>
-          </div>
-        </div>
+        ${p2wItemSelectPanelHTML(resolvedPriceSource)}
 
         <div class="p2w-panel card" style="margin-top: 24px;">
           <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">${mcIconHTML("BOOSTER_COOKIE", "inline-mc-icon", "Booster Cookie")} 2. Booster Cookie Method</h3>
@@ -7032,8 +7302,9 @@ function renderP2wView() {
               </button>
             </div>
             <p class="p2w-help-text" style="margin-top: 10px; font-size: 0.85em;">
-              <b>Instant Sell</b>: Sell cookies immediately to active buy orders.<br/>
-              <b>Sell Offer</b>: Create a sell offer on the bazaar and wait. Pays Bazaar tax (current: <b>${(state.tax * 100).toFixed(3)}%</b>).
+              <b>Instant Sell</b>: Sell cookies immediately to active buy orders (lower price, instant).<br/>
+              <b>Sell Offer</b>: Create a sell offer on the bazaar and wait (higher price, slower).<br/>
+              The Bazaar tax (current: <b>${(state.tax * 100).toFixed(3)}%</b>) applies to all bazaar sales, both methods included.
             </p>
           </div>
 
@@ -7049,81 +7320,19 @@ function renderP2wView() {
           </div>
         </div>
 
-        <div class="p2w-panel card" style="margin-top: 24px;">
-          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">${mcIconHTML("EMERALD", "inline-mc-icon", "Currency")} 3. Real-Money Currency</h3>
-          <div class="p2w-input-group" style="margin-bottom: 0;">
-            <label class="p2w-label">Currency Option</label>
-            <div class="toggle-group" style="display: flex; gap: 8px;">
-              <button class="btn-toggle ${state.p2w.currency === "USD" ? "active" : ""}" id="p2w-currency-usd" style="flex: 1;">
-                USD ($)
-              </button>
-              <button class="btn-toggle ${state.p2w.currency === "AUD" ? "active" : ""}" id="p2w-currency-aud" style="flex: 1;">
-                AUD ($)
-              </button>
-            </div>
-            <div class="exchange-rate-input-wrap" id="exchange-rate-group" style="margin-top: 16px; display: ${state.p2w.currency === "AUD" ? "block" : "none"};">
-              <label for="p2w-exchange-rate" class="p2w-label">USD to AUD Exchange Rate</label>
-              <input type="number" id="p2w-exchange-rate" class="input-native" value="${state.p2w.exchangeRate}" step="0.01" style="width: 100%; font-family: var(--font-mono); font-weight: bold; color: var(--text);" />
-              <p class="p2w-help-text">Dynamic exchange rate fetched from Open ER API. Custom changes update pricing instantly.</p>
-            </div>
-          </div>
-        </div>
+        ${p2wCurrencyPanelHTML()}
       </div>
 
       <!-- Right Column: Results -->
       <div class="p2w-results-column">
-        <div class="p2w-result-card card">
-          <div class="result-header">Real-World Pricing Result</div>
-          
-          <div class="result-metric-grid">
-            <div class="result-metric-box">
-              <div class="metric-label">Item Coin Cost</div>
-              <div class="metric-value" style="color: var(--text);">${fmtCoins(workingCost)}</div>
-            </div>
-            <div class="result-metric-box" title="Amount of Booster Cookies needed to cover the item cost: itemCost / cookiePrice (rounded up)">
-              <div class="metric-label">Cookies Needed</div>
-              <div class="metric-value" style="color: var(--ember-light);">${fmtInt(cookiesNeeded)} cookies</div>
-            </div>
-            <div class="result-metric-box" title="Cookies Needed x 325 Gems per cookie">
-              <div class="metric-label">Gems Required</div>
-              <div class="metric-value" style="color: var(--info);">${fmtInt(gemsNeeded)} gems</div>
-            </div>
-          </div>
-
-          <div class="result-total-cost-box">
-            <div class="total-cost-label">Estimated Real-World Cost</div>
-            <div class="total-cost-value" id="result-real-cost">${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <div class="total-cost-subtitle" style="font-weight: 500;">Optimal real-money gem packages combination to yield ${fmtInt(gemsNeeded)} gems.</div>
-          </div>
-
-          <div class="optimal-packs-section">
-            <h4 style="margin-bottom: 12px; font-weight: bold;">Optimal Gem Package Combination</h4>
-            <div class="packs-list">
-              ${Object.entries(optResult.packages).length === 0
-                ? `<div class="pack-item" style="color: var(--text-muted); font-style: italic;">No packages required</div>`
-                : Object.entries(optResult.packages).sort((a,b) => b[0] - a[0]).map(([gems, count]) => {
-                    const packInfo = GEM_PACKAGES.find(p => p.gems === parseInt(gems));
-                    const unitPrice = packInfo ? packInfo.cost : 0;
-                    const displayCost = state.p2w.currency === "AUD" ? unitPrice * state.p2w.exchangeRate : unitPrice;
-                    return `
-                      <div class="pack-item">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                          <span class="pack-count-badge">×${count}</span>
-                          <span style="font-weight: 600;">${packInfo ? packInfo.name : gems + " gems"}</span>
-                        </div>
-                        <span style="font-family: var(--font-mono); color: var(--text-soft); font-weight: bold;">
-                          ${currencySymbol}${(displayCost * count).toFixed(2)}
-                        </span>
-                      </div>
-                    `;
-                  }).join("")
-              }
-            </div>
-            <div class="packs-surplus" style="margin-top: 10px; color: var(--text-soft); font-size: 0.85em;" aria-label="Gems Obtained: ${fmtInt(optResult.gemsObtained)}; Leftover Surplus: ${fmtInt(optResult.surplus)} gems">
-              Gems Obtained: <strong style="color: var(--info);">${fmtInt(optResult.gemsObtained)}</strong> / Leftover Surplus: <strong style="color: var(--pos);">${fmtInt(optResult.surplus)} gems</strong>
-            </div>
-          </div>
-        </div>
+        ${p2wResultsCardHTML({
+          workingCost,
+          midTitle: "Amount of Booster Cookies needed to cover the item cost: itemCost / cookiePrice (rounded up)",
+          midLabel: "Cookies Needed",
+          midValue: `${fmtInt(cookiesNeeded)} cookies`,
+          gemsNeeded,
+          optResult,
+        })}
       </div>
     </div>`}
   `;
@@ -7228,20 +7437,33 @@ function recalculateP2wResultsInline() {
   const pane = $("#view-p2w");
   if (!pane) return;
 
-  const cookieProd = state.raw?.products?.["BOOSTER_COOKIE"];
-  const cookieSellPrice = cookieProd?.quick_status?.sellPrice || null;
-  const cookieBuyPrice = cookieProd?.quick_status?.buyPrice || null;
-  
-  let cookieEffectivePrice = 0;
-  if (state.p2w.cookieMethod === "instantSell") {
-    cookieEffectivePrice = cookieSellPrice || 12300000;
-  } else {
-    cookieEffectivePrice = cookieBuyPrice ? cookieBuyPrice * (1 - state.tax) : 12900000 * (1 - state.tax);
-  }
-
   const workingCost = state.p2w.customPrice !== null ? state.p2w.customPrice : 0;
-  const cookiesNeeded = workingCost > 0 && cookieEffectivePrice > 0 ? Math.ceil(workingCost / cookieEffectivePrice) : 0;
-  const gemsNeeded = cookiesNeeded * 325;
+
+  /* Per-tab conversion of coins → units → gems. Both tabs share the same
+   * results-card markup, so only this math differs. */
+  let unitsText, gemsNeeded;
+  if (state.p2w.activeTab === "firesales") {
+    const flip = getBestFireSaleFlip();
+    const itemsNeeded = flip && workingCost > 0 ? Math.ceil(workingCost / flip.netCoins) : 0;
+    gemsNeeded = flip ? itemsNeeded * flip.gems : 0;
+    unitsText = flip ? `${fmtInt(itemsNeeded)} items` : "—";
+  } else {
+    const cookieProd = state.raw?.products?.["BOOSTER_COOKIE"];
+    const cookieSellPrice = cookieProd?.quick_status?.sellPrice || null;
+    const cookieBuyPrice = cookieProd?.quick_status?.buyPrice || null;
+
+    let cookieEffectivePrice = 0;
+    if (state.p2w.cookieMethod === "instantSell") {
+      // Bazaar tax applies to instant sells too (wiki: 1.25% on all sales).
+      cookieEffectivePrice = (cookieSellPrice || 12300000) * (1 - state.tax);
+    } else {
+      cookieEffectivePrice = cookieBuyPrice ? cookieBuyPrice * (1 - state.tax) : 12900000 * (1 - state.tax);
+    }
+
+    const cookiesNeeded = workingCost > 0 && cookieEffectivePrice > 0 ? Math.ceil(workingCost / cookieEffectivePrice) : 0;
+    gemsNeeded = cookiesNeeded * 325;
+    unitsText = `${fmtInt(cookiesNeeded)} cookies`;
+  }
   const optResult = optimizeGems(gemsNeeded);
 
   let finalCost = optResult.cost;
@@ -7253,14 +7475,14 @@ function recalculateP2wResultsInline() {
 
   // Update DOM elements directly!
   const elItemCost = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(1) .metric-value");
-  const elCookies = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(2) .metric-value");
+  const elUnits = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(2) .metric-value");
   const elGems = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(3) .metric-value");
   const elRealCost = pane.querySelector("#result-real-cost");
   const elSurplus = pane.querySelector(".packs-surplus");
   const elPacksList = pane.querySelector(".packs-list");
 
   if (elItemCost) elItemCost.textContent = fmtCoins(workingCost);
-  if (elCookies) elCookies.textContent = `${fmtInt(cookiesNeeded)} cookies`;
+  if (elUnits) elUnits.textContent = unitsText;
   if (elGems) elGems.textContent = `${fmtInt(gemsNeeded)} gems`;
   if (elRealCost) elRealCost.textContent = `${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   
@@ -7308,19 +7530,35 @@ function updateP2wSuggestions(query) {
   }
   
   // Filter all items by name matching query
-  const matches = state.allItems.filter(item => 
+  const itemMatches = state.allItems.filter(item =>
     item.name && item.name.toLowerCase().includes(q)
-  ).slice(0, 10); // Limit to top 10 results
-  
+  );
+
+  // Also search AH-only cosmetics (new Fire Sale skins/dyes missing from the
+  // items resource) so both P2W calculators can price the same items.
+  const cosmeticMatches = [];
+  if (state.cosmeticBins) {
+    const catalogNames = new Set(state.allItems.map(item => (item.name || "").toLowerCase()));
+    for (const { price, name } of state.cosmeticBins.values()) {
+      const lower = name.toLowerCase();
+      if (!lower.includes(q) || catalogNames.has(lower)) continue;
+      cosmeticMatches.push({ id: cosmeticIdFromName(name), name, cosmeticPrice: price });
+    }
+  }
+
+  const matches = [...itemMatches, ...cosmeticMatches].slice(0, 10); // Limit to top 10 results
+
   if (matches.length === 0) {
     resultsContainer.innerHTML = `<div style="padding: 12px 16px; color: var(--text-muted); font-size: 0.9em;">No matching items found</div>`;
     resultsContainer.hidden = false;
     return;
   }
-  
+
   resultsContainer.innerHTML = matches.map(item => {
     // Resolve price for this item
-    const priceObj = resolvePrice(item.id, { bazaar: state.raw?.products, bins: state.lowestBins, bazaarMode: state.bazaarMode });
+    const priceObj = item.cosmeticPrice != null
+      ? { best: item.cosmeticPrice, market: "auction" }
+      : resolvePrice(item.id, { bazaar: state.raw?.products, bins: state.lowestBins, bazaarMode: state.bazaarMode });
     const priceText = priceObj.best != null ? fmtCoins(priceObj.best) : "—";
     const marketLabel = priceObj.market === "bazaar" ? "Bazaar" : priceObj.market === "auction" ? "AH" : "";
     const badgeText = marketLabel ? `<span class="home-card-badge" style="font-size: 0.75em; padding: 2px 6px; background: rgba(255,255,255,0.06);">${marketLabel}</span>` : "";
