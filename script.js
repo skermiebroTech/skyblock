@@ -211,7 +211,9 @@ const state = {
     fireSales: null,
     fireSalesLoading: false,
     fireSalesError: null,
-    fireSalesFetchedAt: null
+    fireSalesFetchedAt: null,
+    bundleFocusId: null,        // which bundle the Bundles tab panel/results target (null → best value)
+    bundleSkinPrices: {}        // { [skinName]: coinValueOverride } — user overrides for bundle skin prices
   },
 };
 
@@ -6600,6 +6602,45 @@ const GEM_PACKAGES = [
   { gems: 700,   cost: 5.99,   name: "700 SkyBlock Gems" }
 ];
 
+/* Hypixel Store SkyBlock-relevant bundles (store.hypixel.net/category/bundles).
+ * Prices are USD from the live store; regional checkout tax is added by the
+ * store and not included here. `gems` is the bundle's SkyBlock Gems, `cosmetics`
+ * are the tradeable SkyBlock skins we price from the Auction House, and `extras`
+ * are network-wide boosters/cosmetics that carry no SkyBlock coin value (listed
+ * for completeness only). Bundles are limited-time and some are one-per-account.
+ * Refresh this list from the store when the bundle rotation changes. */
+const STORE_BUNDLES = [
+  {
+    id: "7516754",
+    name: "Summer Legacy Bundle",
+    price: 16.49,
+    originalPrice: 54.96,
+    tag: "70% OFF",
+    gems: 700,
+    cosmetics: [
+      { name: "Shleepy Sheep Pet Skin" },
+      { name: "Wyvern Dragon Helmet Skin" },
+    ],
+    extras: [
+      "1× Arcade Games Booster", "1× SkyWars Booster", "1× TNT Games Booster",
+      "1× Mega Walls Booster", "Stormy Bed Destroy", "Beach Particle Pack",
+      "Swarm Cloak", "Storm Cloak",
+    ],
+  },
+  {
+    id: "7516755",
+    name: "Summer SkyBlock Bundle",
+    price: 27.49,
+    gems: 1800,
+    cosmetics: [
+      { name: "Petal Rose Dragon Pet Skin" },
+      { name: "Garden Warrior Fermento Helmet Skin" },
+      { name: "Kitsune Tiki Mask Helmet Skin" },
+    ],
+    extras: [],
+  },
+];
+
 function optimizeGems(targetGems) {
   if (targetGems <= 0) return { cost: 0, packages: {}, gemsObtained: 0, surplus: 0 };
   
@@ -6944,7 +6985,15 @@ function p2wCurrencyPanelHTML() {
         </div>`;
 }
 
-function p2wResultsCardHTML({ workingCost, midTitle, midLabel, midValue, gemsNeeded, optResult }) {
+/* Highlighted "coins per USD" line for the results total-cost box, shared by all
+ * three P2W tabs. `coinsPerUsd` is in-game coins netted per US dollar for the
+ * current route, after taxes/fees (null/0 → not computable yet). */
+function p2wCoinsPerUsdLineHTML(coinsPerUsd) {
+  const text = coinsPerUsd && coinsPerUsd > 0 ? `≈ ${fmtCoins(coinsPerUsd)} coins per USD` : "≈ — coins per USD";
+  return `<div class="total-cost-rate" id="result-coins-per-usd" title="In-game coins netted per US dollar for this route, after taxes and fees">${text}</div>`;
+}
+
+function p2wResultsCardHTML({ workingCost, midTitle, midLabel, midValue, gemsNeeded, optResult, coinsPerUsd }) {
   let finalCost = optResult.cost;
   let currencySymbol = "USD $";
   if (state.p2w.currency === "AUD") {
@@ -6973,6 +7022,7 @@ function p2wResultsCardHTML({ workingCost, midTitle, midLabel, midValue, gemsNee
           <div class="result-total-cost-box">
             <div class="total-cost-label">Estimated Real-World Cost</div>
             <div class="total-cost-value" id="result-real-cost">${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            ${p2wCoinsPerUsdLineHTML(coinsPerUsd)}
             <div class="total-cost-subtitle" style="font-weight: 500;">Optimal real-money gem packages combination to yield ${fmtInt(gemsNeeded)} gems.</div>
           </div>
 
@@ -7011,6 +7061,7 @@ function renderP2wTabsHTML() {
     <div class="p2w-tabs" role="tablist" aria-label="P2W calculator modes">
       <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "cookies" ? "active" : ""}" data-p2w-tab="cookies" role="tab" aria-selected="${state.p2w.activeTab === "cookies"}">${mcIconHTML("BOOSTER_COOKIE", "inline-mc-icon", "Booster Cookies")} Booster Cookies</button>
       <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "firesales" ? "active" : ""}" data-p2w-tab="firesales" role="tab" aria-selected="${state.p2w.activeTab === "firesales"}">${mcIconHTML("FIRE_CHARGE", "inline-mc-icon", "Fire Sales")} Fire Sales</button>
+      <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "bundles" ? "active" : ""}" data-p2w-tab="bundles" role="tab" aria-selected="${state.p2w.activeTab === "bundles"}">${mcIconHTML("CHEST", "inline-mc-icon", "Store Bundles")} Store Bundles</button>
     </div>`;
 }
 
@@ -7140,6 +7191,7 @@ function renderFireSalesTabHTML({ workingCost, resolvedPriceSource }) {
             midValue: flip ? `${fmtInt(itemsNeeded)} items` : "—",
             gemsNeeded,
             optResult,
+            coinsPerUsd: flip && optResult.cost > 0 ? (itemsNeeded * flip.netCoins) / optResult.cost : null,
           })}
         </div>
       </div>
@@ -7162,6 +7214,303 @@ function renderFireSalesTabHTML({ workingCost, resolvedPriceSource }) {
         </section>`}
 
       <div class="p2w-help-text p2w-fire-note">Note: AH Lowest BIN shows the gross listing price from the current AH scan; Net Coins / USD deducts the AH listing fee and claim tax. Fire Sale API responses can be empty between sales, and upcoming cosmetics may not have an AH price until players receive and list them.</div>
+    </section>`;
+}
+
+/* ---- Bundles P2W tab ----
+ * Store bundles pack SkyBlock Gems with tradeable cosmetic skins (and, for some,
+ * network-wide extras with no coin value). A bundle's realizable coin value =
+ * gems converted via Booster Cookie resale + net AH proceeds of its skins.
+ * Dividing by the USD price yields coins-per-dollar, comparable to the Booster
+ * Cookie and Fire Sale tabs. */
+
+/* Best coins-per-gem the app models: buy Booster Cookies with gems (325 each)
+ * and instant-sell them on the bazaar, net of the bazaar tax. Keeps bundle gem
+ * valuation consistent with the Booster Cookie tab's instant-sell method. */
+function gemToCoinRate() {
+  const cookieProd = state.raw?.products?.["BOOSTER_COOKIE"];
+  const cookieSellPrice = cookieProd?.quick_status?.sellPrice || 12300000;
+  const cookieEffective = cookieSellPrice * (1 - state.tax);
+  return { perGem: cookieEffective / 325, cookieEffective, cookieSellPrice };
+}
+
+/* Word-set variants of a bundle skin name to look up in the AH cosmetic index.
+ * That index keys on sorted lowercase tokens of listings ending in skin/dye/rune,
+ * and Hypixel's AH names drop "Pet" (pet skins) or the armor slot word, so we try
+ * the full name plus those reduced forms. */
+function bundleCosmeticVariants(name) {
+  const base = String(name).trim();
+  return [...new Set([
+    base,
+    base.replace(/\bPet\s+Skin$/i, "Skin"),
+    base.replace(/\b(Helmet|Chestplate|Leggings|Boots)\s+Skin$/i, "Skin"),
+  ])];
+}
+
+/* Lowest-BIN match for a bundle cosmetic: an explicit id first (direct/token
+ * lookup shared with Fire Sales), then the name variants against the cosmetic
+ * name index. Returns { price, name } or null. */
+function bundleCosmeticMatch(cosmetic) {
+  if (cosmetic.id) {
+    const direct = cosmeticMarketMatch(cosmetic.id);
+    if (direct) return direct;
+  }
+  if (!state.cosmeticBins) return null;
+  for (const variant of bundleCosmeticVariants(cosmetic.name)) {
+    const tokens = variant.toLowerCase().split(/\s+/).filter(Boolean);
+    const hit = state.cosmeticBins.get(cosmeticTokenKey(tokens));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/* Value one bundle in coins: gems via cookie resale + skins via net AH BIN. */
+function getBundleValuation(bundle) {
+  const gem = gemToCoinRate();
+  const gemsCoinValue = (bundle.gems || 0) * gem.perGem;
+
+  const cosmetics = (bundle.cosmetics || []).map((c) => {
+    const match = bundleCosmeticMatch(c);
+    const ahPrice = match?.price ?? null;
+    const marketNet = ahPrice != null ? ahNetProceeds(ahPrice) : 0;
+    const override = state.p2w.bundleSkinPrices?.[c.name];
+    const overridden = Number.isFinite(override);
+    return {
+      name: c.name,
+      ahPrice,
+      marketNet,
+      overridden,
+      netCoins: overridden ? override : marketNet,
+    };
+  });
+  const cosmeticsCoinValue = cosmetics.reduce((s, c) => s + c.netCoins, 0);
+  const pricedCount = cosmetics.filter((c) => c.netCoins > 0).length;
+  const totalCoinValue = gemsCoinValue + cosmeticsCoinValue;
+
+  return {
+    gemsCoinValue,
+    cosmetics,
+    cosmeticsCoinValue,
+    pricedCount,
+    totalCosmetics: cosmetics.length,
+    totalCoinValue,
+    coinPerUsd: bundle.price > 0 ? totalCoinValue / bundle.price : 0,
+    perGem: gem.perGem,
+  };
+}
+
+function getBundleRows() {
+  return STORE_BUNDLES
+    .map((bundle) => ({ bundle, val: getBundleValuation(bundle) }))
+    .sort((a, b) => b.val.coinPerUsd - a.val.coinPerUsd);
+}
+
+/* Most coins-per-USD bundle with a positive value — the default recommendation. */
+function getBestBundle() {
+  return getBundleRows().find((r) => r.val.totalCoinValue > 0) || null;
+}
+
+/* The bundle the tab's panel + results card target: the user-selected one
+ * (state.p2w.bundleFocusId), else the best-value bundle. */
+function getFocusedBundleRow() {
+  const rows = getBundleRows();
+  if (state.p2w.bundleFocusId) {
+    const found = rows.find((r) => r.bundle.id === state.p2w.bundleFocusId);
+    if (found) return found;
+  }
+  return rows.find((r) => r.val.totalCoinValue > 0) || rows[0] || null;
+}
+
+/* Gem row (derived) + one editable coin-price input per skin, for the panel. */
+function bundleValuationRowsHTML(row) {
+  const gemRow = `
+            <div class="cookie-stat-row">
+              <span>${fmtInt(row.bundle.gems)} Gems (cookie resale):</span>
+              <span style="font-family: var(--font-mono); font-weight: bold; color: var(--pos);">${fmtCoins(row.val.gemsCoinValue)}</span>
+            </div>`;
+  const skinRows = row.val.cosmetics.map((c) => {
+    const placeholder = c.ahPrice != null ? String(Math.round(c.marketNet)) : (state.binsLoading ? "Scanning…" : "No BIN — enter coins");
+    const srcLabel = c.overridden ? "custom" : (c.ahPrice != null ? "net AH BIN" : "no AH price");
+    return `
+            <div class="cookie-stat-row bundle-skin-row">
+              <span>${escapeHtml(c.name)}<span class="bundle-skin-src${c.overridden ? " is-custom" : ""}">${srcLabel}</span></span>
+              <input type="number" class="input-native bundle-skin-input${c.overridden ? " is-overridden" : ""}" data-skin="${escapeHtml(c.name)}" value="${c.netCoins ? Math.round(c.netCoins) : ""}" placeholder="${escapeHtml(placeholder)}" min="0" step="100000" title="Coin value for ${escapeHtml(c.name)} — defaults to net AH BIN, edit to override">
+            </div>`;
+  }).join("");
+  return gemRow + skinRows;
+}
+
+function renderBundleMethodPanelHTML(focus, bestId) {
+  const hasOverrides = Object.keys(state.p2w.bundleSkinPrices || {}).length > 0;
+  const pills = STORE_BUNDLES.map((b) => `
+              <button class="btn-toggle bundle-pill ${focus && focus.bundle.id === b.id ? "active" : ""}" data-bundle-id="${b.id}" title="${escapeHtml(b.name)}">${escapeHtml(b.name)}${b.id === bestId ? " ★" : ""}</button>`).join("");
+  return `
+        <div class="p2w-panel card" style="margin-top: 24px;">
+          <div class="bundle-panel-head">
+            <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin: 0;">${mcIconHTML("CHEST", "inline-mc-icon", "Bundle")} 2. Bundle Breakdown</h3>
+            ${hasOverrides ? `<button class="btn-ghost btn-small" id="p2w-bundle-reset-prices" title="Clear all custom skin prices">Reset prices</button>` : ""}
+          </div>
+          <div class="bundle-select-pills">${pills}</div>
+          ${focus ? `
+          <div class="p2w-cookie-price-display">
+            <div class="cookie-stat-row">
+              <span>Bundle:</span>
+              <span style="font-weight: bold; color: var(--ember-light);">${escapeHtml(focus.bundle.name)}${focus.bundle.id === bestId ? ` <span class="pill">Best value</span>` : ""}</span>
+            </div>
+            <div class="cookie-stat-row">
+              <span>Store Price:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold;">USD $${focus.bundle.price.toFixed(2)}${focus.bundle.originalPrice ? ` <span style="color: var(--text-muted); text-decoration: line-through;">$${focus.bundle.originalPrice.toFixed(2)}</span>` : ""}</span>
+            </div>
+            ${bundleValuationRowsHTML(focus)}
+            <div class="cookie-stat-row" style="border-top: 1px dashed var(--surface-line); padding-top: 8px; margin-top: 8px;">
+              <span>Total Coin Value:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold; color: var(--pos);">${fmtCoins(focus.val.totalCoinValue)}</span>
+            </div>
+            <div class="cookie-stat-row">
+              <span>Coins per USD:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold; color: var(--info);">${fmtCoins(focus.val.coinPerUsd)}/USD</span>
+            </div>
+          </div>
+          <p class="p2w-help-text" style="margin-top: 10px; font-size: 0.85em;">
+            Each skin's coin value is editable — it defaults to the net AH lowest BIN (after listing fee and claim tax) and you can type your own price. Gems are valued via Booster Cookie resale (325 gems each, net of the ${(state.tax * 100).toFixed(3)}% bazaar tax). Network-wide boosters/cosmetics are excluded.
+          </p>` : `
+          <p class="p2w-help-text" style="font-size: 0.9em;">
+            No bundle can be priced yet. ${state.lowestBins ? "The bundle skins have no lowest BIN in the current scan — enter skin prices above, or gem value still applies once cookie prices load." : "Load AH prices to value the bundle skins, or type your own prices above; gem value uses live bazaar cookie prices."}
+          </p>`}
+        </div>`;
+}
+
+function p2wBundleResultsCardHTML({ workingCost, row, bundlesNeeded }) {
+  const valuePerBundle = row ? row.val.totalCoinValue : 0;
+  let finalCost = row ? bundlesNeeded * row.bundle.price : 0;
+  let currencySymbol = "USD $";
+  let unitPrice = row ? row.bundle.price : 0;
+  if (state.p2w.currency === "AUD") {
+    finalCost *= state.p2w.exchangeRate;
+    unitPrice *= state.p2w.exchangeRate;
+    currencySymbol = "AUD $";
+  }
+  const coinsPerUsd = row ? row.val.coinPerUsd : null;
+  return `
+        <div class="p2w-result-card card">
+          <div class="result-header">Real-World Pricing Result</div>
+
+          <div class="result-metric-grid">
+            <div class="result-metric-box">
+              <div class="metric-label">Item Coin Cost</div>
+              <div class="metric-value" style="color: var(--text);">${fmtCoins(workingCost)}</div>
+            </div>
+            <div class="result-metric-box" title="Bundles to buy: item cost / coin value per bundle (rounded up)">
+              <div class="metric-label">Bundles Needed</div>
+              <div class="metric-value" style="color: var(--ember-light);">${row ? `${fmtInt(bundlesNeeded)} bundles` : "—"}</div>
+            </div>
+            <div class="result-metric-box" title="Realizable coins per bundle: gems (cookie resale) + skins (editable, default net AH BIN)">
+              <div class="metric-label">Coin Value / Bundle</div>
+              <div class="metric-value" style="color: var(--info);">${row ? fmtCoins(valuePerBundle) : "—"}</div>
+            </div>
+          </div>
+
+          <div class="result-total-cost-box">
+            <div class="total-cost-label">Estimated Real-World Cost</div>
+            <div class="total-cost-value" id="result-real-cost">${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            ${p2wCoinsPerUsdLineHTML(coinsPerUsd)}
+            <div class="total-cost-subtitle" style="font-weight: 500;">${row ? `${fmtInt(bundlesNeeded)} × ${escapeHtml(row.bundle.name)} @ ${currencySymbol}${unitPrice.toFixed(2)} each` : "No bundle can be priced yet — load AH prices."}</div>
+          </div>
+
+          <div class="p2w-help-text" style="margin-top: 16px; font-size: 0.85em;">
+            Bundles are limited-time and some are one-per-account, so this is a value estimate — the store may cap how many you can actually buy. Compare "Coins per USD" against the Booster Cookie and Fire Sale tabs to see which route is cheapest.
+          </div>
+        </div>`;
+}
+
+function renderBundlesTabHTML({ workingCost, resolvedPriceSource }) {
+  const rows = getBundleRows();
+  const best = getBestBundle();
+  const bestId = best ? best.bundle.id : null;
+  const focus = getFocusedBundleRow();
+  const valuePerBundle = focus ? focus.val.totalCoinValue : 0;
+  const bundlesNeeded = focus && workingCost > 0 && valuePerBundle > 0 ? Math.ceil(workingCost / valuePerBundle) : 0;
+
+  const binsState = state.binsLoading
+    ? `<span class="ah-status">Scanning AH… ${Math.round(state.binsProgress * 100)}%</span>`
+    : state.lowestBins
+      ? `<span class="ah-status ah-status-ok">AH prices loaded (${state.lowestBins.size})</span>`
+      : `<button class="btn-secondary btn-small" id="p2w-load-bins-btn">Load AH prices</button>`;
+
+  const rowHTML = rows.map((row, idx) => {
+    const v = row.val;
+    const currencySymbol = state.p2w.currency === "AUD" ? "AUD $" : "USD $";
+    const realCost = state.p2w.currency === "AUD" ? row.bundle.price * state.p2w.exchangeRate : row.bundle.price;
+    const coinPerUsd = v.coinPerUsd > 0 ? `${fmtCoins(v.coinPerUsd)}/USD` : "—";
+    const isBest = best && row.bundle.id === best.bundle.id;
+    const extrasNote = row.bundle.extras && row.bundle.extras.length ? ` · +${row.bundle.extras.length} network extras` : "";
+    return `
+      <tr${isBest ? ' class="p2w-bundle-best-row"' : ""}>
+        <td class="th-rank">${idx + 1}</td>
+        <td>
+          <div class="cell-shard">
+            <img src="${getUniversalItemIconUrl("CHEST")}" alt="" class="shard-icon" onerror="${fallbackToSkyCryptItemOnError("CHEST")}">
+            <div><strong>${escapeHtml(row.bundle.name)}</strong>${row.bundle.tag ? ` <span class="pill">${escapeHtml(row.bundle.tag)}</span>` : ""}<div class="meta-attr">${fmtInt(row.bundle.gems)} gems · ${v.totalCosmetics} skin${v.totalCosmetics === 1 ? "" : "s"}${extrasNote}</div></div>
+          </div>
+        </td>
+        <td class="num">${currencySymbol}${realCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td class="num">${fmtCoins(v.gemsCoinValue)}</td>
+        <td class="num">${v.pricedCount ? fmtCoins(v.cosmeticsCoinValue) : (state.binsLoading ? "Scanning…" : "—")}<div class="meta-attr">${v.pricedCount}/${v.totalCosmetics} skins priced</div></td>
+        <td class="num">${fmtCoins(v.totalCoinValue)}</td>
+        <td class="num ${v.coinPerUsd > 0 ? "pos" : "num-muted"}">${coinPerUsd}</td>
+      </tr>`;
+  }).join("");
+
+  const bestValue = rows.length ? rows[0] : null;
+
+  return `
+    <section class="p2w-fire-tab">
+      <div class="acc-page-head p2w-fire-head">
+        <div>
+          <h2 class="acc-page-title">Store Bundles P2W Calculator</h2>
+          <p class="acc-page-sub">Values each Hypixel Store bundle in coins — SkyBlock Gems via Booster Cookie resale plus tradeable skins at live Auction House prices — then ranks them by coins per real dollar. Skin pricing needs an AH scan; gem value uses live bazaar cookie prices.</p>
+        </div>
+        <div class="p2w-fire-actions">
+          ${binsState}
+        </div>
+      </div>
+
+      <div class="p2w-container" style="margin-bottom: 24px;">
+        <div class="p2w-controls-column">
+          ${p2wItemSelectPanelHTML(resolvedPriceSource)}
+          ${renderBundleMethodPanelHTML(focus, bestId)}
+          ${p2wCurrencyPanelHTML()}
+        </div>
+        <div class="p2w-results-column">
+          ${p2wBundleResultsCardHTML({ workingCost, row: focus, bundlesNeeded })}
+        </div>
+      </div>
+
+      <section class="stats-grid p2w-fire-stats" aria-label="Bundle overview">
+        <div class="stat-card"><div class="stat-label">Bundles tracked</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${rows.length}</span><span class="stat-value-minor">from the live store category</span></div></div>
+        <div class="stat-card"><div class="stat-label">Best coins / USD</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${bestValue && bestValue.val.coinPerUsd > 0 ? fmtCoins(bestValue.val.coinPerUsd) : "—"}</span><span class="stat-value-minor">${bestValue ? escapeHtml(bestValue.bundle.name) : "—"}</span></div></div>
+        <div class="stat-card"><div class="stat-label">Skins priced</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${rows.reduce((s, r) => s + r.val.pricedCount, 0)} / ${rows.reduce((s, r) => s + r.val.totalCosmetics, 0)}</span><span class="stat-value-minor">lowest BIN scan powers skin value</span></div></div>
+        <div class="stat-card"><div class="stat-label">Gem coin rate</div><div class="stat-value stat-value-stacked"><span class="stat-value-major">${fmtCoins(gemToCoinRate().perGem)}</span><span class="stat-value-minor">per gem via cookie resale</span></div></div>
+      </section>
+
+      <section class="table-section p2w-fire-table-section">
+        <div class="table-scroll">
+          <table class="shard-table p2w-fire-table">
+            <thead><tr>
+              <th class="th-rank">#</th>
+              <th>Bundle</th>
+              <th class="th-num">Store Price</th>
+              <th class="th-num" title="SkyBlock Gems valued via Booster Cookie resale">Gem Value</th>
+              <th class="th-num" title="Tradeable skins at lowest AH BIN, net of AH taxes">Skin Value</th>
+              <th class="th-num">Total Coin Value</th>
+              <th class="th-num" title="Total coin value divided by USD price">Coins / USD</th>
+            </tr></thead>
+            <tbody>${rowHTML}</tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="p2w-help-text p2w-fire-note">Note: SkyBlock items from bundles aren't delivered to your inventory — claim them from Jerry on your island after purchase. Skin values reflect the current AH lowest BIN and can move fast for new cosmetics. Prices shown exclude regional checkout tax.</div>
     </section>`;
 }
 
@@ -7282,7 +7631,8 @@ function renderP2wView() {
 
     ${renderP2wTabsHTML()}
 
-    ${state.p2w.activeTab === "firesales" ? renderFireSalesTabHTML({ workingCost, resolvedPriceSource }) : `
+    ${state.p2w.activeTab === "firesales" ? renderFireSalesTabHTML({ workingCost, resolvedPriceSource })
+      : state.p2w.activeTab === "bundles" ? renderBundlesTabHTML({ workingCost, resolvedPriceSource }) : `
     <div class="p2w-container">
       <!-- Left Column: Controls -->
       <div class="p2w-controls-column">
@@ -7332,6 +7682,7 @@ function renderP2wView() {
           midValue: `${fmtInt(cookiesNeeded)} cookies`,
           gemsNeeded,
           optResult,
+          coinsPerUsd: optResult.cost > 0 ? (cookiesNeeded * cookieEffectivePrice) / optResult.cost : null,
         })}
       </div>
     </div>`}
@@ -7430,6 +7781,32 @@ function renderP2wView() {
       loadLowestBinsIfNeeded(true);
     });
   }
+
+  // Bundles tab: bundle selector pills, editable skin prices, and reset
+  pane.querySelectorAll("[data-bundle-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.p2w.bundleFocusId = btn.dataset.bundleId;
+      renderP2wView();
+    });
+  });
+  pane.querySelectorAll(".bundle-skin-input").forEach((input) => {
+    input.addEventListener("change", (e) => {
+      const name = e.target.dataset.skin;
+      if (!name) return;
+      const raw = e.target.value.trim();
+      const val = parseFloat(raw);
+      if (raw === "" || !Number.isFinite(val) || val < 0) {
+        delete state.p2w.bundleSkinPrices[name]; // cleared → revert to live AH value
+      } else {
+        state.p2w.bundleSkinPrices[name] = val;
+      }
+      renderP2wView();
+    });
+  });
+  pane.querySelector("#p2w-bundle-reset-prices")?.addEventListener("click", () => {
+    state.p2w.bundleSkinPrices = {};
+    renderP2wView();
+  });
 }
 
 // Localized results recalculation to avoid losing focus in text boxes
@@ -7439,13 +7816,41 @@ function recalculateP2wResultsInline() {
 
   const workingCost = state.p2w.customPrice !== null ? state.p2w.customPrice : 0;
 
+  /* The Bundles tab uses a different results card (bundles × store price, no gem
+   * package optimization), so it updates its own elements and returns early. */
+  if (state.p2w.activeTab === "bundles") {
+    const focus = getFocusedBundleRow();
+    const valuePerBundle = focus ? focus.val.totalCoinValue : 0;
+    const bundlesNeeded = focus && workingCost > 0 && valuePerBundle > 0 ? Math.ceil(workingCost / valuePerBundle) : 0;
+    let finalCost = focus ? bundlesNeeded * focus.bundle.price : 0;
+    let unitPrice = focus ? focus.bundle.price : 0;
+    let currencySymbol = "USD $";
+    if (state.p2w.currency === "AUD") {
+      finalCost *= state.p2w.exchangeRate;
+      unitPrice *= state.p2w.exchangeRate;
+      currencySymbol = "AUD $";
+    }
+    const elItemCost = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(1) .metric-value");
+    const elUnits = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(2) .metric-value");
+    const elReal = pane.querySelector("#result-real-cost");
+    const elRate = pane.querySelector("#result-coins-per-usd");
+    const elSubtitle = pane.querySelector(".result-total-cost-box .total-cost-subtitle");
+    if (elItemCost) elItemCost.textContent = fmtCoins(workingCost);
+    if (elUnits) elUnits.textContent = focus ? `${fmtInt(bundlesNeeded)} bundles` : "—";
+    if (elReal) elReal.textContent = `${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elRate) elRate.textContent = focus && focus.val.coinPerUsd > 0 ? `≈ ${fmtCoins(focus.val.coinPerUsd)} coins per USD` : "≈ — coins per USD";
+    if (elSubtitle && focus) elSubtitle.textContent = `${fmtInt(bundlesNeeded)} × ${focus.bundle.name} @ ${currencySymbol}${unitPrice.toFixed(2)} each`;
+    return;
+  }
+
   /* Per-tab conversion of coins → units → gems. Both tabs share the same
    * results-card markup, so only this math differs. */
-  let unitsText, gemsNeeded;
+  let unitsText, gemsNeeded, coinsCovered = 0;
   if (state.p2w.activeTab === "firesales") {
     const flip = getBestFireSaleFlip();
     const itemsNeeded = flip && workingCost > 0 ? Math.ceil(workingCost / flip.netCoins) : 0;
     gemsNeeded = flip ? itemsNeeded * flip.gems : 0;
+    coinsCovered = flip ? itemsNeeded * flip.netCoins : 0;
     unitsText = flip ? `${fmtInt(itemsNeeded)} items` : "—";
   } else {
     const cookieProd = state.raw?.products?.["BOOSTER_COOKIE"];
@@ -7462,9 +7867,11 @@ function recalculateP2wResultsInline() {
 
     const cookiesNeeded = workingCost > 0 && cookieEffectivePrice > 0 ? Math.ceil(workingCost / cookieEffectivePrice) : 0;
     gemsNeeded = cookiesNeeded * 325;
+    coinsCovered = cookiesNeeded * cookieEffectivePrice;
     unitsText = `${fmtInt(cookiesNeeded)} cookies`;
   }
   const optResult = optimizeGems(gemsNeeded);
+  const coinsPerUsd = optResult.cost > 0 ? coinsCovered / optResult.cost : null;
 
   let finalCost = optResult.cost;
   let currencySymbol = "USD $";
@@ -7478,6 +7885,7 @@ function recalculateP2wResultsInline() {
   const elUnits = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(2) .metric-value");
   const elGems = pane.querySelector(".result-metric-grid .result-metric-box:nth-child(3) .metric-value");
   const elRealCost = pane.querySelector("#result-real-cost");
+  const elRate = pane.querySelector("#result-coins-per-usd");
   const elSurplus = pane.querySelector(".packs-surplus");
   const elPacksList = pane.querySelector(".packs-list");
 
@@ -7485,6 +7893,7 @@ function recalculateP2wResultsInline() {
   if (elUnits) elUnits.textContent = unitsText;
   if (elGems) elGems.textContent = `${fmtInt(gemsNeeded)} gems`;
   if (elRealCost) elRealCost.textContent = `${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (elRate) elRate.textContent = coinsPerUsd && coinsPerUsd > 0 ? `≈ ${fmtCoins(coinsPerUsd)} coins per USD` : "≈ — coins per USD";
   
   if (elSurplus) {
     elSurplus.setAttribute(

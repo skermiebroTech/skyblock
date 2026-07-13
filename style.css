@@ -3517,6 +3517,74 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   background: rgba(255,255,255,0.025);
 }
 
+/* Highlight the best coins-per-USD bundle in the comparison table. */
+.p2w-bundle-best-row {
+  background: rgba(255, 170, 60, 0.07);
+  box-shadow: inset 3px 0 0 var(--ember-light);
+}
+
+/* "Coins per USD" rate line inside the results total-cost box (all P2W tabs). */
+.total-cost-rate {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  font-weight: 700;
+  color: var(--info);
+  margin-top: 6px;
+}
+
+/* Bundle breakdown panel: header row, bundle selector pills, editable skins. */
+.bundle-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.bundle-select-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.bundle-pill {
+  flex: 1 1 auto;
+  min-width: 120px;
+  font-size: 0.85em;
+}
+
+.bundle-skin-row {
+  gap: 10px;
+}
+
+.bundle-skin-src {
+  display: block;
+  font-size: 0.72em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-top: 2px;
+}
+
+.bundle-skin-src.is-custom {
+  color: var(--ember-light);
+}
+
+.bundle-skin-input {
+  width: 140px;
+  max-width: 45%;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: bold;
+  color: var(--text);
+}
+
+.bundle-skin-input.is-overridden {
+  border-color: var(--ember);
+  box-shadow: 0 0 0 1px var(--ember) inset;
+}
+
 @media (max-width: 720px) {
   .p2w-tab { flex: 1; min-width: 0; }
   .p2w-fire-actions { justify-content: flex-start; }
