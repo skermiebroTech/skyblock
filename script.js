@@ -4074,7 +4074,8 @@ function farmingLevelFromSteps(value, steps, overflow = false) {
 function farmingCropMilestone(collection, crop) {
   const milestones = window.HYPIXIE_CROP_MILESTONES || {};
   const steps = milestones[crop.id] || (crop.aliases || []).map((a) => milestones[a]).find(Boolean) || null;
-  if (steps) return farmingLevelFromSteps(collection, steps, true);
+  /* Crop milestones cap at tier 46 in the game — no overflow extrapolation. */
+  if (steps) return farmingLevelFromSteps(collection, steps, false);
   const divisor = crop.weightDivisor || 100000;
   return { level: Math.floor(collection / divisor), progress: collection % divisor, next: divisor, ratio: Math.min(1, (collection % divisor) / divisor), total: collection, maxed: false };
 }
@@ -4374,15 +4375,18 @@ function farmingFortuneSummary(member, weight, garden, pests) {
   const pestFortune = pests.reduce((sum, p) => sum + p.fortune, 0);
   const cropUpgradeFortune = garden.avgCropUpgrade * 5;
   const anitaFortune = weight.jacob.anitaBonus * 4;
+  const plotCount = Array.isArray(garden.unlockedPlots) ? garden.unlockedPlots.filter((p) => p !== "garden_unlocked_exact_plots_not_exposed").length : 0;
+  const plotFortune = plotCount * 3;
   const base = farmingLevel * 4;
   const visibleGear = [state.player.equippedArmor, state.player.equippedEquipment, state.player.hotbar].flat().filter(Boolean);
   const gearHints = visibleGear.filter((it) => /FERMENTO|SQUASH|CROPIE|RANCHER|LOTUS|DICER|THEORETICAL|FUNGI|CACTUS_KNIFE|COCO_CHOPPER|HOOVER|VACUUM/i.test(it.skyblockId || it.displayName || ""));
-  const estimated = base + cropUpgradeFortune + anitaFortune + pestFortune;
+  const estimated = base + cropUpgradeFortune + anitaFortune + pestFortune + plotFortune;
   return {
     estimated,
     sources: [
       { name: "Farming level", category: "General", current: base, max: 240, next: farmingLevel < 60 ? `Level ${farmingLevel + 1}` : "Maxed", confidence: "profile" },
-      { name: "Crop upgrades", category: "Garden", current: cropUpgradeFortune, max: 50, next: "Upgrade low crops at Garden Desk", confidence: "profile/estimate" },
+      { name: "Crop upgrades", category: "Garden", current: cropUpgradeFortune, max: 45, next: "Upgrade low crops at Garden Desk", confidence: "profile/estimate" },
+      { name: "Garden plots", category: "Garden", current: plotFortune, max: 72, next: plotCount < 24 ? "Unlock more plots (+3 FF each)" : "Maxed", confidence: "profile" },
       { name: "Anita bonus", category: "Jacob", current: anitaFortune, max: 60, next: "Spend medals/tickets with Anita", confidence: "profile/estimate" },
       { name: "Pest bestiary", category: "Pests", current: pestFortune, max: (pests.reduce((s, p) => s + (p.max || 15), 0)) * 0.4, next: "Kill pests to next brackets", confidence: "profile" },
       { name: "Detected farming gear", category: "Gear", current: gearHints.length, max: null, next: gearHints.length ? gearHints.map((it) => it.displayName || it.skyblockId).slice(0, 4).join(", ") : "Enable inventory API / equip farming gear", confidence: "detected items" },
@@ -4576,7 +4580,7 @@ function renderFarmingView() {
             </div>
           </article>
           <article class="farm-card"><h3>Crop Milestones</h3><div class="farm-list compact">${cropRows.slice().sort((a,b) => b.milestone.level - a.milestone.level || b.collection - a.collection).map((r) => `<div class="farm-row"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)} collected</span></div><div>${farmingMiniBar(r.collection, cropMaxCollection, `Milestone ${fmtInt(r.milestone.level)}`)}</div></div>`).join("")}</div></article>
-          <article class="farm-card"><h3>Unlocked Plots</h3>${farmingPlotGridHTML(garden.unlockedPlots)}<h3>Crop Upgrades</h3><div class="farm-upgrade-mini">${garden.cropUpgradeRows.map((r) => `<span title="${escapeHtml(r.crop.name)} crop upgrade">${escapeHtml(r.crop.name)} <b>${fmtInt(r.level)}/10</b></span>`).join("")}</div></article>
+          <article class="farm-card"><h3>Unlocked Plots</h3>${farmingPlotGridHTML(garden.unlockedPlots)}<h3>Crop Upgrades</h3><div class="farm-upgrade-mini">${garden.cropUpgradeRows.map((r) => `<span title="${escapeHtml(r.crop.name)} crop upgrade">${escapeHtml(r.crop.name)} <b>${fmtInt(r.level)}/9</b></span>`).join("")}</div></article>
           <article class="farm-card farm-card-wide"><div class="farm-card-head"><h3>Visitor Tracker</h3><span class="farm-badge">${fmtInt(garden.visitors.accepted)} accepted</span></div>${state.player.gardenLoading ? `<div class="acc-loading"><span class="spinner"></span> Loading standalone Garden visitor data…</div>` : ""}${state.player.gardenError ? `<p class="farm-note warn">Garden API fetch failed: ${escapeHtml(state.player.gardenError)}. Showing profile fallback data.</p>` : ""}<div class="farm-metrics">${farmingMetric("Unique accepted", `${fmtInt(garden.visitors.count)} / ${fmtInt(window.HYPIXIE_GARDEN_VISITOR_TOTAL || 83)}`, "commission_data.unique_npcs_served")}${farmingMetric("Missing", fmtInt(garden.visitors.missingCount), "not accepted yet")}${farmingMetric("Total visits", fmtInt(garden.visitors.totalVisits), garden.visitors.source)}${farmingMetric("Acceptance rate", `${garden.visitors.acceptanceRate.toFixed(2)}%`, "accepted / total")}</div><div class="farm-card-head sub"><h3>Missing visitors</h3><span class="farm-badge">${fmtInt(garden.visitors.missingCount)} left</span></div><div class="farm-visitor-grid missing">${garden.visitors.missing.map((v) => farmingVisitorPill(v, "missing")).join("") || `<span class="farm-note">All catalog visitors have been accepted.</span>`}</div><div class="farm-card-head sub"><h3>Completed visitors</h3><span class="farm-badge green">${fmtInt(garden.visitors.completed?.length || garden.visitors.top.length)} shown</span></div><div class="farm-visitor-grid completed">${(garden.visitors.completed || garden.visitors.top).length ? (garden.visitors.completed || garden.visitors.top).map((v) => farmingVisitorPill(v)).join("") : `<span class="farm-note">No accepted visitor map found yet.</span>`}</div><p class="farm-note">Uses the same EliteFarmers rule: accepted/missing comes from Hypixel Garden <code>commission_data.completed</code>; current active commissions are subtracted from visit totals.</p></article>
         </div>
       </section>

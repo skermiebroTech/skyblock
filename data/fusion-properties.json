@@ -306,7 +306,7 @@
     ],
     "input1": "",
     "input2": "",
-    "id_result": "Inkling",
+    "id_result": "Night Squid",
     "id_origin": [
       "Lotusfish"
     ]
@@ -324,7 +324,7 @@
     ]
   },
   "C32": {
-    "name": "Inkling",
+    "name": "Night Squid",
     "rarity": "Common",
     "category": "Water",
     "family": [
@@ -1779,7 +1779,7 @@
     "family": [],
     "input1": "",
     "input2": "",
-    "id_result": "Inferno Demonlord",
+    "id_result": "Hellwisp",
     "id_origin": [
       "Mimic"
     ]
@@ -1797,7 +1797,7 @@
     "id_origin": []
   },
   "E29": {
-    "name": "Inferno Demonlord",
+    "name": "Hellwisp",
     "rarity": "Epic",
     "category": "Combat",
     "family": [
@@ -1860,7 +1860,7 @@
     "input2": "",
     "id_result": "Sphinx",
     "id_origin": [
-      "Inferno Demonlord",
+      "Hellwisp",
       "Caiman"
     ]
   },
@@ -2131,7 +2131,7 @@
     ],
     "input1": "",
     "input2": "",
-    "id_result": "Hellwisp",
+    "id_result": "Burningsoul",
     "id_origin": [
       "Endstone Protector",
       "Lapis Creeper"
@@ -2158,7 +2158,7 @@
     ],
     "input1": "Kraken Shard",
     "input2": "Kraken Shard",
-    "id_result": "Hellwisp",
+    "id_result": "Burningsoul",
     "id_origin": []
   },
   "L20": {
@@ -2196,7 +2196,7 @@
     ],
     "input1": "Kraken Shard",
     "input2": "Bird",
-    "id_result": "Hellwisp",
+    "id_result": "Burningsoul",
     "id_origin": []
   },
   "L25": {
@@ -2224,7 +2224,7 @@
     ]
   },
   "L27": {
-    "name": "Hellwisp",
+    "name": "Burningsoul",
     "rarity": "Legendary",
     "category": "Combat",
     "family": [
@@ -2279,7 +2279,7 @@
     "input2": "",
     "id_result": "Thorn",
     "id_origin": [
-      "Hellwisp"
+      "Burningsoul"
     ]
   },
   "L31": {

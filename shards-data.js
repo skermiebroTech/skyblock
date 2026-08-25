@@ -146,7 +146,7 @@ const SKYSHARDS_TO_BAZAAR_OVERRIDES = {
   R23: "SHARD_ABYSSAL_LANTERN",    // "Abyssal Lanternfish"
   R32: "SHARD_SEA_SHINE",          // "Seashine"
   C26: "SHARD_LOTUS_FISH",         // "Lotusfish"
-  E29: "SHARD_INFERNO_DEMONLORD",  // explicit, in case naming drifts
+  E29: "SHARD_HELLWISP",  // explicit, in case naming drifts
 };
 
 /* ---------- Texture / icon packs ----------

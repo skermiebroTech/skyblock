@@ -1,2 +1,5 @@
 # Ignore OS files
 .DS_Store
+
+# Ignore the wiki dump data
+wiki-dump/

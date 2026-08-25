@@ -80,18 +80,6 @@ const SWEEP_SOURCES = [
     source: "Jade Dragon NPC",
     note: "Jade Scale grants +4 Sweep for every digit in Mangrove Collection, max 10M collection (8 digits = +32). Apex Predator can add a percentage boost based on maxed attributes.",
   },
-  {
-    id: "monkey-pet",
-    category: "Pets",
-    type: "Pet",
-    name: "Monkey Pet",
-    sweep: 10,
-    costKind: "auction",
-    itemIds: ["MONKEY_PET"],
-    aliases: ["Monkey"],
-    source: "Oringo / Auction House",
-    note: "Legendary Monkey's Evolved Axes grants +10 Sweep while in The Park.",
-  },
 
   /* Armor */
   {
@@ -103,7 +91,7 @@ const SWEEP_SOURCES = [
     costKind: "auction-bundle",
     itemIds: ["CANOPY_HELMET", "CANOPY_CHESTPLATE", "CANOPY_LEGGINGS", "CANOPY_BOOTS"],
     source: "Amaury / Auction House",
-    note: "Four pieces at +6 Sweep each. Requires Foraging 8.",
+    note: "Four pieces at +6 Sweep each. Requires Foraging 12.",
   },
   {
     id: "fig-armor",
@@ -183,7 +171,10 @@ const SWEEP_SOURCES = [
     note: "Apply in an anvil to equipment for +2 Sweep per piece.",
   },
   { id: "hotf-sweep", category: "Other", type: "Heart of the Forest", name: "Heart of the Forest: Sweep perk", sweep: 50, costKind: "progression", source: "Heart of the Forest", note: "Upgrade the Sweep perk for +1 → +50 Sweep." },
-  { id: "hotf-center", category: "Other", type: "Heart of the Forest", name: "Center of the Forest L2 + L4", sweep: 15, costKind: "progression", source: "Heart of the Forest", note: "Center of the Forest Level 2 gives +5 Sweep and Level 4 gives +10 Sweep." },
+  { id: "hotf-center", category: "Other", type: "Heart of the Forest", name: "Center of the Forest L2 + L4", sweep: null, costKind: "progression", source: "Heart of the Forest", note: "Center of the Forest Level 2 gives +5% Sweep and Level 4 gives +10% Sweep (percent boosts, not flat)." },
+  { id: "hotf-forest-strength", category: "Other", type: "Heart of the Forest", name: "Forest Strength", sweep: null, costKind: "progression", source: "Heart of the Forest", note: "Gain 0.1-5% of your total Strength as Foraging Fortune and Sweep (up to +50 at 1,000 Strength)." },
+  { id: "hotf-forest-speed", category: "Other", type: "Heart of the Forest", name: "Forest Speed", sweep: null, costKind: "progression", source: "Heart of the Forest", note: "Gain 0.1-5% of your total Speed as Foraging Fortune and Sweep (up to +50 at 500 Speed; speed above the cap counts)." },
+  { id: "hotf-lottery", category: "Other", type: "Heart of the Forest", name: "Lottery", sweep: null, costKind: "progression", source: "Heart of the Forest", note: "Daily random effect; one roll grants +50 Sweep for the day (33.3% chance)." },
   { id: "hotf-foraging-madness", category: "Other", type: "Heart of the Forest", name: "Foraging Madness", sweep: 10, costKind: "progression", source: "Heart of the Forest", note: "Temporary perk: +10 Sweep and +50 Foraging Fortune." },
   { id: "hotf-early-bird", category: "Other", type: "Heart of the Forest", name: "Early Bird", sweep: 10, costKind: "progression", source: "Heart of the Forest", note: "Temporary daily perk: +10 Sweep and +100 Foraging Fortune for the first 250 trees cut every day." },
   { id: "hotf-precision-cutting", category: "Other", type: "Heart of the Forest", name: "Precision Cutting", sweep: 10, costKind: "progression", source: "Heart of the Forest", note: "Cutting the marked log grants +10 Sweep on that hit." },

@@ -1,0 +1,14 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "com.fishieserver.fishiereporter.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"DebugScreenEntryListMixin",
+		"DebugScreenOverlayMixin",
+		"MinecraftMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

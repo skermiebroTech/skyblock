@@ -2,10 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "static",
-      "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "python3 -m http.server ${PORT:-8123}"],
-      "autoPort": true
+      "name": "site",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8322", "--directory", "/Users/joel/skyblock"],
+      "port": 8322
+    },
+    {
+      "name": "wiki",
+      "runtimeExecutable": "/Users/joel/skyblock/wiki-dump/.venv/bin/mkdocs",
+      "runtimeArgs": ["serve", "-f", "/Users/joel/skyblock/wiki-dump/mkdocs.yml", "-a", "127.0.0.1:8321"],
+      "port": 8321
     }
   ]
 }

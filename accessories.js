@@ -38,7 +38,7 @@ const MP_BY_RARITY = {
 const MP_OVERRIDES = {
   HEGEMONY_ARTIFACT: 32,   // counts twice in-game: legendary MP (16) × 2
   RIFT_PRISM:        11,   // SkyCrypt/SkyHelper account for its fixed 11 MP
-  ABICASE:            0,   // MP scales with contacts; we don't model that
+  ABICASE:            8,   // rare base MP; the +1 per 2 contacts bonus is not modeled
 };
 
 /* Suffix progression rank within an upgrade family.
@@ -77,7 +77,6 @@ const EXPLICIT_ACCESSORY_FAMILIES = [
   ["IQ_POINT", "TWO_IQ_POINT"],
   ["CRUX_TALISMAN_1", "CRUX_TALISMAN_2", "CRUX_TALISMAN_3", "CRUX_TALISMAN_4", "CRUX_TALISMAN_5", "CRUX_TALISMAN_6", "CRUX_TALISMAN_7"],
   ["POTION_AFFINITY_TALISMAN", "RING_POTION_AFFINITY", "ARTIFACT_POTION_AFFINITY"],
-  ["TALISMAN_OF_SPACE", "RING_OF_SPACE", "ARTIFACT_OF_SPACE"],
   ["FEATHER_TALISMAN", "FEATHER_RING", "FEATHER_ARTIFACT"],
   ["SEA_CREATURE_TALISMAN", "SEA_CREATURE_RING", "SEA_CREATURE_ARTIFACT"],
   ["HEALING_TALISMAN", "HEALING_RING"],
@@ -106,11 +105,12 @@ const EXPLICIT_ACCESSORY_FAMILIES = [
   ["JERRY_TALISMAN_GREEN", "JERRY_TALISMAN_BLUE", "JERRY_TALISMAN_PURPLE", "JERRY_TALISMAN_GOLDEN"],
   ["TITANIUM_TALISMAN", "TITANIUM_RING", "TITANIUM_ARTIFACT", "TITANIUM_RELIC"],
   ["BAIT_RING", "SPIKED_ATROCITY"],
-  ["MASTER_SKULL_TIER_1", "MASTER_SKULL_TIER_2", "MASTER_SKULL_TIER_3", "MASTER_SKULL_TIER_4", "MASTER_SKULL_TIER_5", "MASTER_SKULL_TIER_6", "MASTER_SKULL_TIER_7", "MASTER_SKULL_TIER_8", "MASTER_SKULL_TIER_9", "MASTER_SKULL_TIER_10"],
+  ["MASTER_SKULL_TIER_1", "MASTER_SKULL_TIER_2", "MASTER_SKULL_TIER_3", "MASTER_SKULL_TIER_4", "MASTER_SKULL_TIER_5", "MASTER_SKULL_TIER_6", "MASTER_SKULL_TIER_7"],
   ["SOULFLOW_PILE", "SOULFLOW_BATTERY", "SOULFLOW_SUPERCELL"],
   ["ENDER_ARTIFACT", "ENDER_RELIC"],
   ["POWER_TALISMAN", "POWER_RING", "POWER_ARTIFACT", "POWER_RELIC"],
-  ["BINGO_TALISMAN", "BINGO_RING", "BINGO_ARTIFACT", "BINGO_RELIC", "BINGO_HEIRLOOM"],
+  ["BINGO_TALISMAN", "BINGO_RING", "BINGO_ARTIFACT", "BINGO_RELIC"],
+  ["VOTER_BADGE", "VOTER_BADGE_VIP", "VOTER_BADGE_ELITE", "VOTER_BADGE_SUPREME"],
   ["BURSTSTOPPER_TALISMAN", "BURSTSTOPPER_ARTIFACT"],
   ["ODGERS_BRONZE_TOOTH", "ODGERS_SILVER_TOOTH", "ODGERS_GOLD_TOOTH", "ODGERS_DIAMOND_TOOTH"],
   ["GREAT_SPOOK_TALISMAN", "GREAT_SPOOK_RING", "GREAT_SPOOK_ARTIFACT"],
@@ -144,7 +144,7 @@ const ACCESSORY_ALIASES = {
   CAMPFIRE_TALISMAN_8: ["CAMPFIRE_TALISMAN_9", "CAMPFIRE_TALISMAN_10", "CAMPFIRE_TALISMAN_11", "CAMPFIRE_TALISMAN_12"],
   CAMPFIRE_TALISMAN_13: ["CAMPFIRE_TALISMAN_14", "CAMPFIRE_TALISMAN_15", "CAMPFIRE_TALISMAN_16", "CAMPFIRE_TALISMAN_17", "CAMPFIRE_TALISMAN_18", "CAMPFIRE_TALISMAN_19", "CAMPFIRE_TALISMAN_20"],
   CAMPFIRE_TALISMAN_21: ["CAMPFIRE_TALISMAN_22", "CAMPFIRE_TALISMAN_23", "CAMPFIRE_TALISMAN_24", "CAMPFIRE_TALISMAN_25", "CAMPFIRE_TALISMAN_26", "CAMPFIRE_TALISMAN_27", "CAMPFIRE_TALISMAN_28", "CAMPFIRE_TALISMAN_29"],
-  PARTY_HAT_CRAB: ["PARTY_HAT_CRAB_ANIMATED", "PARTY_HAT_SLOTH", "BALLOON_HAT_2024"],
+  PARTY_HAT_CRAB: ["PARTY_HAT_CRAB_ANIMATED", "PARTY_HAT_SLOTH", "BALLOON_HAT_2024", "BALLOON_HAT_2025"],
   PIGGY_BANK: ["BROKEN_PIGGY_BANK", "CRACKED_PIGGY_BANK"],
   DANTE_TALISMAN: ["DANTE_RING"],
 };
@@ -153,7 +153,15 @@ const ACCESSORY_ALIASES = {
  * wiki confirms cannot be traded or auctioned (e.g. the Bingo line comes only
  * from Bingo event ranks). Treated exactly like API-flagged soulbound items. */
 const SOULBOUND_ACCESSORY_OVERRIDES = new Set([
-  "BINGO_TALISMAN", "BINGO_RING", "BINGO_ARTIFACT", "BINGO_RELIC", "BINGO_HEIRLOOM",
+  "BINGO_TALISMAN", "BINGO_RING", "BINGO_ARTIFACT", "BINGO_RELIC",
+]);
+
+/* Accessories the items API lists but which no player can obtain
+ * (admin-only per the wiki). Excluded from the catalog entirely. */
+const UNOBTAINABLE_ACCESSORY_IDS = new Set([
+  "MASTER_SKULL_TIER_8", "MASTER_SKULL_TIER_9", "MASTER_SKULL_TIER_10",
+  "BINGO_HEIRLOOM",
+  "TALISMAN_OF_SPACE", "RING_OF_SPACE", "ARTIFACT_OF_SPACE",
 ]);
 
 const ACCESSORY_ALIAS_TO_CANONICAL = Object.fromEntries(
@@ -241,7 +249,9 @@ function getSkinTextureId(it) {
 window.getSkinTextureId = getSkinTextureId;
 
 function buildAccessoryCatalog(itemsPayload) {
-  const all = (itemsPayload?.items || []).filter((i) => i.category === "ACCESSORY");
+  const all = (itemsPayload?.items || []).filter(
+    (i) => i.category === "ACCESSORY" && !UNOBTAINABLE_ACCESSORY_IDS.has(i.id)
+  );
 
   const byId = {};
   for (const it of all) {
@@ -343,7 +353,9 @@ function analyseAccessories(catalog, owned, opts = {}) {
    * highest tier they own within each. */
   for (const fam of catalog.families) {
     const highest = fam.members[fam.members.length - 1];
-    maxMP += highest.mp;
+    /* Max includes recombobulating the top tier, so current (which credits
+     * recombed items) can never exceed max. */
+    maxMP += highest.mp + (highest.canRecomb ? (recombGain(highest)?.mpGain || 0) : 0);
 
     /* Which members does the player own? */
     const ownedMembers = fam.members.filter((m) => ownedHas(m.id));
@@ -385,7 +397,7 @@ function analyseAccessories(catalog, owned, opts = {}) {
 
   /* Standalone accessories — own it or you don't. */
   for (const a of catalog.standalone) {
-    maxMP += a.mp;
+    maxMP += a.mp + (a.canRecomb ? (recombGain(a)?.mpGain || 0) : 0);
     if (ownedHas(a.id)) {
       const recombed = isRecombed(a.id);
       const rGain = recombed ? (recombGain(a)?.mpGain || 0) : 0;

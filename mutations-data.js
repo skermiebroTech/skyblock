@@ -5,7 +5,7 @@ window.MUTATIONS_DATA = [
   {
     "name": "Rose Dragon Egg",
     "id": "ROSE_DRAGON_EGG",
-    "rarity": "SPECIAL",
+    "rarity": "LEGENDARY",
     "spreading_conditions": [
       "5x Condensed Helianthus",
       "1x Glasscorn",
@@ -145,7 +145,7 @@ window.MUTATIONS_DATA = [
     "size": "1x1",
     "growth_surface": "Farmland",
     "effects": [],
-    "watering": "YES",
+    "watering": "NO",
     "growthStages": 10
   },
   {
@@ -188,7 +188,7 @@ window.MUTATIONS_DATA = [
     ],
     "coins": 4000000,
     "copper": 2000,
-    "tip": "You must harvest this during growth stage 7 or 8, or it will reset.",
+    "tip": "You must harvest this during growth stage 7 or 8 (of 8), or it will reset.",
     "size": "2x2",
     "growth_surface": "Sand",
     "effects": [
@@ -206,7 +206,7 @@ window.MUTATIONS_DATA = [
       }
     ],
     "watering": "YES",
-    "growthStages": 9
+    "growthStages": 8
   },
   {
     "name": "All-in Aloe",
@@ -237,7 +237,7 @@ window.MUTATIONS_DATA = [
     "spreading_conditions": [],
     "coins": null,
     "copper": null,
-    "tip": "Made with 8 Helianthus",
+    "tip": "Made with 9 Helianthus",
     "size": "",
     "growth_surface": "N/A",
     "effects": [],
@@ -410,7 +410,7 @@ window.MUTATIONS_DATA = [
     "id": "SHELLFRUIT",
     "rarity": "EPIC",
     "spreading_conditions": [
-      "Explode adjacent Turtlellini with a Blastberry"
+      "Explode adjacent Turtlellini with 2 Blastberries"
     ],
     "coins": 500000,
     "copper": 250,
@@ -503,7 +503,7 @@ window.MUTATIONS_DATA = [
     "size": "",
     "growth_surface": "Farmland",
     "effects": [],
-    "watering": "YES",
+    "watering": "NO",
     "growthStages": 10
   },
   {
@@ -667,7 +667,7 @@ window.MUTATIONS_DATA = [
     ],
     "coins": 80000,
     "copper": 80,
-    "tip": "A rat will appear when this grows every 4 stages—you need to kill it or it will stop growing.",
+    "tip": "A rat will appear at growth stages 4 and 7—you need to kill it or it will stop growing.",
     "size": "1x1",
     "growth_surface": "Farmland",
     "effects": [
@@ -964,7 +964,7 @@ window.MUTATIONS_DATA = [
     "copper": 25,
     "tip": "",
     "size": "1x1",
-    "growth_surface": "Farmland",
+    "growth_surface": "Dirt or Farmland",
     "effects": [
       {
         "name": "Bonus Drops",

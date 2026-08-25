@@ -24,12 +24,12 @@ const MINIONS_DATA = [
   { id: "GLOWSTONE", name: "Glowstone", category: "Mining", rawId: "GLOWSTONE_DUST", enchId: "ENCHANTED_GLOWSTONE_DUST", maxTier: 12 },
   { id: "MITHRIL", name: "Mithril", category: "Mining", rawId: "MITHRIL_ORE", enchId: "ENCHANTED_MITHRIL", maxTier: 12 },
   { id: "HARD_STONE", name: "Hard Stone", category: "Mining", rawId: "HARD_STONE", enchId: "ENCHANTED_HARD_STONE", maxTier: 12 },
-  { id: "GRAVEL", name: "Gravel", category: "Mining", rawId: "FLINT", enchId: "ENCHANTED_FLINT", maxTier: 11 },
+  { id: "GRAVEL", name: "Gravel", category: "Mining", rawId: "GRAVEL", enchId: "ENCHANTED_FLINT", maxTier: 11 },
   { id: "END_STONE", name: "End Stone", category: "Mining", rawId: "ENDER_STONE", enchId: "ENCHANTED_ENDSTONE", maxTier: 11 },
   { id: "MYCELIUM", name: "Mycelium", category: "Mining", rawId: "MYCEL", enchId: "ENCHANTED_MYCELIUM", maxTier: 12 },
   { id: "SAND", name: "Sand", category: "Mining", rawId: "SAND", enchId: "ENCHANTED_SAND", maxTier: 11 },
   { id: "ICE", name: "Ice", category: "Mining", rawId: "ICE", enchId: "ENCHANTED_ICE", maxTier: 12 },
-  { id: "SNOW", name: "Snow", category: "Mining", rawId: "SNOW_BALL", enchId: "ENCHANTED_SNOW_BLOCK", maxTier: 12 },
+  { id: "SNOW", name: "Snow", category: "Mining", rawId: "SNOW_BLOCK", enchId: "ENCHANTED_SNOW_BLOCK", maxTier: 12 },
   { id: "RED_SAND", name: "Red Sand", category: "Mining", rawId: "SAND:1", enchId: "ENCHANTED_RED_SAND", maxTier: 12 },
 
   // Foraging (7)
@@ -59,18 +59,18 @@ const MINIONS_DATA = [
   { id: "INFERNO", name: "Inferno", category: "Combat", rawId: null, enchId: null, maxTier: 11, specialRecipe: true },
 
   // Farming (16)
-  { id: "WHEAT", name: "Wheat", category: "Farming", rawId: "WHEAT", enchId: "ENCHANTED_HAY_BLOCK", maxTier: 12 },
+  { id: "WHEAT", name: "Wheat", category: "Farming", rawId: "WHEAT", enchId: "ENCHANTED_WHEAT", maxTier: 12 },
   { id: "POTATO", name: "Potato", category: "Farming", rawId: "POTATO_ITEM", enchId: "ENCHANTED_POTATO", maxTier: 12 },
   { id: "CARROT", name: "Carrot", category: "Farming", rawId: "CARROT_ITEM", enchId: "ENCHANTED_CARROT", maxTier: 12 },
   { id: "MELON", name: "Melon", category: "Farming", rawId: "MELON", enchId: "ENCHANTED_MELON", maxTier: 12 },
   { id: "PUMPKIN", name: "Pumpkin", category: "Farming", rawId: "PUMPKIN", enchId: "ENCHANTED_PUMPKIN", maxTier: 12 },
-  { id: "COCOA", name: "Cocoa", category: "Farming", rawId: "INK_SACK:3", enchId: "ENCHANTED_COOKIE", maxTier: 12 },
+  { id: "COCOA", name: "Cocoa", category: "Farming", rawId: "INK_SACK:3", enchId: "ENCHANTED_COCOA", maxTier: 12 },
   { id: "SUGAR_CANE", name: "Sugar Cane", category: "Farming", rawId: "SUGAR_CANE", enchId: "ENCHANTED_SUGAR", maxTier: 12 },
   { id: "NETHER_WARTS", name: "Nether Warts", category: "Farming", rawId: "NETHER_STALK", enchId: "ENCHANTED_NETHER_STALK", maxTier: 12 },
   { id: "CACTUS", name: "Cactus", category: "Farming", rawId: "CACTUS", enchId: "ENCHANTED_CACTUS_GREEN", maxTier: 12 },
   { id: "MUSHROOM", name: "Mushroom", category: "Farming", rawId: "BROWN_MUSHROOM", enchId: "ENCHANTED_BROWN_MUSHROOM", maxTier: 12 },
   { id: "CHICKEN", name: "Chicken", category: "Farming", rawId: "RAW_CHICKEN", enchId: "ENCHANTED_RAW_CHICKEN", maxTier: 12 },
-  { id: "COW", name: "Cow", category: "Farming", rawId: "LEATHER", enchId: "ENCHANTED_LEATHER", maxTier: 12 },
+  { id: "COW", name: "Cow", category: "Farming", rawId: "RAW_BEEF", enchId: "ENCHANTED_RAW_BEEF", maxTier: 12 },
   { id: "PIG", name: "Pig", category: "Farming", rawId: "PORK", enchId: "ENCHANTED_PORK", maxTier: 12 },
   { id: "SHEEP", name: "Sheep", category: "Farming", rawId: "MUTTON", enchId: "ENCHANTED_MUTTON", maxTier: 12 },
   { id: "RABBIT", name: "Rabbit", category: "Farming", rawId: "RABBIT", enchId: "ENCHANTED_RABBIT", maxTier: 12 },
@@ -78,8 +78,7 @@ const MINIONS_DATA = [
 
   // Fishing (3)
   { id: "FISHING", name: "Fishing", category: "Fishing", rawId: "RAW_FISH", enchId: "ENCHANTED_RAW_FISH", maxTier: 12 },
-  { id: "CLAY", name: "Clay", category: "Fishing", rawId: "CLAY_BALL", enchId: "ENCHANTED_CLAY_BALL", maxTier: 12 },
-  { id: "LILY_PAD", name: "Lily Pad", category: "Fishing", rawId: "WATER_LILY", enchId: "ENCHANTED_WATER_LILY", maxTier: 12 }
+  { id: "CLAY", name: "Clay", category: "Fishing", rawId: "CLAY_BALL", enchId: "ENCHANTED_CLAY_BALL", maxTier: 12 }
 ];
 
 /* Helper to get the ingredient count and type for a minion tier upgrade.
@@ -106,7 +105,10 @@ function getMinionRecipe(minion, tier) {
   else if (tier === 9) qty = 128;
   else if (tier === 10) qty = 256;
   else if (tier === 11) qty = 512;
-  else if (tier === 12) qty = 1024;
+  /* Tier 12 has no bazaar-material recipe in the game: it comes from NPC
+   * exchanges (Bulvar, Tony, Einary, the Museum) or Upgrade Stones.
+   * Leave it unpriced instead of inventing a 1024-item cost. */
+  else if (tier === 12) return null;
 
   return qty > 0 ? { itemId, qty } : null;
 }

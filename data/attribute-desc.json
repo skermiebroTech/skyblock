@@ -270,7 +270,7 @@
     "id": "mangrove_collector"
   },
   "U29": {
-    "title": "Spirit Axe",
+    "title": "Woodland Ruler",
     "description": "Your Axes deal +2% extra Damage Damage to creatures on Galatea",
     "id": "spirit_axe"
   },
@@ -695,9 +695,9 @@
     "id": "why_not_more"
   },
   "E29": {
-    "title": "Attack Speed",
-    "description": "Grants +1 Attack Speed Bonus Attack Speed",
-    "id": "attack_speed"
+    "title": "Matriarch Cubs",
+    "description": "Grants a +2% chance to get a second Heavy Pearl",
+    "id": "matriarch_cubs"
   },
   "E30": {
     "title": "Echo of Ruler",
@@ -740,7 +740,7 @@
     "id": "garden_wisdom"
   },
   "E39": {
-    "title": "Mythological Tracker",
+    "title": "Big Game Hunter",
     "description": "Grants +0.5 Tracking Tracking on Griffin Burrows",
     "id": "big_game_hunter"
   },
@@ -795,7 +795,7 @@
     "id": "cloak_improvement"
   },
   "L9": {
-    "title": "Unlimited Fortitude",
+    "title": "Paramount Fortitude",
     "description": "Your Defense Defense is increased by +0.2%",
     "id": "fortitude"
   },
@@ -825,7 +825,7 @@
     "id": "mending"
   },
   "L17": {
-    "title": "Unlimited Torment",
+    "title": "Maximal Torment",
     "description": "Your Intelligence Intelligence is increased by +0.1%",
     "id": "maximal_torment"
   },
@@ -860,9 +860,9 @@
     "id": "double_hook"
   },
   "L27": {
-    "title": "Matriarch Cubs",
-    "description": "Grants a +2% chance to get a second Heavy Pearl",
-    "id": "matriarch_cubs"
+    "title": "Attack Speed",
+    "description": "Grants +1 Bonus Attack Speed",
+    "id": "attack_speed"
   },
   "L28": {
     "title": "Magic Find",
