@@ -79,7 +79,8 @@ const CONFIG = {
   /* Accessory page preferences. */
   BAZAAR_MODE_STORAGE: "shardmarket.bazaarMode",  // "instaBuy" | "buyOrder"
   PREFER_MAX_STORAGE:  "shardmarket.preferMax",   // "1" | "0"
-  ACC_SORT_STORAGE:    "shardmarket.accSortKey",  // "mp" | "costPerMp" | "price"
+  ACC_SORT_STORAGE:    "shardmarket.accSortKey",  // "mp" | "costPerMp" | "price" | "craft"
+  CRAFT_PRICES_STORAGE: "hypixie.acc.craftPrices", // "1" | "0" — show craft cost next to AH price
   ATTR_USABLE_ONLY_STORAGE: "shardmarket.attributes.usableOnly", // "1" | "0"
 
   /* Filter out dead markets where no shards traded in the past week. */
@@ -166,6 +167,12 @@ const state = {
   bazaarMode: localStorage.getItem(CONFIG.BAZAAR_MODE_STORAGE) || "instaBuy",
   preferMax:  localStorage.getItem(CONFIG.PREFER_MAX_STORAGE) !== "0",
   accSortKey: localStorage.getItem(CONFIG.ACC_SORT_STORAGE) || "mp",
+  /* Craft-price feature (see craft-cost.js). Recipes load lazily; the pricer is
+   * rebuilt whenever the bazaar, the AH scan or the bazaar mode changes. */
+  showCraftPrices: localStorage.getItem(CONFIG.CRAFT_PRICES_STORAGE) !== "0",
+  craftRecipes: null,        // {recipes, names, loaded, error} | null
+  craftPricer: null,
+  craftPricerSig: "",
   attrUsableOnly: localStorage.getItem(CONFIG.ATTR_USABLE_ONLY_STORAGE) === "1",
   sweepShowCompleted: localStorage.getItem(CONFIG.SWEEP_SHOW_COMPLETED_STORAGE) === "1",
   minionManualTiers: {},
@@ -1756,6 +1763,154 @@ function accessoryPrice(id) {
   });
 }
 
+/* ------------------------------------------------------------------------ */
+/* Craft-price engine (see craft-cost.js)                                   */
+/*                                                                          */
+/* Recipes are bundled statically, but the pricer depends on live market     */
+/* data, so it is rebuilt whenever the bazaar snapshot, the AH scan, the     */
+/* bazaar buy mode or the player's owned accessories change.                 */
+/* ------------------------------------------------------------------------ */
+
+function ensureCraftRecipesLoaded() {
+  if (state.craftRecipes) return;
+  if (!window.loadCraftRecipes) return;
+  state.craftRecipes = { recipes: {}, names: {}, loaded: false, error: null, pending: true };
+  window.loadCraftRecipes().then((data) => {
+    state.craftRecipes = data;
+    state.craftPricer = null;
+    if (state.view === "missing" || state.view === "upgrades") renderActiveView();
+  });
+}
+
+function getCraftPricer() {
+  const data = state.craftRecipes;
+  if (!data?.loaded || !Object.keys(data.recipes || {}).length) return null;
+
+  const sig = [
+    state.raw?.lastUpdated || 0,
+    state.lowestBins ? state.lowestBins.size : -1,
+    state.bazaarMode,
+    state.player.ownedAccessories ? state.player.ownedAccessories.size : -1,
+  ].join("|");
+
+  if (state.craftPricer && state.craftPricerSig === sig) return state.craftPricer;
+
+  state.craftPricer = window.createCraftPricer({
+    bazaar: state.raw?.products,
+    bins: state.lowestBins,
+    bazaarMode: state.bazaarMode,
+    owned: state.player.ownedAccessories,
+    recipes: data.recipes,
+    names: data.names,
+    nameOf: (id) => state.allItemsById?.get(id)?.name || null,
+  });
+  state.craftPricerSig = sig;
+  return state.craftPricer;
+}
+
+/* Craft analysis for one accessory, or null when it cannot be computed. */
+function accessoryCraft(id) {
+  if (!state.showCraftPrices) return null;
+  const pricer = getCraftPricer();
+  if (!pricer) return null;
+  try {
+    return pricer.analyse(id);
+  } catch (e) {
+    console.warn("[Hypixie] craft cost failed for", id, e);
+    return null;
+  }
+}
+
+/* Human-readable forge duration (the recipe data stores seconds). */
+function forgeDurationText(seconds) {
+  const s = Number(seconds);
+  if (!Number.isFinite(s) || s <= 0) return null;
+  if (s < 3600) return `${Math.round(s / 60)}m`;
+  const h = s / 3600;
+  return h >= 24 ? `${(h / 24).toFixed(h / 24 >= 10 ? 0 : 1)}d` : `${h.toFixed(h >= 10 ? 0 : 1)}h`;
+}
+
+/* The craft chip shown next to the AH/BIN price, with a click-to-expand
+ * ingredient breakdown. */
+function accessoryCraftHTML(item, marketPrice) {
+  const c = accessoryCraft(item.id);
+  if (!c) return "";
+
+  if (!c.hasRecipe) {
+    return `<span class="acc-craft acc-craft--none"
+                  title="No known crafting recipe — this one has to be bought, dropped or earned.">
+              no recipe
+            </span>`;
+  }
+
+  const modeLabel = state.bazaarMode === "buyOrder" ? "buy orders" : "insta-buy";
+  const forgeNote = c.type === "forge" && c.duration
+    ? `, ${escapeHtml(forgeDurationText(c.duration))} in the forge`
+    : c.type === "forge" ? ", forge" : "";
+
+  if (!c.craftable) {
+    const missingList = c.missing.map((m) => `${m.amount}× ${m.name}`).join(", ");
+    const partial = Number.isFinite(c.partialCost) && c.partialCost > 0
+      ? `<span class="acc-craft-val">≥${escapeHtml(fmtCoins(c.partialCost))}</span>`
+      : "";
+    return `<details class="acc-craft acc-craft--blocked">
+              <summary>
+                <span class="acc-craft-tag">craft</span>
+                ${partial}
+                <span class="acc-craft-src">not craftable</span>
+              </summary>
+              <div class="acc-craft-body">
+                <p class="acc-craft-note">You can buy ${escapeHtml(fmtCoins(c.partialCost || 0))} of the materials, but these cannot be bought: <strong>${escapeHtml(missingList)}</strong>.</p>
+              </div>
+            </details>`;
+  }
+
+  const cheaper = Number.isFinite(marketPrice) && marketPrice > 0 && c.cost < marketPrice;
+  const savings = cheaper ? marketPrice - c.cost : 0;
+  const pct = cheaper ? Math.round((savings / marketPrice) * 100) : 0;
+  const cls = cheaper ? "acc-craft--cheap" : "acc-craft--plain";
+  const srcTag = c.pureBazaar ? "bazaar mats" : "bz + AH mat";
+  const title = cheaper
+    ? `Craft it for ${fmtCoins(c.cost)} instead of ${fmtCoins(marketPrice)} — saves ${fmtCoins(savings)} (${pct}%). Materials priced at ${modeLabel}.`
+    : `Craft cost ${fmtCoins(c.cost)} from live ${modeLabel} material prices${c.pureBazaar ? "" : " (one material is AH-only)"}.`;
+
+  const rows = c.materials.map((m) => {
+    const srcLabel =
+      m.source === "owned" ? "owned" :
+      m.source === "ah" ? "AH" :
+      m.source === "craft" || m.source === "craft-ah" ? "crafted" : "bazaar";
+    return `
+      <li>
+        <span class="acc-craft-ing">${escapeHtml(m.amount)}× ${escapeHtml(m.name)}${
+          m.ownedUnits ? ` <em class="acc-craft-ing-owned">(${m.ownedUnits} owned)</em>` : ""
+        }</span>
+        <span class="acc-craft-ing-price">${m.subtotal > 0 ? escapeHtml(fmtCoins(m.subtotal)) : "free"}
+          <em class="acc-craft-ing-src acc-craft-ing-src--${escapeHtml(m.source)}">${srcLabel}</em>
+        </span>
+      </li>`;
+  }).join("");
+
+  const freeNote = c.freeInputs.length
+    ? `<p class="acc-craft-note">Priced at 0 because you already own it: ${escapeHtml(c.freeInputs.map((f) => `${f.amount}× ${f.name}`).join(", "))}.</p>`
+    : "";
+
+  return `<details class="acc-craft ${cls}">
+            <summary title="${escapeHtml(title)}">
+              <span class="acc-craft-tag">craft</span>
+              <span class="acc-craft-val">${escapeHtml(fmtCoins(c.cost))}</span>
+              <span class="acc-craft-src">${escapeHtml(srcTag)}</span>
+              ${cheaper ? `<span class="acc-craft-save">−${pct}%</span>` : ""}
+            </summary>
+            <div class="acc-craft-body">
+              <p class="acc-craft-note">
+                ${escapeHtml(c.type === "forge" ? "Forged" : "Crafted")} from ${c.materials.length} material${c.materials.length === 1 ? "" : "s"}${escapeHtml(forgeNote)} · ${escapeHtml(fmtCoins(c.cost))} total${cheaper ? ` · saves <strong class="pos">${escapeHtml(fmtCoins(savings))}</strong> vs buying` : ""}.
+              </p>
+              <ul class="acc-craft-list">${rows}</ul>
+              ${freeNote}
+            </div>
+          </details>`;
+}
+
 function buildSweepCatalog(itemsData) {
   const byId = {};
   const resourceItems = itemsData?.items || [];
@@ -1984,6 +2139,10 @@ function accessoryActionRow(item, mpLabel, mpValue) {
     priceTxt = `<span class="acc-price acc-price-ah">Auction House</span>`;
   }
 
+  /* Craft-price chip: what it would cost to make this from live bazaar
+   * materials (and whether that is even possible). */
+  const craftHTML = accessoryCraftHTML(item, price.best);
+
   const tierColor = RARITY_COLORS[item.tier] || RARITY_COLORS.UNKNOWN;
   /* Soulbound items can't be bought — show a wiki link instead of a /ahs cmd. */
   const cmdRow = item.soulbound
@@ -2016,6 +2175,7 @@ function accessoryActionRow(item, mpLabel, mpValue) {
               <span class="acc-tier" style="color:${tierColor}">${item.tier.toLowerCase()}</span>
               <span class="meta-sep">·</span>
               ${priceTxt}
+              ${craftHTML ? `<span class="meta-sep">·</span>${craftHTML}` : ""}
             </div>
           </div>
         </div>
@@ -2103,6 +2263,10 @@ function accessoryToolbarHTML() {
           <input type="checkbox" id="prefer-max-toggle" ${state.preferMax ? "checked" : ""}/>
           <span>Prefer max tier</span>
         </label>
+        <label class="toggle-chip" title="Show what each accessory costs to craft yourself from live bazaar materials, next to its Auction House price.">
+          <input type="checkbox" id="craft-prices-toggle" ${state.showCraftPrices ? "checked" : ""}/>
+          <span>Craft prices</span>
+        </label>
       </div>
       <div class="acc-toolbar-right">
         <div class="sort-wrap acc-sort-wrap">
@@ -2111,6 +2275,7 @@ function accessoryToolbarHTML() {
             <option value="mp" ${state.accSortKey === "mp" ? "selected" : ""}>Magical Power gain</option>
             <option value="costPerMp" ${state.accSortKey === "costPerMp" ? "selected" : ""}>Cost per MP (cheapest first)</option>
             <option value="price" ${state.accSortKey === "price" ? "selected" : ""}>Price (cheapest first)</option>
+            <option value="craft" ${state.accSortKey === "craft" ? "selected" : ""}>Craft cost (cheapest first)</option>
           </select>
         </div>
         <div class="acc-toolbar-group acc-toolbar-ah">${binsState}</div>
@@ -2131,6 +2296,16 @@ function bindAccessoryToolbar(container) {
           state.accessoryCatalog, state.player.ownedAccessories, { preferMax: state.preferMax }
         );
       }
+      renderActiveView();
+    });
+  }
+
+  const craftToggle = container.querySelector("#craft-prices-toggle");
+  if (craftToggle) {
+    craftToggle.addEventListener("change", (e) => {
+      state.showCraftPrices = e.target.checked;
+      localStorage.setItem(CONFIG.CRAFT_PRICES_STORAGE, state.showCraftPrices ? "1" : "0");
+      if (state.showCraftPrices) ensureCraftRecipesLoaded();
       renderActiveView();
     });
   }
@@ -2195,17 +2370,47 @@ function accessoryPathActions(analysis) {
       flowHTML: `<span class="acc-have" style="color:${RARITY_COLORS[rc.item.tier]}">${escapeHtml(rc.item.name)}</span><span class="acc-upgrade-arrow">⟳</span><span class="acc-want" style="color:${RARITY_COLORS[rc.nextRarity]}">${rc.nextRarity.toLowerCase()}</span>`,
       cardHTML: () => recombActionRow(rc, recombPrice),
     })),
-  ];
+  ].map(withCraftCost);
+}
+
+/* Attach craft-price data to a path action.
+ *   craftCost — coins to craft it yourself, or Infinity when unknown
+ *   effPrice  — cheapest route: craft it when that beats the market, else buy */
+function withCraftCost(action) {
+  const c = action.item && action.type !== "recomb" ? accessoryCraft(action.item.id) : null;
+  const craftCost = c && c.craftable && Number.isFinite(c.cost) ? c.cost : Infinity;
+  const effPrice = Math.min(action.price, craftCost);
+  return {
+    ...action,
+    craft: c || null,
+    craftCost,
+    effPrice: Number.isFinite(effPrice) ? effPrice : action.price,
+    viaCraft: Number.isFinite(craftCost) && craftCost < action.price,
+  };
+}
+
+/* Safe numeric comparator — plain subtraction yields NaN when both sides are
+ * Infinity (unpriced accessories), which makes Array#sort unstable. */
+function cmpNum(a, b) {
+  if (a === b) return 0;
+  if (Number.isFinite(a) && Number.isFinite(b)) return a - b;
+  if (Number.isFinite(a)) return -1;      // a priced, b unpriced → a first
+  if (Number.isFinite(b)) return 1;
+  return 0;
 }
 
 function sortAccessoryPathActions(actions) {
   const sorted = [...actions];
-  if (state.accSortKey === "price") {
-    sorted.sort((x, y) => x.price - y.price || y.mpGain - x.mpGain);
+  if (state.accSortKey === "craft") {
+    /* Uncraftable steps sink to the bottom instead of poisoning the order. */
+    sorted.sort((x, y) => cmpNum(x.craftCost, y.craftCost) || cmpNum(x.effPrice, y.effPrice) || y.mpGain - x.mpGain);
+  } else if (state.accSortKey === "price") {
+    sorted.sort((x, y) => cmpNum(x.price, y.price) || y.mpGain - x.mpGain);
   } else if (state.accSortKey === "costPerMp") {
-    sorted.sort((x, y) => (x.price / x.mpGain) - (y.price / y.mpGain) || y.mpGain - x.mpGain);
+    const perMp = (a) => (Number.isFinite(a.price) && a.mpGain > 0 ? a.price / a.mpGain : Infinity);
+    sorted.sort((x, y) => cmpNum(perMp(x), perMp(y)) || y.mpGain - x.mpGain);
   } else {
-    sorted.sort((x, y) => y.mpGain - x.mpGain || x.price - y.price);
+    sorted.sort((x, y) => y.mpGain - x.mpGain || cmpNum(x.price, y.price));
   }
   return sorted;
 }
@@ -2249,7 +2454,11 @@ function accessoryPathCard(action, index) {
       <div class="acc-path-step">
         <span class="acc-path-num">${index + 1}</span>
         <span class="acc-path-kind">${action.label}</span>
-        <span class="acc-path-ratio">${Number.isFinite(action.price) ? `${fmtCoins(action.price / action.mpGain)}/MP` : "price unknown"}</span>
+        <span class="acc-path-ratio">${
+          Number.isFinite(action.effPrice)
+            ? `${fmtCoins(action.effPrice / action.mpGain)}/MP${action.viaCraft ? ` <em class="acc-path-viacraft">craft</em>` : ""}`
+            : "price unknown"
+        }</span>
       </div>
       <div class="acc-upgrade-flow">${action.flowHTML}</div>
       ${action.cardHTML()}
@@ -2280,6 +2489,11 @@ function renderMissingView() {
   const pricedActions = actions.filter((x) => Number.isFinite(x.price));
   const totalKnownCost = pricedActions.reduce((s, x) => s + x.price, 0);
 
+  /* Craft-prices summary: how many steps are cheaper to craft than to buy. */
+  if (state.showCraftPrices) ensureCraftRecipesLoaded();
+  const craftableSteps = actions.filter((x) => Number.isFinite(x.craftCost));
+  const craftSavings = craftableSteps.filter((x) => x.viaCraft).reduce((s, x) => s + (x.price - x.craftCost), 0);
+
   pane.innerHTML = `
     <div class="acc-page-head">
       <div>
@@ -2298,7 +2512,13 @@ function renderMissingView() {
       <div><strong>${missingCount}</strong><span>missing</span></div>
       <div><strong>${upgradeCount}</strong><span>upgrades</span></div>
       <div><strong>${recombCount}</strong><span>recombs</span></div>
+      ${state.showCraftPrices
+        ? `<div><strong>${craftableSteps.length}</strong><span>craftable</span></div>`
+        : ""}
     </div>
+    ${state.showCraftPrices && craftSavings > 0
+      ? `<p class="acc-craft-summary">Crafting the <strong>${craftableSteps.filter((x) => x.viaCraft).length}</strong> steps where it is cheaper saves about <strong class="pos">${fmtCoins(craftSavings)}</strong> versus buying them all.</p>`
+      : ""}
     ${accessoryToolbarHTML()}
     <div class="acc-grid" id="accessory-path-grid">
       ${actions.length
@@ -5635,6 +5855,10 @@ function init() {
   bindUI();
   startTimeAgoTicker();
   loadData(false);
+
+  /* Craft-price data is a small static file — warm it up in the background so
+   * the Accessory page has craft costs ready on first visit. */
+  if (state.showCraftPrices) ensureCraftRecipesLoaded();
 
   /* If the user previously linked an account, auto-load. */
   if (state.player.username) {
