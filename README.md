@@ -50,12 +50,16 @@ shard-market/
 ├── nbt.js                  ← Minimal NBT parser (decodes the gzipped inventory blob)
 ├── prices.js               ← Unified price resolver: bazaar + AH lowest-BIN scan (used by accessories, Sweep, P2W)
 ├── accessories.js          ← Accessory catalog, upgrade families, Magical Power math
+├── craft-cost.js           ← Recursive crafting-cost engine (bazaar/AH materials → craft price)
 ├── attributes.js           ← Attribute catalog + shards-to-max calculation
 ├── CHANGELOG.md            ← Release notes and contributor credits
+├── tools/
+│   └── build-craft-recipes.py  ← One-off generator for data/accessory-recipes.json
 ├── data/
 │   ├── fusion-properties.json   ← Per-shard metadata (189 shards, from SkyShards)
 │   ├── fusion-data.json         ← Full fusion recipe graph (~2 MB, from SkyShards)
-│   └── attribute-desc.json      ← Attribute id → rarity/title/effect (from SkyShards)
+│   ├── attribute-desc.json      ← Attribute id → rarity/title/effect (from SkyShards)
+│   └── accessory-recipes.json   ← Crafting recipes for accessories + their material closure
 └── README.md
 ```
 
@@ -91,6 +95,53 @@ Crystal upgrades (`Night Crystal → Moonlight Crystal`, `Day Crystal → Sunshi
 Fish Bowls, Kuudra organs, Crux Chronomicon → Celestial Starstone, Helianthus Relic,
 and Shady Ring → Seal of the Family are treated as one upgrade path instead of separate
 missing accessories.
+
+**Craft prices.** Next to every Auction-House / bazaar price the Accessory Path also shows
+what the item costs to **craft yourself**, and whether that is possible at all. Flip the
+**Craft prices** chip (on by default) and pick **Craft cost (cheapest first)** in the sort
+menu to rank the whole path by crafting cost. Click any craft chip to expand the full
+material list with per-material prices and where each one comes from.
+
+### How craft cost is computed
+
+Hypixel's `/v2/resources/skyblock/items` endpoint has no recipe data, so the recipes are
+bundled once at development time in `data/accessory-recipes.json` (≈40 KB) by
+`tools/build-craft-recipes.py`, which reads the community
+[NotEnoughUpdates repo](https://github.com/NotEnoughUpdates/NotEnoughUpdates-REPO):
+
+```bash
+python tools/build-craft-recipes.py            # incremental — caches into tools/.neu-cache/
+python tools/build-craft-recipes.py --refresh  # re-download the recipe files
+```
+
+It starts from every `ACCESSORY` item, then walks the ingredient closure: any material that
+is neither on the bazaar nor already fetched is fetched too, so deep chains
+(`Bat Talisman → Bat Ring → Bat Artifact`, `Enchanted X → Enchanted X Block`) can be priced.
+Re-run it after big game updates.
+
+At runtime `craft-cost.js` walks that graph and prices every leaf material live:
+
+| Priority | Source | Notes |
+| --- | --- | --- |
+| 1 | **Already owned** | the base accessory in an upgrade chain (e.g. your Wolf Talisman inside a Wolf Ring) is free |
+| 2 | **Bazaar** | insta-buy or buy-order, following the global bazaar-mode toggle |
+| 3 | **Auction House** | lowest BIN, for materials that never list on the bazaar |
+| 4 | **Craft it** | the material's own recipe, recursively |
+
+Each chip reports one of three states:
+
+- `craft 194.47k` — fully craftable; green when it beats the buy price, with the saving
+  shown as `−88%`. The tag reads **bazaar mats** when every material comes off the bazaar,
+  or **bz + AH mat** when at least one has to be bought on the Auction House.
+- `craft ≥ 8.07M` — has a recipe but not fully craftable: that much of it is buyable, the
+  rest (quest drops, dungeon drops, soulbound gear) must be obtained another way, and the
+  expanded panel lists exactly what.
+- `no recipe` — nothing to craft; it has to be bought, dropped or earned.
+
+What is **not** modelled: NPC shop prices, forge fuel/catalyst costs beyond the listed
+inputs, collection and skill requirements (a recipe may exist while you still lack the
+Heart of the Mountain tier), and craft-time opportunity cost. Forge recipes show their
+duration (`1.5d in the forge`) so you can judge that yourself.
 
 ### Attributes
 How many **Attribute Shards** you still need to take each attribute to level 10.
