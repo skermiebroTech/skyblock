@@ -3207,6 +3207,14 @@ a.acc-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
   margin-top: 24px;
 }
 
+/* Grid items refuse to shrink below their content unless you say so. Without
+ * this a wide table pushes the whole page sideways instead of scrolling
+ * inside its own .table-scroll box. */
+.p2w-controls-column,
+.p2w-results-column {
+  min-width: 0;
+}
+
 @media (max-width: 900px) {
   .p2w-container {
     grid-template-columns: 1fr;

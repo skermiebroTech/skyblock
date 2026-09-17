@@ -1,0 +1,1693 @@
+{
+ "updated": "2026-09-17",
+ "note": "SkyBlock Gems catalogue for the P2W Gem Optimizer. \"gems\" is the gem price of one unit. \"src\": wiki = read from the Hypixel Wiki dump in wiki-dump/ (Fire Sale and Taylor bundle listings); market = a known gem price for an item that is absent from the dump. \"traded\": true = the item changed hands on the Auction House recently, so a price is available. Availability is NOT recorded here. Taylor rotates her seasonal bundle and retired items do not return, so the optimizer only solves over Booster Cookies, live Fire Sales, and items you mark as offered. With nothing marked it falls back to the \"traded\" set, which is a guess, not a fact.",
+ "items": [
+  {
+   "id": "SHADOW_ASSASSIN_ADMIRAL",
+   "name": "Admiral Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SCATHA_ALBINO",
+   "name": "Albino Scatha Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_GOLDEN_DRAGON_ANCIENT",
+   "name": "Ancient Golden Dragon Skin",
+   "gems": 1800,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_GOLDEN_DRAGON_ANUBIS",
+   "name": "Anubis Golden Dragon Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_RABBIT_AQUAMARINE",
+   "name": "Aquamarine Rabbit Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MONKEY_ASTRONAUT",
+   "name": "Astronaut Monkey Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_REINDEER_AURORA",
+   "name": "Aurora Reindeer Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SLUG_AZURE_SEA_SLUG",
+   "name": "Azure Sea Slug Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_PIGMAN_BBQ",
+   "name": "BBQ Pigman Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_ENDER_DRAGON_BABY_BLUE",
+   "name": "Baby Blue Ender Dragon Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_CHICKEN_BABY_CHICK",
+   "name": "Baby Chick Chicken Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ENDER_DRAGON_BABY",
+   "name": "Baby Ender Dragon Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MEGALODON_BABY",
+   "name": "Baby Megalodon Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "BABYSEAL_BACKPACK",
+   "name": "Baby Seal Backpack Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_GRIFFIN_BALD_EAGLE",
+   "name": "Bald Eagle Griffin Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "DYE_BEACH",
+   "name": "Beach Dye",
+   "gems": 375,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "BEACHSIDE_RESORT_BARN_SKIN",
+   "name": "Beachside Resort Barn Skin",
+   "gems": 950,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_HOUND_BEAGLE",
+   "name": "Beagle Hound Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "BEAUTIFALL_CABIN_BARN_SKIN",
+   "name": "Beautifall Cabin Barn Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BEE_BEEDAZZLED",
+   "name": "BeeDazzled Bee Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BEE_BEELOVED",
+   "name": "BeeLoved Bee Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ZOMBIE_BIG_BRAIN",
+   "name": "Big Brain Zombie Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_BLACK_PLUSHIE",
+   "name": "Black Plushie Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_BLACK",
+   "name": "Black Sheep Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "TARANTULA_BLACK_WIDOW",
+   "name": "Black Widow Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SPIDER_BLACK_WIDOW",
+   "name": "Black Widow Spider Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_BLACK_WOOLY",
+   "name": "Black Wooly Sheep Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "FERMENTO_BLOOM",
+   "name": "Bloom Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "BLUE_EGG",
+   "name": "Blue Egged Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_BLUE",
+   "name": "Blue Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ENDERMAN_BLUE_MOON",
+   "name": "Blue Moon Enderman Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "REAPER_BLUE_ONI_MASK",
+   "name": "Blue Oni Reaper Mask Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_BLUE_PLUSHIE",
+   "name": "Blue Plushie Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BAT_BONE",
+   "name": "Bone Bat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "BOOSTER_COOKIE",
+   "name": "Booster Cookie",
+   "gems": 325,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_ZOMBIE_BRAIN_FREEZE",
+   "name": "Brain Freeze Zombie Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_PARROT_BUCCANEER",
+   "name": "Buccaneer Parrot Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "CADUCEUS_MENDING_CROWN",
+   "name": "Caduceus Mender Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BAT_CANDY",
+   "name": "Candy Bat Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "BACKPACK_CAT_O_LANTERN",
+   "name": "Cat-o-Lantern Skin",
+   "gems": 350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_GLACITE_GOLEM_CAVERN",
+   "name": "Cavern Glacite Golem Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "WITHER_GOGGLES_CELESTIAL",
+   "name": "Celestial Wither Goggles Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "DYE_CHARCOAL",
+   "name": "Charcoal Dye",
+   "gems": 375,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "CHEF_PERSONALITY",
+   "name": "Chef Minion Skin",
+   "gems": 250,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_MITHRIL_GOLEM_CHERRY_BLOSSOM",
+   "name": "Cherry Blossom Mithril Golem Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MAGMA_CUBE_CHOCO_CUBE",
+   "name": "Choco Magma Cube Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_CHROMA_WOOLY",
+   "name": "Chroma Sheep Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_IRON_GOLEM_CLAY",
+   "name": "Clay Golem Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_ROCK_COOL",
+   "name": "Cool Rock Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "BACKPACK_COOLER",
+   "name": "Cooler Skin",
+   "gems": 375,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_MITHRIL_GOLEM_COPPER",
+   "name": "Copper Mithril Golem Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_WHALE_COSMIC",
+   "name": "Cosmic Blue Whale Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_COSMIC",
+   "name": "Cosmic Elephant Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "COUNTRY_GREENHOUSE_SKIN",
+   "name": "Country Greenhouse Skin",
+   "gems": 250,
+   "src": "wiki",
+   "traded": true
+  },
+  {
+   "id": "COZY_COTTAGE_BARN_SKIN",
+   "name": "Cozy Cottage Barn Skin",
+   "gems": 250,
+   "src": "wiki",
+   "traded": true
+  },
+  {
+   "id": "SHADOW_ASSASSIN_CRIMSON",
+   "name": "Crimson Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_PARROT_CROW",
+   "name": "Crow Parrot Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MITHRIL_GOLEM_CRYSTAL",
+   "name": "Crystal Mithril Golem Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "CUBE_BARN_SKIN",
+   "name": "Cube Barn Skin",
+   "gems": 250,
+   "src": "wiki",
+   "traded": true
+  },
+  {
+   "id": "WITHER_GOGGLES_CYBERPUNK",
+   "name": "Cyberpunk Wither Goggles Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BABY_YETI_DARK_SASQUATCH",
+   "name": "Dark Sasquatch Baby Yeti Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SCATHA_DARK",
+   "name": "Dark Scatha Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_WITHER",
+   "name": "Dark Wither Skeleton Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_WOLF",
+   "name": "Dark Wolf Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ROCK_DERP",
+   "name": "Derpy Rock Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "GOBLIN_HELMET_DIAMOND",
+   "name": "Diamond Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_WOLF_DOGE",
+   "name": "Doge Wolf Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "DRAGON_EGG_BACKPACK",
+   "name": "Dragon Egg Backpack Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "WATER_HYDRA_DRAGON",
+   "name": "Dragon Hydra Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_ROCK_EMBARRASSED",
+   "name": "Embarrassed Rock Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ARMADILLO_ENCHANTED",
+   "name": "Enchanted Armadillo Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_GOLEM_END",
+   "name": "End Golem Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "FINAL_DESTINATION_ENDER_KNIGHT",
+   "name": "Ender Knight Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "ENDERPACK",
+   "name": "Enderpack Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "FOSSIL_MUNCHER_PERSONALITY",
+   "name": "Fossil Muncher Minion Skin",
+   "gems": 250,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_SILVERFISH_FOSSILIZED",
+   "name": "Fossilized Silverfish Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_FOUR_SEASONS_GRIFFIN",
+   "name": "Four Seasons Griffin Skin",
+   "gems": 1800,
+   "src": "wiki"
+  },
+  {
+   "id": "FROG_BARN_SKIN",
+   "name": "Frog Barn Skin",
+   "gems": 2000,
+   "src": "wiki"
+  },
+  {
+   "id": "FROZEN_BLAZE_FROST_KNIGHT",
+   "name": "Frost Knight Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BLAZE_FROZEN",
+   "name": "Frozen Blaze Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "GEMSTONE_DIVAN",
+   "name": "Gemstone Divan Helmet Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "GOBLIN_HELMET_GENIE",
+   "name": "Genie Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_WOLF_GERMAN",
+   "name": "German Wolf Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_GHOUL_GHOULFRIEND",
+   "name": "Ghoulfriend Ghoul Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "GLISTENING_MELON_FLUX",
+   "name": "Glistening Melon Power Orb Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SQUID_GLOW",
+   "name": "Glow Squid Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "GLOWING_GRAPE_FLUX",
+   "name": "Glowing Grape Power Orb Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_PARROT_GOLD_MACAW",
+   "name": "Gold Macaw Parrot Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_TURTLE_ANCIENT_GOLDEN",
+   "name": "Golden Ancient Turtle Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "GOLDEN_APPLE_FLUX",
+   "name": "Golden Apple Power Orb Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MONKEY_GOLDEN",
+   "name": "Golden Monkey Skin",
+   "gems": 750,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SCATHA_GOLDEN",
+   "name": "Golden Scatha Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "GOBLIN_HELMET_GOLDEN",
+   "name": "Golden Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_TIGER_GOLDEN",
+   "name": "Golden Tiger Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "GOLDEN_ANCIENT_EGG_FLUX",
+   "name": "Golden Turtle Egg Power Orb Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MONKEY_GORILLA",
+   "name": "Gorilla Monkey Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_GRAY_PLUSHIE",
+   "name": "Gray Plushie Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BEE_GREAT_GATSBEE",
+   "name": "Great Gats Bee Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "GREEN_EGG",
+   "name": "Green Egged Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_GREEN",
+   "name": "Green Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_JERRY_GREEN_ELF",
+   "name": "Green Elf Jerry Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_DOLPHIN_SNUBNOSE_GREEN",
+   "name": "Green Snubfin Dolphin Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_TARANTULA_GREENBOTTLE",
+   "name": "Greenbottle Tarantula Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_YETI_GROWN_UP",
+   "name": "Grown-up Baby Yeti Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_JERRY_HANDSOME",
+   "name": "Handsome Jerry Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "FERMENTO_ULTIMATE",
+   "name": "Harvester Helmet Skin",
+   "gems": 1800,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BEE_HIVE",
+   "name": "Hive Bee Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ROCK_HOLLOW",
+   "name": "Hollow Rock Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "HOLY_DRAGON_DRAKE",
+   "name": "Holy Drake Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_BEE_HONEY",
+   "name": "Honey Bee Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_FLYING_FISH_HUNGRY",
+   "name": "Hungry Flying Fish Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_WOLF_HUSKY",
+   "name": "Husky Wolf Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "DOUBLE_ICE_CREAM_FLUX",
+   "name": "Ice Cream Cone Power Orb Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_SNOWMAN_ICE_GOLEM",
+   "name": "Ice Golem Snowman Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_PHOENIX_ICE",
+   "name": "Ice Phoenix Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "FROZEN_BLAZE_ICICLE",
+   "name": "Icicle Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BAL_INFERNO",
+   "name": "Inferno Bal Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BLACK_CAT_IVORY",
+   "name": "Ivory Black Cat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "JERRY_BARN_SKIN",
+   "name": "Jerry Barn Skin",
+   "gems": 2000,
+   "src": "wiki"
+  },
+  {
+   "id": "BONZO_MASK_JESTER",
+   "name": "Jester Bonzo's Mask Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_OCELOT_JUNGLE",
+   "name": "Jungle Ocelot Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_RAT_KARATE",
+   "name": "KaRate Rat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "NECRON_DIAMOND_KNIGHT",
+   "name": "Knight Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_ROCK_LAUGH",
+   "name": "Laughing Rock Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SLUG_LEAF_SHEEP_SEA_SLUG",
+   "name": "Leaf Sheep Sea Slug Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "FERMENTO_LEAF",
+   "name": "Leaf Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MONKEY_LEMUR",
+   "name": "Lemur Monkey Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_JERRY_LEPRECHAUN",
+   "name": "Leprechaun Jerry Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BABY_YETI_LIGHT_SASQUATCH",
+   "name": "Light Sasquatch Baby Yeti Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BLACK_CAT_LITTER",
+   "name": "Litter Black Cat Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "LOVELY_PICNIC_BARN_SKIN",
+   "name": "Lovely Picnic Barn Skin",
+   "gems": 950,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_KUUDRA_LOYALTY",
+   "name": "Loyalty Kuudra Skin",
+   "gems": 950,
+   "src": "wiki"
+  },
+  {
+   "id": "LUCKY_BARN_SKIN",
+   "name": "Lucky Barn Skin",
+   "gems": 950,
+   "src": "wiki",
+   "traded": true
+  },
+  {
+   "id": "DYE_LUCKY",
+   "name": "Lucky Dye",
+   "gems": 375,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_JELLYFISH_LUMINESCENT",
+   "name": "Luminescent Jellyfish Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "LUNAR_RABBIT_HAT",
+   "name": "Lunar Rabbit Hat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_RABBIT_LUNAR",
+   "name": "Lunar Rabbit Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "MAGIC_CUBE_FLUX",
+   "name": "Magic Cube Power Orb Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_AMMONITE_MAGMA",
+   "name": "Magma Ammonite Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "SHADOW_ASSASSIN_MAUVE",
+   "name": "Mauve Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "MELON_BARN_SKIN",
+   "name": "Melon Barn Skin",
+   "gems": 950,
+   "src": "wiki",
+   "traded": true
+  },
+  {
+   "id": "METEOR_MAGMA_LORD",
+   "name": "Meteor Magma Lord Helmet Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BABY_YETI_MIDNIGHT",
+   "name": "Midnight Baby Yeti Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MOLE_MINER",
+   "name": "Miner Mole Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_MONOCHROME",
+   "name": "Monochrome Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MOOSHROOM_COW_MOOCELIUM",
+   "name": "Moocelium Mooshroom Cow Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "MOON_GREENHOUSE_SKIN",
+   "name": "Moon Greenhouse Skin",
+   "gems": 400,
+   "src": "wiki",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_RAT_MR_CLAWS",
+   "name": "Mr Claws Rat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "MUSHROOM_BARN_SKIN",
+   "name": "Mushroom Barn Skin",
+   "gems": 2000,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MOOSHROOM_COW_MYCELIYUM_BURGER",
+   "name": "Myceliyum Burger Mooshroom Cow Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "MYSTIC_MOON_FLUX",
+   "name": "Mystic Moon Power Orb Skin",
+   "gems": 950,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_AMMONITE_NATURAL",
+   "name": "Natural Ammonite Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ENDERMAN_NEBULA",
+   "name": "Nebula Enderman Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_DRAGON_NEON_BLUE",
+   "name": "Neon Blue Ender Dragon Skin",
+   "gems": 950,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_NEON_BLUE",
+   "name": "Neon Blue Sheep Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ENDERMAN_NEON",
+   "name": "Neon Enderman Skin",
+   "gems": 950,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_NEON_GREEN",
+   "name": "Neon Green Sheep Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_DRAGON_NEON_PURPLE",
+   "name": "Neon Purple Ender Dragon Skin",
+   "gems": 950,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_DRAGON_NEON_RED",
+   "name": "Neon Red Ender Dragon Skin",
+   "gems": 950,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_NEON_RED",
+   "name": "Neon Red Sheep Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_TIGER_NEON",
+   "name": "Neon Tiger Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_NEON_YELLOW",
+   "name": "Neon Yellow Sheep Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_RAT_NINJA",
+   "name": "Ninja Rat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "OLD_DRAGON_DRAKE",
+   "name": "Old Drake Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "REAPER_ONI_MASK",
+   "name": "Oni Reaper Mask Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BLACK_CAT_ONYX",
+   "name": "Onyx Black Cat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_ORANGE",
+   "name": "Orange Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_WHALE_ORCA",
+   "name": "Orca Blue Whale Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "OWL_MAGE_PERSONALITY",
+   "name": "Owl Mage Minion Skin",
+   "gems": 250,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_DRAGON_PASTEL",
+   "name": "Pastel Ender Dragon Skin",
+   "gems": 950,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SPIDER_PEACOCK",
+   "name": "Peacock Spider Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SKELETON_PEARL",
+   "name": "Pearl Skeleton Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PENGUIN_BACKPACK",
+   "name": "Penguin Backpack Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "DOUBLE_PHONE_BOOTH_FLUX",
+   "name": "Phone Booth Power Orb Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_RAT_PIRATE",
+   "name": "PiRate Rat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_HEDGEHOG_PINEAPPLE",
+   "name": "Pineapple Hedgehog Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_PINK",
+   "name": "Pink Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_PINK_PLUSHIE",
+   "name": "Pink Plushie Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_PINK",
+   "name": "Pink Sheep Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_TARANTULA_PINK",
+   "name": "Pink Tarantula Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PINWHEEL_HOUSE_BARN_SKIN",
+   "name": "Pinwheel House Barn Skin",
+   "gems": 2000,
+   "src": "wiki"
+  },
+  {
+   "id": "PIRATE_BOMB_FLUX",
+   "name": "Pirate Bomb Power Orb Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BABY_YETI_PLUSHIE",
+   "name": "Plushie Baby Yeti Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_RABBIT_PLUSHIE",
+   "name": "Plushie Rabbit Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_REINDEER_PLUSHIE",
+   "name": "Plushie Reindeer Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SNOWMAN_PLUSHIE",
+   "name": "Plushie Snowman Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PROTECTOR_DRAGON_DRAKE",
+   "name": "Protector Drake Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "DIVER_PUFFER",
+   "name": "Puffer Fish Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "MASTIFF_PUPPY",
+   "name": "Puppy Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PURPLE_EGG",
+   "name": "Purple Egged Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_PURPLE",
+   "name": "Purple Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_PURPLE",
+   "name": "Purple Sheep Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_DOLPHIN_SNUBNOSE_PURPLE",
+   "name": "Purple Snubfin Dolphin Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BEE_RGBEE",
+   "name": "RGBee Bee Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_OCELOT_RACOON",
+   "name": "Racoon Ocelot Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_ENDERMITE_RADIANT",
+   "name": "Radiant Endermite Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "MAGMA_LORD_RAGNAROK",
+   "name": "Ragnarok's Bane Magma Lord Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_SNAIL_RAINBOW",
+   "name": "Rainbow Snail Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_HEDGEHOG_RAMBUTAN",
+   "name": "Rambutan Hedgehog Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_RAT_RAT-STRONAUT",
+   "name": "Rat-stronaut Rat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_GRANDMA_WOLF_REAL",
+   "name": "Real Grandma Wolf Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ELEPHANT_RED",
+   "name": "Red Elephant Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_JERRY_RED_ELF",
+   "name": "Red Elf Jerry Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "REAPER_RED_ONI_MASK",
+   "name": "Red Oni Reaper Mask Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_DOLPHIN_SNUBNOSE_RED",
+   "name": "Red Snubfin Dolphin Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "DYE_RED_TULIP",
+   "name": "Red Tulip Dye",
+   "gems": 375,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "TARANTULA_REDBACK",
+   "name": "Redback Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "REINDEER_BACKPACK",
+   "name": "Reindeer Backpack Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_GRIFFIN_REINDRAKE",
+   "name": "Reindrake Griffin Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PERFECT_FORGE",
+   "name": "Reinforced Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_CHICKEN_ROAST",
+   "name": "Roast Chicken Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "DYE_ROSE",
+   "name": "Rose Dye",
+   "gems": 375,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_RABBIT_ROSE",
+   "name": "Rose Rabbit Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "GLOSSY_MINERAL_HELMET_ROYAL",
+   "name": "Royal Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_CHICKEN_RUBBER",
+   "name": "Rubber Chicken Chicken Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BEE_RUGBEE",
+   "name": "RugBee Bee Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_TIGER_SABER_TOOTH",
+   "name": "Saber-Tooth Tiger Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_GIRAFFE_SAFARI",
+   "name": "Safari Giraffe Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "BERSERKER_SANDSTORM_CAT",
+   "name": "Sandstorm Cat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ARMADILLO_SEAFOAM",
+   "name": "Seafoam Armadillo Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_RAT_SECRAT_SERVICE",
+   "name": "SecRat Service Rat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_RAT_SECURATY_GUARD",
+   "name": "SecuRaty Guard Rat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "SENTINEL_WARDEN",
+   "name": "Sentinel Warden Skin",
+   "gems": 1800,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ZOMBIE_SENTINEL",
+   "name": "Sentinel Zombie Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "SHIPWRECK_GREENHOUSE_SKIN",
+   "name": "Shipwreck Greenhouse Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "SHADOW_ASSASSIN_SLY_FOX",
+   "name": "Sly Fox Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ROCK_SMILE",
+   "name": "Smiling Rock Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "SMOL_JERRY_PERSONALITY",
+   "name": "Smol Jerry Minion Skin",
+   "gems": 250,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_OCELOT_SNOW_TIGER",
+   "name": "Snow Tiger Ocelot Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "SNOW_SNOWGLOBE",
+   "name": "Snowglobe Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_DOLPHIN_SNUBFIN",
+   "name": "Snubfin Dolphin Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_MONKEY_SOCK",
+   "name": "Sock Monkey Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_BLAZE_SOUL",
+   "name": "Soul Blaze Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_CAT_SPACE_KITTY",
+   "name": "Space Kitty Black Cat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "WARDEN_SPARTAN",
+   "name": "Spartan Warden Helmet Skin",
+   "gems": 1800,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_BEE_SPELLING_BEE",
+   "name": "Spelling Bee Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "REAPER_SPIRIT",
+   "name": "Spirit Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ENDERMAN",
+   "name": "Spooky Enderman Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_RAT_SQUEAKHEART",
+   "name": "Squeakheart Rat Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "STRONG_DRAGON_DRAKE",
+   "name": "Strong Drake Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_ENDERMAN_SUN",
+   "name": "Sun Enderman Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "DYE_SUNFLOWER",
+   "name": "Sunflower Dye",
+   "gems": 375,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_ENDER_DRAGON_SWAP_PLUSHIE",
+   "name": "Super Plushie Ender Dragon Skin",
+   "gems": 1800,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_GOLDEN_DRAGON_SWAP_PLUSHIE",
+   "name": "Super Plushie Golden Dragon Skin",
+   "gems": 1800,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "SUPERIOR_DRAGON_DRAKE",
+   "name": "Superior Drake Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "TAVERN_BARN_SKIN",
+   "name": "Tavern Barn Skin",
+   "gems": 250,
+   "src": "wiki",
+   "traded": true
+  },
+  {
+   "id": "END_BARN_SKIN",
+   "name": "The End Barn Skin",
+   "gems": 950,
+   "src": "wiki"
+  },
+  {
+   "id": "THERMAL_THERMODYNAMIC",
+   "name": "Thermal Thermodynamic Helmet Skin",
+   "gems": 950,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "GOBLIN_HELMET_THIEF",
+   "name": "Thief Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ROCK_THINKING",
+   "name": "Thinking Rock Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "TRUE_WARDEN",
+   "name": "True Warden Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_CHICKEN_TURKEY",
+   "name": "Turkey Chicken Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_TIGER_TWILIGHT",
+   "name": "Twilight Tiger Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BEE_USB",
+   "name": "USBee Bee Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_ENDER_DRAGON_UNDEAD",
+   "name": "Undead Ender Dragon Skin",
+   "gems": 950,
+   "src": "wiki"
+  },
+  {
+   "id": "UNSTABLE_DRAGON_DRAKE",
+   "name": "Unstable Drake Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_BAT_VAMPIRE",
+   "name": "Vampire Bat Skin",
+   "gems": 1350,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SLUG_VIOLET_SEA_SLUG",
+   "name": "Violet Sea Slug Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BEE_WANNA_BEE",
+   "name": "Wanna Bee Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "DYE_WARDEN",
+   "name": "Warden Dye",
+   "gems": 375,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_BEE_WASABEE",
+   "name": "WasaBee Bee Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_GUARDIAN",
+   "name": "Watcher Guardian Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_WHITE",
+   "name": "White Sheep Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "PET_SKIN_SHEEP_WHITE_WOOLY",
+   "name": "White Wooly Sheep Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "WINDMILL_BARN_SKIN",
+   "name": "Windmill Barn Skin",
+   "gems": 250,
+   "src": "wiki",
+   "traded": true
+  },
+  {
+   "id": "WISE_DRAGON_DRAKE",
+   "name": "Wise Drake Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_ENDERMAN_XENON",
+   "name": "Xenon Enderman Skin",
+   "gems": 950,
+   "src": "wiki"
+  },
+  {
+   "id": "YACHT_BARN_SKIN",
+   "name": "Yacht Barn Skin",
+   "gems": 650,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "YOUNG_DRAGON_DRAKE",
+   "name": "Young Drake Skin",
+   "gems": 1350,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "PET_SKIN_HORSE_ZOMBIE",
+   "name": "Zombie Skeleton Horse Skin",
+   "gems": 650,
+   "src": "wiki"
+  },
+  {
+   "id": "UNIQUE_RUNE_BLAZING_SUN",
+   "name": "\u25c6 Blazing Sun Rune",
+   "gems": 950,
+   "src": "market",
+   "traded": true
+  },
+  {
+   "id": "UNIQUE_RUNE_SUNNY_SPIRAL",
+   "name": "\u25c6 Sunny Spiral Rune",
+   "gems": 950,
+   "src": "market",
+   "traded": true
+  }
+ ]
+}

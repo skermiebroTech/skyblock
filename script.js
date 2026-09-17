@@ -38,6 +38,7 @@ const CONFIG = {
   FUSION_PROPS_URL: "data/fusion-properties.json",
   FUSION_DATA_URL:  "data/fusion-data.json",
   ATTR_DESC_URL:    "data/attribute-desc.json",
+  GEM_COSMETICS_URL: "data/gem-cosmetics.json",
 
   /* Public bazaar endpoint needs no key. The key IS required for profile
    * lookups — surfaced to the user with a clear error. */
@@ -75,6 +76,16 @@ const CONFIG = {
   CACHE_KEY_GARDEN_PREFIX:  "shardmarket.cache.garden.",   // + profile id
   CACHE_TTL_BINS_MS:       300_000,   // 5 min — AH moves but a full scan is heavy
   CACHE_TTL_FIRESALES_MS:  60_000,    // Fire Sales are public and can update around start/end times
+
+  /* Gem Optimizer. CoflNet serves the sale history we need for a robust
+   * price and a traded volume. The Hypixel API gives neither. */
+  COFL_API_BASE:            "https://sky.coflnet.com/api",
+  CACHE_KEY_GEM_COSMETICS:  "shardmarket.cache.gemCosmetics.v1",
+  CACHE_KEY_GEM_MARKET:     "shardmarket.cache.gemMarket.v1",
+  CACHE_TTL_GEM_MARKET_MS:  1_800_000,   // 30 min — sale history moves slowly
+  GEM_OFFERED_STORAGE:      "shardmarket.p2w.gemOffered.v1",
+  GEM_HORIZON_STORAGE:      "shardmarket.p2w.gemHorizon",
+  GEM_BUDGET_STORAGE:       "shardmarket.p2w.gemBudget",
 
   /* Accessory page preferences. */
   BAZAAR_MODE_STORAGE: "shardmarket.bazaarMode",  // "instaBuy" | "buyOrder"
@@ -213,7 +224,14 @@ const state = {
     fireSalesError: null,
     fireSalesFetchedAt: null,
     bundleFocusId: null,        // which bundle the Bundles tab panel/results target (null → best value)
-    bundleSkinPrices: {}        // { [skinName]: coinValueOverride } — user overrides for bundle skin prices
+    bundleSkinPrices: {},       // { [skinName]: coinValueOverride } — user overrides for bundle skin prices
+    gemCatalog: null,           // [{ id, name, gems, src }] from data/gem-cosmetics.json
+    gemMarket: null,            // { [itemId]: { price, dailyVolume, basis, at } } from CoflNet
+    gemMarketLoading: false,
+    gemMarketError: null,
+    gemMarketProgress: 0,
+    gemResult: null,            // last solve
+    gemShowAll: false           // reference table: offered items only, or the whole catalogue
   },
 };
 
@@ -7060,12 +7078,559 @@ function p2wResultsCardHTML({ workingCost, midTitle, midLabel, midValue, gemsNee
         </div>`;
 }
 
+/* =========================================================================
+ * GEM OPTIMIZER
+ *
+ * "I have N gems. What do I buy?" The answer is a bounded knapsack over the
+ * gem cosmetics, but four things make a naive solve wrong:
+ *
+ *   1. A mean sale price lets one outlier trade set the recommendation.
+ *      We take the volume-weighted median of CoflNet's hourly buckets.
+ *   2. A cosmetic that trades 4 times a day cannot absorb 4 more units at
+ *      the same price. Capacity is a share of market flow over a sell
+ *      horizon you choose, and each item splits into tranches that pay less
+ *      as you take more.
+ *   3. The Auction House tax is tiered, not flat. We reuse ahNetProceeds.
+ *   4. Most gem cosmetics are retired. Taylor rotates her seasonal bundle
+ *      and past items do not return. We only solve over items that are
+ *      offered right now: Booster Cookies, live Fire Sales, and whatever
+ *      you mark as offered.
+ * ======================================================================= */
+
+/* Marginal revenue falls as you take a larger share of market flow. Each
+ * tier is a fraction of horizon volume and the price it still fetches.
+ * These are estimates — no order-book depth is published for the AH. */
+const GEM_DEPTH_TIERS = [
+  { share: 0.10, mult: 1.00 },
+  { share: 0.15, mult: 0.93 },
+  { share: 0.25, mult: 0.85 },
+];
+
+const GEM_COOKIE_ID = "BOOSTER_COOKIE";
+
+/* ---- Items the player has marked as currently offered by Taylor ---- */
+function loadGemOffered() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CONFIG.GEM_OFFERED_STORAGE));
+    return new Set(Array.isArray(raw) ? raw : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveGemOffered(set) {
+  try {
+    localStorage.setItem(CONFIG.GEM_OFFERED_STORAGE, JSON.stringify([...set]));
+  } catch { /* storage full or blocked — the session still works */ }
+}
+
+function gemHorizonDays() {
+  return getNumberFromStorage(CONFIG.GEM_HORIZON_STORAGE, 3);
+}
+
+function gemBudget() {
+  return getNumberFromStorage(CONFIG.GEM_BUDGET_STORAGE, 1800);
+}
+
+/* ---- Catalogue ---- */
+async function loadGemCatalog() {
+  if (state.p2w.gemCatalog) return state.p2w.gemCatalog;
+  const { data } = await staticFetch(CONFIG.GEM_COSMETICS_URL, {
+    cacheKey: CONFIG.CACHE_KEY_GEM_COSMETICS,
+    cacheTtl: CONFIG.CACHE_TTL_STATIC_MS,
+  });
+  state.p2w.gemCatalog = Array.isArray(data?.items) ? data.items : [];
+  return state.p2w.gemCatalog;
+}
+
+/* ---- Robust price from CoflNet sale history ----
+ * One outlier trade can lift a day's mean by 40%. The median of the hourly
+ * buckets, weighted by the volume in each, ignores it. */
+function weightedMedian(points) {
+  const rows = (points || []).filter((p) => p.vol > 0).sort((a, b) => a.avg - b.avg);
+  const total = rows.reduce((sum, p) => sum + p.vol, 0);
+  if (!total) return null;
+  let seen = 0;
+  for (const p of rows) {
+    seen += p.vol;
+    if (seen >= total / 2) return p.avg;
+  }
+  return rows[rows.length - 1].avg;
+}
+
+/* One call per item. The week history is hourly buckets, and its last 24
+ * hours reproduce the day history exactly, so we derive both from it and
+ * halve the load on a free API. */
+async function coflHistory(itemId, tries = 4) {
+  const url = `${CONFIG.COFL_API_BASE}/item/price/${encodeURIComponent(itemId)}/history/week`;
+  for (let attempt = 0; attempt < tries; attempt++) {
+    const resp = await fetch(url);
+    if (resp.status === 429) {
+      /* CoflNet is free and rate limited. Back off instead of hammering it. */
+      await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+      continue;
+    }
+    if (!resp.ok) throw new Error(`CoflNet history failed for ${itemId} (${resp.status})`);
+    const raw = await resp.json();
+    return (Array.isArray(raw) ? raw : [])
+      .filter((p) => p && p.volume > 0)
+      .map((p) => ({ avg: p.avg, vol: p.volume, at: Date.parse(`${p.time}Z`) }));
+  }
+  throw new Error(`CoflNet rate limited the history for ${itemId}`);
+}
+
+/* Daily data first. A day with fewer than three sales says nothing, so the
+ * weekly rate takes over — that is what keeps thin cosmetics in the pool
+ * instead of dropping them. */
+function deriveGemMarketRow(week) {
+  if (!week.length) return null;
+  const newest = Math.max(...week.map((p) => p.at));
+  const day = week.filter((p) => p.at >= newest - 24 * 3600 * 1000);
+  const dayVol = day.reduce((sum, p) => sum + p.vol, 0);
+  const weekVol = week.reduce((sum, p) => sum + p.vol, 0);
+  let price = null, dailyVolume = 0, basis = "none";
+
+  if (dayVol > 0) {
+    price = weightedMedian(day);
+    dailyVolume = dayVol;
+    basis = "daily";
+  }
+  if (weekVol > 0) {
+    if (dayVol < 3 || price === null) {
+      price = weightedMedian(week);
+      basis = "weekly";
+    }
+    dailyVolume = Math.max(dailyVolume, weekVol / 7);
+  }
+  if (price === null || !(dailyVolume > 0)) return null;
+  return { price, dailyVolume, basis, at: Date.now() };
+}
+
+/* ---- Market load, throttled so we stay a good CoflNet citizen ---- */
+async function loadGemMarket(force = false) {
+  if (state.p2w.gemMarketLoading) return;
+
+  if (!force) {
+    const cached = cache.read(CONFIG.CACHE_KEY_GEM_MARKET, CONFIG.CACHE_TTL_GEM_MARKET_MS);
+    if (cached) {
+      state.p2w.gemMarket = cached.data;
+      return;
+    }
+  }
+
+  state.p2w.gemMarketLoading = true;
+  state.p2w.gemMarketError = null;
+  state.p2w.gemMarketProgress = 0;
+  renderP2wView();
+
+  try {
+    await loadGemCatalog();
+    const ids = getGemPoolIds();
+    const market = { ...(state.p2w.gemMarket || {}) };
+
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      if (id === GEM_COOKIE_ID) continue;        // the bazaar already prices cookies
+      try {
+        const row = deriveGemMarketRow(await coflHistory(id));
+        if (row) market[id] = row; else delete market[id];
+      } catch {
+        /* One dead item must not stop the batch. */
+      }
+      state.p2w.gemMarketProgress = (i + 1) / ids.length;
+      if (i % 5 === 0) renderP2wView();
+      await new Promise((r) => setTimeout(r, 340));
+    }
+
+    state.p2w.gemMarket = market;
+    cache.write(CONFIG.CACHE_KEY_GEM_MARKET, market);
+  } catch (err) {
+    state.p2w.gemMarketError = err.message;
+  } finally {
+    state.p2w.gemMarketLoading = false;
+    state.p2w.gemMarketProgress = 1;
+    renderP2wView();
+  }
+}
+
+/* ---- The pool: what you can actually buy with gems today ----
+ * Booster Cookies are always on sale in the Community Shop. Fire Sales come
+ * from the Hypixel API and are live for hours. Everything else is only in
+ * the pool because you marked it as offered. With nothing marked we fall
+ * back to the actively traded subset of the catalogue, which is the closest
+ * guess we can make without reading Taylor's stock in game. */
+function getGemPoolIds() {
+  const catalog = state.p2w.gemCatalog || [];
+  const offered = loadGemOffered();
+  const ids = new Set([GEM_COOKIE_ID]);
+
+  for (const sale of getFireSaleRows()) {
+    if (sale.time.status === "Live" && sale.id) ids.add(sale.id);
+  }
+  for (const item of catalog) {
+    if (offered.has(item.id)) ids.add(item.id);
+  }
+  if (offered.size === 0) {
+    /* Nothing marked: fall back to everything that changed hands recently.
+     * That is a guess at Taylor's stock, not a fact — the tab says so. */
+    for (const item of catalog) {
+      if (item.traded) ids.add(item.id);
+    }
+  }
+  return [...ids];
+}
+
+/* One priced row per pool item, ready for the solver. */
+function getGemRows() {
+  const catalog = state.p2w.gemCatalog || [];
+  const byId = new Map(catalog.map((c) => [c.id, c]));
+  const market = state.p2w.gemMarket || {};
+  const offered = loadGemOffered();
+  const liveSales = new Map(getFireSaleRows()
+    .filter((r) => r.time.status === "Live")
+    .map((r) => [r.id, r]));
+
+  const rows = [];
+  for (const id of getGemPoolIds()) {
+    const entry = byId.get(id);
+    const sale = liveSales.get(id);
+    const gems = sale ? sale.gems : entry?.gems;
+    if (!(gems > 0)) continue;
+
+    if (id === GEM_COOKIE_ID) {
+      /* Cookies sell on the bazaar, not the AH: bazaar tax, no listing fee,
+       * and depth measured in tens of thousands rather than single digits. */
+      const rate = gemToCoinRate();
+      const cookieVolume = state.raw?.products?.[GEM_COOKIE_ID]?.quick_status?.buyMovingWeek || 0;
+      rows.push({
+        id, name: entry?.name || "Booster Cookie", gems,
+        price: rate.cookieSellPrice, net: rate.cookieEffective,
+        dailyVolume: cookieVolume / 7, basis: "bazaar", market: "bazaar",
+        why: sale ? "Fire Sale" : "Community Shop",
+      });
+      continue;
+    }
+
+    const m = market[id];
+    if (!m) continue;
+    rows.push({
+      id, name: entry?.name || sale?.name || prettifyFireSaleId(id), gems,
+      price: m.price, net: ahNetProceeds(m.price),
+      dailyVolume: m.dailyVolume, basis: m.basis, market: "auction",
+      why: sale ? "Fire Sale" : (offered.has(id) ? "Marked offered" : "Traded recently"),
+    });
+  }
+  return rows.filter((r) => r.net > 0).sort((a, b) => (b.net / b.gems) - (a.net / a.gems));
+}
+
+/* ---- Capacity tranches ---- */
+function gemTranches(row, horizonDays) {
+  if (row.market === "bazaar") {
+    return [{ id: row.id, gems: row.gems, unitCoins: row.net,
+              qty: Math.max(1, Math.floor(row.dailyVolume * horizonDays * 0.25)) }];
+  }
+  const base = row.dailyVolume * horizonDays;
+  const out = [];
+  for (const tier of GEM_DEPTH_TIERS) {
+    const qty = Math.floor(base * tier.share);
+    if (qty < 1) continue;
+    out.push({ id: row.id, gems: row.gems, unitCoins: ahNetProceeds(row.price * tier.mult), qty });
+  }
+  /* A market this thin still sells one unit. */
+  if (!out.length) out.push({ id: row.id, gems: row.gems, unitCoins: row.net, qty: 1 });
+  return out;
+}
+
+/* ---- Bounded knapsack: binary split, then a plain 0/1 DP ---- */
+function solveGemSpend(rows, gems, horizonDays) {
+  const budget = Math.max(0, Math.floor(gems));
+  const tranches = rows.flatMap((r) => gemTranches(r, horizonDays));
+  const chunks = [];
+  tranches.forEach((t, idx) => {
+    const cost = Math.floor(t.gems);
+    if (!(cost > 0) || !(t.unitCoins > 0) || !(t.qty > 0)) return;
+    let left = t.qty, step = 1;
+    while (left > 0) {
+      const take = Math.min(step, left);
+      chunks.push({ idx, qty: take, cost: cost * take, value: t.unitCoins * take });
+      left -= take;
+      step *= 2;
+    }
+  });
+
+  const best = new Float64Array(budget + 1).fill(Number.NEGATIVE_INFINITY);
+  const back = new Array(budget + 1).fill(null);
+  best[0] = 0;
+  chunks.forEach((chunk, ci) => {
+    for (let g = budget; g >= chunk.cost; g--) {
+      const cand = best[g - chunk.cost] + chunk.value;
+      if (cand > best[g] + 1e-9) {
+        best[g] = cand;
+        back[g] = { prev: back[g - chunk.cost], ci };
+      }
+    }
+  });
+
+  let at = 0;
+  for (let g = 1; g <= budget; g++) if (best[g] > best[at] + 1e-9) at = g;
+
+  const picked = new Map();
+  for (let node = back[at]; node; node = node.prev) {
+    const chunk = chunks[node.ci];
+    const tranche = tranches[chunk.idx];
+    const row = picked.get(tranche.id) || { id: tranche.id, gems: tranche.gems, qty: 0, coins: 0 };
+    row.qty += chunk.qty;
+    row.coins += chunk.value;
+    picked.set(tranche.id, row);
+  }
+
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const purchases = [...picked.values()]
+    .map((p) => ({ ...p, name: byId.get(p.id)?.name || p.id, gemsSpent: p.qty * p.gems,
+                   dailyVolume: byId.get(p.id)?.dailyVolume || 0 }))
+    .sort((a, b) => b.coins - a.coins);
+  const gemsUsed = purchases.reduce((sum, p) => sum + p.gemsSpent, 0);
+  const opt = optimizeGems(budget);
+  return {
+    totalCoins: best[at] > 0 ? best[at] : 0,
+    gemsUsed,
+    gemsLeft: budget - gemsUsed,
+    purchases,
+    usd: opt.cost,
+    coinsPerUsd: opt.cost > 0 ? (best[at] > 0 ? best[at] : 0) / opt.cost : null,
+    opt,
+  };
+}
+
+function runGemSolve() {
+  const rows = getGemRows();
+  state.p2w.gemResult = rows.length
+    ? solveGemSpend(rows, gemBudget(), gemHorizonDays())
+    : null;
+}
+
 function renderP2wTabsHTML() {
   return `
     <div class="p2w-tabs" role="tablist" aria-label="P2W calculator modes">
       <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "cookies" ? "active" : ""}" data-p2w-tab="cookies" role="tab" aria-selected="${state.p2w.activeTab === "cookies"}">${mcIconHTML("BOOSTER_COOKIE", "inline-mc-icon", "Booster Cookies")} Booster Cookies</button>
       <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "firesales" ? "active" : ""}" data-p2w-tab="firesales" role="tab" aria-selected="${state.p2w.activeTab === "firesales"}">${mcIconHTML("FIRE_CHARGE", "inline-mc-icon", "Fire Sales")} Fire Sales</button>
       <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "bundles" ? "active" : ""}" data-p2w-tab="bundles" role="tab" aria-selected="${state.p2w.activeTab === "bundles"}">${mcIconHTML("CHEST", "inline-mc-icon", "Store Bundles")} Store Bundles</button>
+      <button class="btn-toggle p2w-tab ${state.p2w.activeTab === "gems" ? "active" : ""}" data-p2w-tab="gems" role="tab" aria-selected="${state.p2w.activeTab === "gems"}">${mcIconHTML("EMERALD", "inline-mc-icon", "Gem Optimizer")} Gem Optimizer</button>
+    </div>`;
+}
+
+/* Toolbar status for the Gem Optimizer tab: the CoflNet read is the slow
+ * part, so it gets the same treatment as the AH scan. */
+function gemMarketStatusHTML() {
+  if (state.p2w.gemMarketLoading) {
+    return `<span class="ah-status">Reading sale history… ${Math.round(state.p2w.gemMarketProgress * 100)}%</span>`;
+  }
+  if (state.p2w.gemMarket) {
+    const priced = Object.keys(state.p2w.gemMarket).length;
+    return `<span class="ah-status ah-status-ok">Sale history loaded (${priced})</span>
+            <button class="btn-secondary btn-small" id="gem-refresh-market">Refresh</button>`;
+  }
+  return `<button class="btn-secondary btn-small" id="gem-load-market">Load sale history</button>`;
+}
+
+function bindGemOptimizerEvents(pane) {
+  pane.querySelector("#gem-load-market")?.addEventListener("click", () => loadGemMarket(false));
+  pane.querySelector("#gem-refresh-market")?.addEventListener("click", () => loadGemMarket(true));
+
+  const budgetInput = pane.querySelector("#gem-budget");
+  budgetInput?.addEventListener("change", () => {
+    const val = parseInt(budgetInput.value, 10);
+    if (Number.isFinite(val) && val >= 0) {
+      localStorage.setItem(CONFIG.GEM_BUDGET_STORAGE, String(val));
+    }
+  });
+
+  pane.querySelector("#gem-horizon")?.addEventListener("change", (e) => {
+    localStorage.setItem(CONFIG.GEM_HORIZON_STORAGE, e.target.value);
+    if (state.p2w.gemResult) runGemSolve();
+    renderP2wView();
+  });
+
+  pane.querySelector("#gem-solve")?.addEventListener("click", async () => {
+    const val = parseInt(budgetInput?.value, 10);
+    if (Number.isFinite(val) && val >= 0) {
+      localStorage.setItem(CONFIG.GEM_BUDGET_STORAGE, String(val));
+    }
+    if (!state.p2w.gemMarket) await loadGemMarket(false);
+    runGemSolve();
+    renderP2wView();
+  });
+
+  pane.querySelector("#gem-toggle-all")?.addEventListener("click", () => {
+    state.p2w.gemShowAll = !state.p2w.gemShowAll;
+    renderP2wView();
+  });
+
+  pane.querySelector("#gem-clear-offered")?.addEventListener("click", () => {
+    saveGemOffered(new Set());
+    state.p2w.gemResult = null;
+    renderP2wView();
+  });
+
+  pane.querySelectorAll(".gem-offered-box").forEach((box) => {
+    box.addEventListener("change", () => {
+      const offered = loadGemOffered();
+      if (box.checked) offered.add(box.dataset.gemId);
+      else offered.delete(box.dataset.gemId);
+      saveGemOffered(offered);
+      state.p2w.gemResult = null;
+      renderP2wView();
+    });
+  });
+}
+
+function renderGemOptimizerTabHTML() {
+  const catalog = state.p2w.gemCatalog;
+  if (!catalog) {
+    return `<div class="acc-loading"><span class="spinner"></span> Loading the gem cosmetics catalogue…</div>`;
+  }
+
+  const rows = getGemRows();
+  const result = state.p2w.gemResult;
+  const offered = loadGemOffered();
+  const horizon = gemHorizonDays();
+  const budget = gemBudget();
+  const loading = state.p2w.gemMarketLoading;
+
+  const currency = state.p2w.currency === "AUD" ? "AUD $" : "USD $";
+  const rate = state.p2w.currency === "AUD" ? state.p2w.exchangeRate : 1;
+
+  const resultCard = result ? `
+        <div class="p2w-panel card">
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">Best use of ${fmtInt(budget)} gems</h3>
+          <div class="p2w-cookie-price-display">
+            <div class="cookie-stat-row">
+              <span>Net coins after tax:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold; color: var(--pos);">${fmtCoins(result.totalCoins)}</span>
+            </div>
+            <div class="cookie-stat-row">
+              <span>Gems spent:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold;">${fmtInt(result.gemsUsed)} <span style="opacity: 0.6;">(${fmtInt(result.gemsLeft)} left over)</span></span>
+            </div>
+            <div class="cookie-stat-row">
+              <span>Cheapest package mix:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold;">${currency}${(result.usd * rate).toFixed(2)}</span>
+            </div>
+            <div class="cookie-stat-row" style="border-top: 1px dashed var(--surface-line); padding-top: 8px; margin-top: 8px;">
+              <span>Coins per dollar:</span>
+              <span style="font-family: var(--font-mono); font-weight: bold; color: var(--ember-light);">${result.coinsPerUsd ? fmtCoins(result.coinsPerUsd / rate) : "—"}</span>
+            </div>
+          </div>
+          ${result.purchases.length ? `
+          <div class="table-scroll" style="margin-top: 16px;">
+          <table class="data-table">
+            <thead>
+              <tr><th>Buy</th><th style="text-align: right;">Qty</th><th style="text-align: right;">Sells/day</th><th style="text-align: right;">Gems</th><th style="text-align: right;">Net coins</th></tr>
+            </thead>
+            <tbody>
+              ${result.purchases.map((p) => `
+              <tr>
+                <td>${escapeHtml(p.name)}</td>
+                <td style="text-align: right; font-family: var(--font-mono);">${fmtInt(p.qty)}</td>
+                <td style="text-align: right; font-family: var(--font-mono); opacity: 0.7;">${p.dailyVolume >= 1000 ? fmtCoins(p.dailyVolume) : p.dailyVolume.toFixed(1)}</td>
+                <td style="text-align: right; font-family: var(--font-mono);">${fmtInt(p.gemsSpent)}</td>
+                <td style="text-align: right; font-family: var(--font-mono); color: var(--pos);">${fmtCoins(p.coins)}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+          </div>` : `<p class="p2w-help-text" style="margin-top: 12px;">No purchase beats leaving the gems unspent.</p>`}
+        </div>` : `
+        <div class="p2w-panel card">
+          <p class="p2w-help-text" style="font-size: 0.9em;">
+            Load the sale history, then press Solve.
+          </p>
+        </div>`;
+
+  const poolRows = (state.p2w.gemShowAll ? catalog.map((c) => {
+    const live = rows.find((r) => r.id === c.id);
+    return live || { id: c.id, name: c.name, gems: c.gems, price: null, net: null,
+                     dailyVolume: 0, basis: "none", why: "Not in the pool" };
+  }) : rows).slice(0, state.p2w.gemShowAll ? 300 : 60);
+
+  return `
+    <div class="p2w-container">
+      <div class="p2w-controls-column">
+        <div class="p2w-panel card">
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 20px;">1. Gems and patience</h3>
+
+          <div class="p2w-input-group">
+            <label class="p2w-label" for="gem-budget">Gems available</label>
+            <input type="number" id="gem-budget" class="input-native" value="${budget}" min="0" step="50">
+          </div>
+
+          <div class="p2w-input-group" style="margin-top: 16px;">
+            <label class="p2w-label" for="gem-horizon">How long will you take to sell?</label>
+            <select id="gem-horizon" class="select-native">
+              <option value="1" ${horizon === 1 ? "selected" : ""}>1 day — dump it all now</option>
+              <option value="3" ${horizon === 3 ? "selected" : ""}>3 days — balanced</option>
+              <option value="7" ${horizon === 7 ? "selected" : ""}>7 days — patient</option>
+              <option value="14" ${horizon === 14 ? "selected" : ""}>14 days — very patient</option>
+            </select>
+            <p class="p2w-help-text" style="margin-top: 10px; font-size: 0.85em;">
+              A cosmetic that sells 4 times a day cannot absorb 40 more units at the same price.
+              Capacity is a share of that flow over your horizon, and each item pays less as you take more of it
+              (${GEM_DEPTH_TIERS.map((t) => `${Math.round(t.share * 100)}% at ${Math.round(t.mult * 100)}%`).join(", ")}).
+            </p>
+          </div>
+
+          <button class="btn-primary" id="gem-solve" style="margin-top: 16px; width: 100%;" ${loading ? "disabled" : ""}>Solve</button>
+        </div>
+
+        <div class="p2w-panel card" style="margin-top: 24px;">
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 16px;">2. What is on sale</h3>
+          <p class="p2w-help-text" style="font-size: 0.85em;">
+            Booster Cookies are always in the Community Shop. Live Fire Sales come from the Hypixel API.
+            Everything else depends on Taylor's current stock, which no public API reports.
+            ${offered.size === 0
+              ? `Nothing is marked, so the pool falls back to the <b>${catalog.filter((c) => c.traded).length}</b> cosmetics that traded recently. That is a guess. Check Taylor in game and mark the real ones below.`
+              : `You marked <b>${offered.size}</b> cosmetic${offered.size === 1 ? "" : "s"} as offered.
+                 <button class="btn-secondary btn-small" id="gem-clear-offered" style="margin-left: 6px;">Clear</button>`}
+          </p>
+        </div>
+      </div>
+
+      <div class="p2w-results-column">
+        ${state.p2w.gemMarketError ? `<div class="acc-error" style="margin-bottom: 16px;">Could not read sale history: ${escapeHtml(state.p2w.gemMarketError)}</div>` : ""}
+        ${resultCard}
+
+        <div class="p2w-panel card" style="margin-top: 24px;">
+          <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+            <span>Coins per gem</span>
+            <button class="btn-toggle btn-small" id="gem-toggle-all">${state.p2w.gemShowAll ? "Show the pool" : `Show all ${catalog.length}`}</button>
+          </h3>
+          <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr><th>Cosmetic</th><th style="text-align: right;">Gems</th><th style="text-align: right;">Median sale</th><th style="text-align: right;">Coins/gem</th><th style="text-align: right;">Sells/day</th><th>Price from</th><th style="text-align: center;">Offered</th></tr>
+            </thead>
+            <tbody>
+              ${poolRows.map((r) => `
+              <tr>
+                <td>${escapeHtml(r.name)}</td>
+                <td style="text-align: right; font-family: var(--font-mono);">${fmtInt(r.gems)}</td>
+                <td style="text-align: right; font-family: var(--font-mono);">${r.price ? fmtCoins(r.price) : "—"}</td>
+                <td style="text-align: right; font-family: var(--font-mono); color: ${r.net ? "var(--pos)" : "inherit"};">${r.net ? fmtInt(Math.round(r.net / r.gems)) : "—"}</td>
+                <td style="text-align: right; font-family: var(--font-mono); opacity: 0.7;">${r.dailyVolume >= 1000 ? fmtCoins(r.dailyVolume) : (r.dailyVolume || 0).toFixed(1)}</td>
+                <td style="opacity: 0.7; font-size: 0.85em;">${escapeHtml(r.basis === "daily" ? "today's sales" : r.basis === "weekly" ? "this week's sales" : r.basis === "bazaar" ? "bazaar" : "no sales")}</td>
+                <td style="text-align: center;">
+                  <input type="checkbox" class="gem-offered-box" data-gem-id="${escapeHtml(r.id)}" ${offered.has(r.id) ? "checked" : ""} ${r.id === GEM_COOKIE_ID ? "disabled title='Always in the Community Shop'" : ""}>
+                </td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+          </div>
+          <p class="p2w-help-text" style="margin-top: 12px; font-size: 0.85em;">
+            Median sale, not average — one outlier trade can lift a mean by 40% and take over the answer.
+            Net value is after the tiered AH fee (1% under 10m, 2% to 100m, 2.5% above) and the 1% claim tax.
+            Cookies use the bazaar price and the bazaar tax instead.
+          </p>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -7629,13 +8194,14 @@ function renderP2wView() {
         <p class="view-subtitle" style="margin: 0;">Find out how many real-world dollars (USD/AUD) are needed to buy any item in Hypixel SkyBlock — by selling store-bought Booster Cookies or by flipping Fire Sale items on the Auction House.</p>
       </div>
       <div class="acc-toolbar-ah" style="background: var(--bg-elevated); padding: 8px 16px; border-radius: var(--r-sm); border: 1px solid var(--surface-line); font-size: 0.85em; display: flex; align-items: center; gap: 10px;">
-        ${binsState}
+        ${state.p2w.activeTab === "gems" ? gemMarketStatusHTML() : binsState}
       </div>
     </header>
 
     ${renderP2wTabsHTML()}
 
     ${state.p2w.activeTab === "firesales" ? renderFireSalesTabHTML({ workingCost, resolvedPriceSource })
+      : state.p2w.activeTab === "gems" ? renderGemOptimizerTabHTML()
       : state.p2w.activeTab === "bundles" ? renderBundlesTabHTML({ workingCost, resolvedPriceSource }) : `
     <div class="p2w-container">
       <!-- Left Column: Controls -->
@@ -7694,6 +8260,17 @@ function renderP2wView() {
 
   if (state.p2w.activeTab === "firesales") {
     loadFireSalesIfNeeded(false);
+  }
+
+  if (state.p2w.activeTab === "gems") {
+    loadFireSalesIfNeeded(false);
+    if (!state.p2w.gemCatalog) {
+      loadGemCatalog().then(() => renderP2wView()).catch((err) => {
+        state.p2w.gemMarketError = err.message;
+        renderP2wView();
+      });
+    }
+    bindGemOptimizerEvents(pane);
   }
 
   // Bind UI Event Listeners
