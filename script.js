@@ -7285,6 +7285,7 @@ function getGemRows() {
         id, name: entry?.name || "Booster Cookie", gems,
         price: rate.cookieSellPrice, net: rate.cookieEffective,
         dailyVolume: cookieVolume / 7, basis: "bazaar", market: "bazaar",
+        limitPerDay: entry?.limitPerDay, stockLeft: null,
         why: sale ? "Fire Sale" : "Community Shop",
       });
       continue;
@@ -7299,6 +7300,10 @@ function getGemRows() {
       price: m.price, net: ahNetProceeds(m.price),
       dailyVolume: m.dailyVolume, basis: m.basis, market: "auction",
       weeklySales: m.weeklySales,
+      limitPerDay: entry?.limitPerDay,
+      /* A Fire Sale sells from one shared pool, first come first served.
+       * What is left is a hard ceiling on how many you can buy. */
+      stockLeft: sale ? Math.max(0, (sale.amount || 0) - (sale.sold || 0)) || null : null,
       why: sale ? "Fire Sale"
         : entry?.shop === "skymart" ? "SkyMart"
         : entry?.shop === "taylor" ? "Taylor"
@@ -7309,20 +7314,39 @@ function getGemRows() {
 }
 
 /* ---- Capacity tranches ---- */
+/* How many the shop will actually sell you, before the market is even
+ * considered. Booster Cookies stop at 192 a day. A Fire Sale runs out of its
+ * shared stock. Nothing documents a limit for Taylor or SkyMart, so those
+ * stay unlimited until someone confirms otherwise in game. */
+function gemShopCap(row, horizonDays) {
+  let cap = Infinity;
+  if (Number.isFinite(row.limitPerDay)) cap = Math.min(cap, row.limitPerDay * horizonDays);
+  if (Number.isFinite(row.stockLeft)) cap = Math.min(cap, row.stockLeft);
+  return cap;
+}
+
 function gemTranches(row, horizonDays) {
+  const shopCap = gemShopCap(row, horizonDays);
+  if (shopCap < 1) return [];
+
   if (row.market === "bazaar") {
+    const liquidity = Math.max(1, Math.floor(row.dailyVolume * horizonDays * 0.25));
     return [{ id: row.id, gems: row.gems, unitCoins: row.net,
-              qty: Math.max(1, Math.floor(row.dailyVolume * horizonDays * 0.25)) }];
+              qty: Math.min(liquidity, Math.floor(shopCap)) }];
   }
+
   const base = row.dailyVolume * horizonDays;
   const out = [];
+  let budget = Math.floor(shopCap);          // the shop cap is spent across tranches
   for (const tier of GEM_DEPTH_TIERS) {
-    const qty = Math.floor(base * tier.share);
+    if (budget < 1) break;
+    const qty = Math.min(Math.floor(base * tier.share), budget);
     if (qty < 1) continue;
     out.push({ id: row.id, gems: row.gems, unitCoins: ahNetProceeds(row.price * tier.mult), qty });
+    budget -= qty;
   }
   /* A market this thin still sells one unit. */
-  if (!out.length) out.push({ id: row.id, gems: row.gems, unitCoins: row.net, qty: 1 });
+  if (!out.length && budget >= 1) out.push({ id: row.id, gems: row.gems, unitCoins: row.net, qty: 1 });
   return out;
 }
 
@@ -7406,6 +7430,25 @@ function renderP2wTabsHTML() {
 
 /* Toolbar status for the Gem Optimizer tab: the CoflNet read is the slow
  * part, so it gets the same treatment as the AH scan. */
+/* Every skin sells on the Auction House. The Booster Cookie is the one
+ * bazaar item in the catalogue, and it is not a skin. Spell the venue out
+ * so the table cannot be misread. */
+function gemVenueLabel(row) {
+  if (row.market === "bazaar") return "Bazaar · instant sell";
+  const sales = Math.round(row.weeklySales || 0);
+  if (row.thin) return `AH · only ${sales} sale${sales === 1 ? "" : "s"} this week`;
+  if (row.basis === "daily") return "AH · today's sales";
+  if (row.basis === "weekly") return "AH · this week's sales";
+  return "AH · no sales";
+}
+
+/* Name the ceiling the shop puts on you, when there is one. */
+function gemShopCapLabel(row, horizonDays) {
+  if (Number.isFinite(row.stockLeft)) return `${fmtInt(row.stockLeft)} left in the sale`;
+  if (Number.isFinite(row.limitPerDay)) return `${fmtInt(row.limitPerDay)}/day cap`;
+  return "";
+}
+
 function gemMarketStatusHTML() {
   if (state.p2w.gemMarketLoading) {
     return `<span class="ah-status">Reading sale history… ${Math.round(state.p2w.gemMarketProgress * 100)}%</span>`;
@@ -7595,18 +7638,18 @@ function renderGemOptimizerTabHTML() {
           <div class="table-scroll">
           <table class="data-table">
             <thead>
-              <tr><th>Cosmetic</th><th>Shop</th><th style="text-align: right;">Gems</th><th style="text-align: right;">Median sale</th><th style="text-align: right;">Coins/gem</th><th style="text-align: right;">Sells/day</th><th>Price from</th><th style="text-align: center;">Offered</th></tr>
+              <tr><th>Cosmetic</th><th>Shop</th><th style="text-align: right;">Gems</th><th style="text-align: right;">Median sale</th><th style="text-align: right;">Coins/gem</th><th style="text-align: right;">Sells/day</th><th>Sold on</th><th style="text-align: center;">Offered</th></tr>
             </thead>
             <tbody>
               ${poolRows.map((r) => `
               <tr>
                 <td>${escapeHtml(r.name)}</td>
-                <td style="opacity: 0.75; font-size: 0.85em;">${escapeHtml(r.why || "—")}</td>
+                <td style="opacity: 0.75; font-size: 0.85em;">${escapeHtml(r.why || "—")}${gemShopCapLabel(r, horizon) ? `<span style="display: block; opacity: 0.8;">${escapeHtml(gemShopCapLabel(r, horizon))}</span>` : ""}</td>
                 <td style="text-align: right; font-family: var(--font-mono);">${fmtInt(r.gems)}</td>
                 <td style="text-align: right; font-family: var(--font-mono);">${r.price ? fmtCoins(r.price) : "—"}</td>
                 <td style="text-align: right; font-family: var(--font-mono); color: ${r.net ? "var(--pos)" : "inherit"};">${r.net ? fmtInt(Math.round(r.net / r.gems)) : "—"}</td>
                 <td style="text-align: right; font-family: var(--font-mono); opacity: 0.7;">${r.dailyVolume >= 1000 ? fmtCoins(r.dailyVolume) : (r.dailyVolume || 0).toFixed(1)}</td>
-                <td style="opacity: 0.7; font-size: 0.85em;">${escapeHtml(r.thin ? `only ${Math.round(r.weeklySales || 0)} sale${Math.round(r.weeklySales || 0) === 1 ? "" : "s"} this week` : r.basis === "daily" ? "today's sales" : r.basis === "weekly" ? "this week's sales" : r.basis === "bazaar" ? "bazaar" : "no sales")}</td>
+                <td style="opacity: 0.7; font-size: 0.85em;">${escapeHtml(gemVenueLabel(r))}</td>
                 <td style="text-align: center;">
                   <input type="checkbox" class="gem-offered-box" data-gem-id="${escapeHtml(r.id)}" ${offered.has(r.id) ? "checked" : ""} ${r.id === GEM_COOKIE_ID ? "disabled title='Always in the Community Shop'" : ""}>
                 </td>
@@ -7621,7 +7664,8 @@ function renderGemOptimizerTabHTML() {
             Median sale, not average — one outlier trade can lift a mean by 40% and take over the answer.
             An item with fewer than ${GEM_MIN_WEEKLY_SALES} sales in a week stays out of the solve until you tick it.
             Net value is after the tiered AH fee (1% under 10m, 2% to 100m, 2.5% above) and the 1% claim tax.
-            Cookies use the bazaar price and the bazaar tax instead.
+            Every skin sells on the Auction House, so all of them pay that fee. Booster Cookies are the one
+            bazaar item here: they use the bazaar instant-sell price and the bazaar tax, and no listing fee.
           </p>
         </div>
       </div>

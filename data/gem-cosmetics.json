@@ -1,6 +1,6 @@
 {
  "updated": "2026-09-17",
- "note": "SkyBlock Gems catalogue for the P2W Gem Optimizer. \"gems\" is the gem price of one unit. \"src\": wiki = read from the Hypixel Wiki dump in wiki-dump/ (Fire Sale and Taylor bundle listings); market = a known gem price for an item that is absent from the dump. \"traded\": true = the item changed hands on the Auction House recently. \"shop\" = where you buy it with gems today, per store.hypixel.net/category/skyblock-gems: community-shop = Booster Cookies from Elizabeth, always in stock; skymart = Barn and Greenhouse Skins from SkyMart in the Garden, always in stock; taylor = confirmed in Taylor's Fashion Shop, which rotates seasonally. No \"shop\" means retired or unconfirmed. Nothing outside the store page is guaranteed: only the in-game NPC shows current stock, so tick items in the tab as you confirm them. The Hypixel store sells NO bundles any more, only gem packages.",
+ "note": "SkyBlock Gems catalogue for the P2W Gem Optimizer. \"gems\" is the gem price of one unit. \"src\": wiki = read from the Hypixel Wiki dump in wiki-dump/ (Fire Sale and Taylor bundle listings); market = a known gem price for an item that is absent from the dump. \"traded\": true = the item changed hands on the Auction House recently. \"shop\" = where you buy it with gems today, per store.hypixel.net/category/skyblock-gems: community-shop = Booster Cookies from Elizabeth, always in stock; skymart = Barn and Greenhouse Skins from SkyMart in the Garden, always in stock; taylor = confirmed in Taylor's Fashion Shop, which rotates seasonally. No \"shop\" means retired or unconfirmed. Nothing outside the store page is guaranteed: only the in-game NPC shows current stock, so tick items in the tab as you confirm them. The Hypixel store sells NO bundles any more, only gem packages. \"limitPerDay\" = how many the game lets one player buy in a day, where a limit is known. The wiki records 192 Booster Cookies per day. No source documents a per-item limit for Taylor or SkyMart, so those are treated as unlimited while in stock; add limitPerDay if you confirm otherwise in game. Fire Sale stock is a shared global pool (the API \"amount\" minus \"sold\"), not a per-player cap.",
  "items": [
   {
    "id": "SHADOW_ASSASSIN_ADMIRAL",
@@ -218,7 +218,8 @@
    "gems": 325,
    "src": "market",
    "traded": true,
-   "shop": "community-shop"
+   "shop": "community-shop",
+   "limitPerDay": 192
   },
   {
    "id": "PET_SKIN_ZOMBIE_BRAIN_FREEZE",
