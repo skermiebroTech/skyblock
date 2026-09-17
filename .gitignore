@@ -3,3 +3,6 @@
 
 # Ignore the wiki dump data
 wiki-dump/
+
+# NEU item cache used only by tools/build-craft-recipes.py
+tools/.neu-cache/
