@@ -6624,44 +6624,17 @@ const GEM_PACKAGES = [
   { gems: 700,   cost: 5.99,   name: "700 SkyBlock Gems" }
 ];
 
-/* Hypixel Store SkyBlock-relevant bundles (store.hypixel.net/category/bundles).
- * Prices are USD from the live store; regional checkout tax is added by the
- * store and not included here. `gems` is the bundle's SkyBlock Gems, `cosmetics`
- * are the tradeable SkyBlock skins we price from the Auction House, and `extras`
- * are network-wide boosters/cosmetics that carry no SkyBlock coin value (listed
- * for completeness only). Bundles are limited-time and some are one-per-account.
- * Refresh this list from the store when the bundle rotation changes. */
-const STORE_BUNDLES = [
-  {
-    id: "7516754",
-    name: "Summer Legacy Bundle",
-    price: 16.49,
-    originalPrice: 54.96,
-    tag: "70% OFF",
-    gems: 700,
-    cosmetics: [
-      { name: "Shleepy Sheep Pet Skin" },
-      { name: "Wyvern Dragon Helmet Skin" },
-    ],
-    extras: [
-      "1× Arcade Games Booster", "1× SkyWars Booster", "1× TNT Games Booster",
-      "1× Mega Walls Booster", "Stormy Bed Destroy", "Beach Particle Pack",
-      "Swarm Cloak", "Storm Cloak",
-    ],
-  },
-  {
-    id: "7516755",
-    name: "Summer SkyBlock Bundle",
-    price: 27.49,
-    gems: 1800,
-    cosmetics: [
-      { name: "Petal Rose Dragon Pet Skin" },
-      { name: "Garden Warrior Fermento Helmet Skin" },
-      { name: "Kitsune Tiki Mask Helmet Skin" },
-    ],
-    extras: [],
-  },
-];
+/* Hypixel Store bundles. The store carried these until 2026, but the Bundles
+ * category is now empty — store.hypixel.net sells gem packages and nothing
+ * else for SkyBlock. Cosmetics moved in game and cost gems: Booster Cookies
+ * from Elizabeth, Barn and Greenhouse Skins from SkyMart in the Garden,
+ * skins from Taylor in the Fashion Shop, and limited Fire Sales.
+ * The Gem Optimizer tab covers all of those.
+ *
+ * Keep this array. If Hypixel brings a bundle back, add it here in the old
+ * shape ({ id, name, price, gems, cosmetics, extras }) and the tab works
+ * again. To check, open store.hypixel.net/category/bundles and enter an IGN. */
+const STORE_BUNDLES = [];
 
 function optimizeGems(targetGems) {
   if (targetGems <= 0) return { cost: 0, packages: {}, gemsObtained: 0, surplus: 0 };
@@ -7108,6 +7081,13 @@ const GEM_DEPTH_TIERS = [
 
 const GEM_COOKIE_ID = "BOOSTER_COOKIE";
 
+/* A median ignores an outlier inside a sample, but a sample of one IS the
+ * outlier. An item with a single sale in a week tells us nothing reliable,
+ * and at 400m a coin it would take over the whole answer. Below this many
+ * weekly sales we price the item for the table but keep it out of the solve
+ * until you tick it yourself. */
+const GEM_MIN_WEEKLY_SALES = 3;
+
 /* ---- Items the player has marked as currently offered by Taylor ---- */
 function loadGemOffered() {
   try {
@@ -7203,7 +7183,7 @@ function deriveGemMarketRow(week) {
     dailyVolume = Math.max(dailyVolume, weekVol / 7);
   }
   if (price === null || !(dailyVolume > 0)) return null;
-  return { price, dailyVolume, basis, at: Date.now() };
+  return { price, dailyVolume, basis, weeklySales: weekVol || dayVol, at: Date.now() };
 }
 
 /* ---- Market load, throttled so we stay a good CoflNet citizen ---- */
@@ -7270,12 +7250,11 @@ function getGemPoolIds() {
   for (const item of catalog) {
     if (offered.has(item.id)) ids.add(item.id);
   }
-  if (offered.size === 0) {
-    /* Nothing marked: fall back to everything that changed hands recently.
-     * That is a guess at Taylor's stock, not a fact — the tab says so. */
-    for (const item of catalog) {
-      if (item.traded) ids.add(item.id);
-    }
+  /* Shops that never rotate, so we can add them without guessing: SkyMart
+   * sells the Barn and Greenhouse Skins all year, and Elizabeth always has
+   * cookies. Anything confirmed in Taylor's current stock joins them. */
+  for (const item of catalog) {
+    if (item.shop) ids.add(item.id);
   }
   return [...ids];
 }
@@ -7313,11 +7292,17 @@ function getGemRows() {
 
     const m = market[id];
     if (!m) continue;
+    const thin = (m.weeklySales || 0) < GEM_MIN_WEEKLY_SALES && !offered.has(id);
     rows.push({
+      thin,
       id, name: entry?.name || sale?.name || prettifyFireSaleId(id), gems,
       price: m.price, net: ahNetProceeds(m.price),
       dailyVolume: m.dailyVolume, basis: m.basis, market: "auction",
-      why: sale ? "Fire Sale" : (offered.has(id) ? "Marked offered" : "Traded recently"),
+      weeklySales: m.weeklySales,
+      why: sale ? "Fire Sale"
+        : entry?.shop === "skymart" ? "SkyMart"
+        : entry?.shop === "taylor" ? "Taylor"
+        : "You ticked it",
     });
   }
   return rows.filter((r) => r.net > 0).sort((a, b) => (b.net / b.gems) - (a.net / a.gems));
@@ -7403,7 +7388,7 @@ function solveGemSpend(rows, gems, horizonDays) {
 }
 
 function runGemSolve() {
-  const rows = getGemRows();
+  const rows = getGemRows().filter((r) => !r.thin);
   state.p2w.gemResult = rows.length
     ? solveGemSpend(rows, gemBudget(), gemHorizonDays())
     : null;
@@ -7549,7 +7534,7 @@ function renderGemOptimizerTabHTML() {
   const poolRows = (state.p2w.gemShowAll ? catalog.map((c) => {
     const live = rows.find((r) => r.id === c.id);
     return live || { id: c.id, name: c.name, gems: c.gems, price: null, net: null,
-                     dailyVolume: 0, basis: "none", why: "Not in the pool" };
+                     dailyVolume: 0, basis: "none", why: "Retired or unconfirmed" };
   }) : rows).slice(0, state.p2w.gemShowAll ? 300 : 60);
 
   return `
@@ -7584,12 +7569,16 @@ function renderGemOptimizerTabHTML() {
         <div class="p2w-panel card" style="margin-top: 24px;">
           <h3 class="panel-header" style="font-family: var(--font-display); font-size: 0.95em; margin-bottom: 16px;">2. What is on sale</h3>
           <p class="p2w-help-text" style="font-size: 0.85em;">
-            Booster Cookies are always in the Community Shop. Live Fire Sales come from the Hypixel API.
-            Everything else depends on Taylor's current stock, which no public API reports.
-            ${offered.size === 0
-              ? `Nothing is marked, so the pool falls back to the <b>${catalog.filter((c) => c.traded).length}</b> cosmetics that traded recently. That is a guess. Check Taylor in game and mark the real ones below.`
-              : `You marked <b>${offered.size}</b> cosmetic${offered.size === 1 ? "" : "s"} as offered.
-                 <button class="btn-secondary btn-small" id="gem-clear-offered" style="margin-left: 6px;">Clear</button>`}
+            The Hypixel store sells no bundles any more, only gem packages. You spend the gems in game, so the
+            pool holds what the shops actually stock: <b>${catalog.filter((c) => c.shop === "skymart").length}</b> Barn and
+            Greenhouse Skins from SkyMart in the Garden, Booster Cookies from Elizabeth, live Fire Sales from the
+            Hypixel API, and <b>${catalog.filter((c) => c.shop === "taylor").length}</b> confirmed in Taylor's Fashion Shop.
+            SkyMart and Elizabeth never rotate. Taylor does, and no public API reports her stock, so tick anything
+            you see on her below.
+            ${offered.size
+              ? `You ticked <b>${offered.size}</b> more.
+                 <button class="btn-secondary btn-small" id="gem-clear-offered" style="margin-left: 6px;">Clear</button>`
+              : ""}
           </p>
         </div>
       </div>
@@ -7606,17 +7595,18 @@ function renderGemOptimizerTabHTML() {
           <div class="table-scroll">
           <table class="data-table">
             <thead>
-              <tr><th>Cosmetic</th><th style="text-align: right;">Gems</th><th style="text-align: right;">Median sale</th><th style="text-align: right;">Coins/gem</th><th style="text-align: right;">Sells/day</th><th>Price from</th><th style="text-align: center;">Offered</th></tr>
+              <tr><th>Cosmetic</th><th>Shop</th><th style="text-align: right;">Gems</th><th style="text-align: right;">Median sale</th><th style="text-align: right;">Coins/gem</th><th style="text-align: right;">Sells/day</th><th>Price from</th><th style="text-align: center;">Offered</th></tr>
             </thead>
             <tbody>
               ${poolRows.map((r) => `
               <tr>
                 <td>${escapeHtml(r.name)}</td>
+                <td style="opacity: 0.75; font-size: 0.85em;">${escapeHtml(r.why || "—")}</td>
                 <td style="text-align: right; font-family: var(--font-mono);">${fmtInt(r.gems)}</td>
                 <td style="text-align: right; font-family: var(--font-mono);">${r.price ? fmtCoins(r.price) : "—"}</td>
                 <td style="text-align: right; font-family: var(--font-mono); color: ${r.net ? "var(--pos)" : "inherit"};">${r.net ? fmtInt(Math.round(r.net / r.gems)) : "—"}</td>
                 <td style="text-align: right; font-family: var(--font-mono); opacity: 0.7;">${r.dailyVolume >= 1000 ? fmtCoins(r.dailyVolume) : (r.dailyVolume || 0).toFixed(1)}</td>
-                <td style="opacity: 0.7; font-size: 0.85em;">${escapeHtml(r.basis === "daily" ? "today's sales" : r.basis === "weekly" ? "this week's sales" : r.basis === "bazaar" ? "bazaar" : "no sales")}</td>
+                <td style="opacity: 0.7; font-size: 0.85em;">${escapeHtml(r.thin ? `only ${Math.round(r.weeklySales || 0)} sale${Math.round(r.weeklySales || 0) === 1 ? "" : "s"} this week` : r.basis === "daily" ? "today's sales" : r.basis === "weekly" ? "this week's sales" : r.basis === "bazaar" ? "bazaar" : "no sales")}</td>
                 <td style="text-align: center;">
                   <input type="checkbox" class="gem-offered-box" data-gem-id="${escapeHtml(r.id)}" ${offered.has(r.id) ? "checked" : ""} ${r.id === GEM_COOKIE_ID ? "disabled title='Always in the Community Shop'" : ""}>
                 </td>
@@ -7625,7 +7615,11 @@ function renderGemOptimizerTabHTML() {
           </table>
           </div>
           <p class="p2w-help-text" style="margin-top: 12px; font-size: 0.85em;">
+            The SkyMart rows come from the store's own description of what gems buy, not from a stock list.
+            Hypixel publishes no stock list, and Taylor has sold Barn Skins in seasonal bundles too, so confirm
+            the ones you care about in game.
             Median sale, not average — one outlier trade can lift a mean by 40% and take over the answer.
+            An item with fewer than ${GEM_MIN_WEEKLY_SALES} sales in a week stays out of the solve until you tick it.
             Net value is after the tiered AH fee (1% under 10m, 2% to 100m, 2.5% above) and the 1% claim tax.
             Cookies use the bazaar price and the bazaar tax instead.
           </p>
@@ -7944,7 +7938,9 @@ function renderBundleMethodPanelHTML(focus, bestId) {
             Each skin's coin value is editable — it defaults to the net AH lowest BIN (after listing fee and claim tax) and you can type your own price. Gems are valued via Booster Cookie resale (325 gems each, net of the ${(state.tax * 100).toFixed(3)}% bazaar tax). Network-wide boosters/cosmetics are excluded.
           </p>` : `
           <p class="p2w-help-text" style="font-size: 0.9em;">
-            No bundle can be priced yet. ${state.lowestBins ? "The bundle skins have no lowest BIN in the current scan — enter skin prices above, or gem value still applies once cookie prices load." : "Load AH prices to value the bundle skins, or type your own prices above; gem value uses live bazaar cookie prices."}
+            ${STORE_BUNDLES.length === 0
+              ? "The Hypixel store sells no bundles any more — the Bundles category is empty and only gem packages remain. Cosmetics moved in game and cost gems, so use the Gem Optimizer tab instead."
+              : `No bundle can be priced yet. ${state.lowestBins ? "The bundle skins have no lowest BIN in the current scan — enter skin prices above, or gem value still applies once cookie prices load." : "Load AH prices to value the bundle skins, or type your own prices above; gem value uses live bazaar cookie prices."}`}
           </p>`}
         </div>`;
 }
@@ -7983,7 +7979,7 @@ function p2wBundleResultsCardHTML({ workingCost, row, bundlesNeeded }) {
             <div class="total-cost-label">Estimated Real-World Cost</div>
             <div class="total-cost-value" id="result-real-cost">${currencySymbol}${finalCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             ${p2wCoinsPerUsdLineHTML(coinsPerUsd)}
-            <div class="total-cost-subtitle" style="font-weight: 500;">${row ? `${fmtInt(bundlesNeeded)} × ${escapeHtml(row.bundle.name)} @ ${currencySymbol}${unitPrice.toFixed(2)} each` : "No bundle can be priced yet — load AH prices."}</div>
+            <div class="total-cost-subtitle" style="font-weight: 500;">${row ? `${fmtInt(bundlesNeeded)} × ${escapeHtml(row.bundle.name)} @ ${currencySymbol}${unitPrice.toFixed(2)} each` : (STORE_BUNDLES.length === 0 ? "The store sells no bundles — see the Gem Optimizer tab." : "No bundle can be priced yet — load AH prices.")}</div>
           </div>
 
           <div class="p2w-help-text" style="margin-top: 16px; font-size: 0.85em;">

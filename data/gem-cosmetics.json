@@ -1,6 +1,6 @@
 {
  "updated": "2026-09-17",
- "note": "SkyBlock Gems catalogue for the P2W Gem Optimizer. \"gems\" is the gem price of one unit. \"src\": wiki = read from the Hypixel Wiki dump in wiki-dump/ (Fire Sale and Taylor bundle listings); market = a known gem price for an item that is absent from the dump. \"traded\": true = the item changed hands on the Auction House recently, so a price is available. Availability is NOT recorded here. Taylor rotates her seasonal bundle and retired items do not return, so the optimizer only solves over Booster Cookies, live Fire Sales, and items you mark as offered. With nothing marked it falls back to the \"traded\" set, which is a guess, not a fact.",
+ "note": "SkyBlock Gems catalogue for the P2W Gem Optimizer. \"gems\" is the gem price of one unit. \"src\": wiki = read from the Hypixel Wiki dump in wiki-dump/ (Fire Sale and Taylor bundle listings); market = a known gem price for an item that is absent from the dump. \"traded\": true = the item changed hands on the Auction House recently. \"shop\" = where you buy it with gems today, per store.hypixel.net/category/skyblock-gems: community-shop = Booster Cookies from Elizabeth, always in stock; skymart = Barn and Greenhouse Skins from SkyMart in the Garden, always in stock; taylor = confirmed in Taylor's Fashion Shop, which rotates seasonally. No \"shop\" means retired or unconfirmed. Nothing outside the store page is guaranteed: only the in-game NPC shows current stock, so tick items in the tab as you confirm them. The Hypixel store sells NO bundles any more, only gem packages.",
  "items": [
   {
    "id": "SHADOW_ASSASSIN_ADMIRAL",
@@ -106,7 +106,8 @@
    "name": "Beachside Resort Barn Skin",
    "gems": 950,
    "src": "market",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "PET_SKIN_HOUND_BEAGLE",
@@ -118,7 +119,8 @@
    "id": "BEAUTIFALL_CABIN_BARN_SKIN",
    "name": "Beautifall Cabin Barn Skin",
    "gems": 650,
-   "src": "wiki"
+   "src": "wiki",
+   "shop": "skymart"
   },
   {
    "id": "PET_SKIN_BEE_BEEDAZZLED",
@@ -215,7 +217,8 @@
    "name": "Booster Cookie",
    "gems": 325,
    "src": "market",
-   "traded": true
+   "traded": true,
+   "shop": "community-shop"
   },
   {
    "id": "PET_SKIN_ZOMBIE_BRAIN_FREEZE",
@@ -334,14 +337,16 @@
    "name": "Country Greenhouse Skin",
    "gems": 250,
    "src": "wiki",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "COZY_COTTAGE_BARN_SKIN",
    "name": "Cozy Cottage Barn Skin",
    "gems": 250,
    "src": "wiki",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "SHADOW_ASSASSIN_CRIMSON",
@@ -366,7 +371,8 @@
    "name": "Cube Barn Skin",
    "gems": 250,
    "src": "wiki",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "WITHER_GOGGLES_CYBERPUNK",
@@ -482,7 +488,8 @@
    "id": "FROG_BARN_SKIN",
    "name": "Frog Barn Skin",
    "gems": 2000,
-   "src": "wiki"
+   "src": "wiki",
+   "shop": "skymart"
   },
   {
    "id": "FROZEN_BLAZE_FROST_KNIGHT",
@@ -733,7 +740,8 @@
    "id": "JERRY_BARN_SKIN",
    "name": "Jerry Barn Skin",
    "gems": 2000,
-   "src": "wiki"
+   "src": "wiki",
+   "shop": "skymart"
   },
   {
    "id": "BONZO_MASK_JESTER",
@@ -808,7 +816,8 @@
    "name": "Lovely Picnic Barn Skin",
    "gems": 950,
    "src": "market",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "PET_SKIN_KUUDRA_LOYALTY",
@@ -821,7 +830,8 @@
    "name": "Lucky Barn Skin",
    "gems": 950,
    "src": "wiki",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "DYE_LUCKY",
@@ -870,7 +880,8 @@
    "name": "Melon Barn Skin",
    "gems": 950,
    "src": "wiki",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "METEOR_MAGMA_LORD",
@@ -907,7 +918,8 @@
    "name": "Moon Greenhouse Skin",
    "gems": 400,
    "src": "wiki",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "PET_SKIN_RAT_MR_CLAWS",
@@ -919,7 +931,8 @@
    "id": "MUSHROOM_BARN_SKIN",
    "name": "Mushroom Barn Skin",
    "gems": 2000,
-   "src": "wiki"
+   "src": "wiki",
+   "shop": "skymart"
   },
   {
    "id": "PET_SKIN_MOOSHROOM_COW_MYCELIYUM_BURGER",
@@ -1116,7 +1129,8 @@
    "id": "PINWHEEL_HOUSE_BARN_SKIN",
    "name": "Pinwheel House Barn Skin",
    "gems": 2000,
-   "src": "wiki"
+   "src": "wiki",
+   "shop": "skymart"
   },
   {
    "id": "PIRATE_BOMB_FLUX",
@@ -1387,7 +1401,8 @@
    "name": "Shipwreck Greenhouse Skin",
    "gems": 650,
    "src": "market",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "SHADOW_ASSASSIN_SLY_FOX",
@@ -1451,7 +1466,8 @@
    "name": "Spartan Warden Helmet Skin",
    "gems": 1800,
    "src": "market",
-   "traded": true
+   "traded": true,
+   "shop": "taylor"
   },
   {
    "id": "PET_SKIN_BEE_SPELLING_BEE",
@@ -1523,13 +1539,15 @@
    "name": "Tavern Barn Skin",
    "gems": 250,
    "src": "wiki",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "END_BARN_SKIN",
    "name": "The End Barn Skin",
    "gems": 950,
-   "src": "wiki"
+   "src": "wiki",
+   "shop": "skymart"
   },
   {
    "id": "THERMAL_THERMODYNAMIC",
@@ -1640,7 +1658,8 @@
    "name": "Windmill Barn Skin",
    "gems": 250,
    "src": "wiki",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "WISE_DRAGON_DRAKE",
@@ -1660,7 +1679,8 @@
    "name": "Yacht Barn Skin",
    "gems": 650,
    "src": "market",
-   "traded": true
+   "traded": true,
+   "shop": "skymart"
   },
   {
    "id": "YOUNG_DRAGON_DRAKE",
