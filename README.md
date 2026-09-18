@@ -20,7 +20,7 @@ No backend. No build step. No tracking. Static files you can host on GitHub Page
 
 ## What it does
 
-- Fetches the [Hypixel Bazaar endpoint](https://api.hypixel.net/v2/skyblock/bazaar) every 60 seconds and computes realistic order-flip economics for the full 189-shard SkyShards catalog, leaving price fields blank for catalog shards that Hypixel does not expose as live Bazaar products.
+- Fetches the [Hypixel Bazaar endpoint](https://api.hypixel.net/v2/skyblock/bazaar) every 60 seconds and computes realistic order-flip economics for every `SHARD_*` product the Bazaar sells. The shard catalog is read live from SkyShards, and any Bazaar shard SkyShards has not documented yet is still listed and priced, so the market is never behind the game.
 - Detects the best **fusion** craft-and-flip recipes.
 - Link your account (username + API key) to unlock accessory & attribute planning:
   - **Accessory Path** combines missing accessories, family upgrades, and recombobulates into one ranked checklist with `/bz` & `/ahs` copy commands and live prices.
@@ -53,13 +53,13 @@ shard-market/
 ├── attributes.js           ← Attribute catalog + shards-to-max calculation
 ├── CHANGELOG.md            ← Release notes and contributor credits
 ├── data/
-│   ├── fusion-properties.json   ← Per-shard metadata (189 shards, from SkyShards)
+│   ├── fusion-properties.json   ← Per-shard metadata (offline fallback, from SkyShards)
 │   ├── fusion-data.json         ← Full fusion recipe graph (~2 MB, from SkyShards)
 │   └── attribute-desc.json      ← Attribute id → rarity/title/effect (from SkyShards)
 └── README.md
 ```
 
-The two JSON files under `data/` come from the open-source [SkyShards](https://github.com/Campionnn/SkyShards) project (MIT) and bundle the community-maintained fusion recipes + per-shard metadata. They're loaded once and cached in `localStorage` for 24 h.
+The SkyShards datasets come from the open-source [SkyShards](https://github.com/Campionnn/SkyShards) project (MIT). They are fetched live from the upstream repo over jsDelivr and cached in `localStorage` for 24 h; the copies under `data/` are the offline fallback for when the CDN is unreachable. Shard → Bazaar mapping uses SkyShards' own `internal_id`, and any `SHARD_*` product the Bazaar sells that SkyShards has not documented is added to the catalog from the Bazaar response itself, so new shards need no code change.
 
 The Farming dashboard is rebuilt in vanilla JavaScript from EliteFarmers-inspired page concepts. Direct constants are adapted from the MIT [EliteFarmers/FarmingWeight](https://github.com/EliteFarmers/FarmingWeight) package; [EliteFarmers/Website](https://github.com/EliteFarmers/Website) is used as a GPL-licensed UX/API reference only. Hypixie remains a static no-build app and does not import EliteFarmers Svelte components.
 
@@ -94,7 +94,7 @@ missing accessories.
 
 ### Attributes
 How many **Attribute Shards** you still need to take each attribute to level 10.
-The report includes the full 189-entry SkyShards catalog, marks attributes you have never
+The report includes the full SkyShards catalog, marks attributes you have never
 syphoned as **missing** (`0/max`), and labels attributes above your profile's Hunting level
 as **locked** instead of hiding them. Use the **Available now** toggle to temporarily hide
 locked attributes and show only shards usable at your current Hunting level. Each card shows

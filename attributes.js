@@ -20,7 +20,7 @@
  * profile's attribute_id exactly.
  *
  * Exposes on window:
- *   buildAttributeCatalog(descJson) -> { byAttrId: {...}, count }
+ *   buildAttributeCatalog(descJson, codeToBazaar) -> { byAttrId: {...}, count }
  *   analyseAttributes(catalog, stacks) -> { rows, totalShardsNeeded, ... }
  * ======================================================================= */
 
@@ -35,7 +35,7 @@ const ATTR_MAX_SHARDS_BY_RARITY = {
 /* Build attribute_id → metadata from the bundled desc.json.
  * Also records the SkyShards code so we can later resolve the source shard's
  * bazaar id (SHARD_<NAME>) for pricing. */
-function buildAttributeCatalog(descJson) {
+function buildAttributeCatalog(descJson, codeToBazaar = null) {
   const byAttrId = {};
   for (const [code, info] of Object.entries(descJson)) {
     if (!info?.id) continue;
@@ -46,7 +46,7 @@ function buildAttributeCatalog(descJson) {
       description: info.description || "",
       rarity,
       maxShards:   ATTR_MAX_SHARDS_BY_RARITY[rarity] ?? null,
-      skill:       window.attributeSkillForCode ? window.attributeSkillForCode(code) : "Unknown",
+      skill:       window.attributeSkillForCode ? window.attributeSkillForCode(code, codeToBazaar) : "Unknown",
       code,
       /* Source shard bazaar id, e.g. "Nature Elemental" granted by Grove Shard.
        * The shard NAME is the desc title's source — but desc.title IS the

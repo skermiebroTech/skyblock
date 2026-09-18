@@ -23,7 +23,7 @@
 /* ---------- Rarity constants ---------- */
 
 /* Number of shards needed to syphon a max-level (L10) attribute, per the wiki.
- * https://wiki.hypixel.net/Attributes */
+ * https://hypixel-skyblock.fandom.com/wiki/Attributes */
 const SHARDS_MAX_LEVEL_BY_RARITY = {
   COMMON:    96,
   UNCOMMON:  64,
@@ -73,80 +73,128 @@ const ATTRIBUTE_SKILLS = [
   "Unknown",
 ];
 
-const ATTRIBUTE_SKILL_BY_CODE = {
-  // Common
-  C1: "Global", C2: "Global", C3: "Global", C4: "Foraging", C5: "Fishing",
-  C7: "Foraging", C9: "Enchanting", C10: "Mining", C11: "Fishing", C12: "Combat",
-  C14: "Fishing", C15: "Combat", C16: "Global", C17: "Foraging", C18: "Combat",
-  C19: "Foraging", C20: "Hunting", C21: "Combat", C23: "Fishing", C24: "Hunting",
-  C25: "Farming", C26: "Fishing", C27: "Global", C29: "Combat", C30: "Combat",
-  C32: "Fishing", C33: "Global", C34: "Taming", C35: "Hunting", C36: "Mining",
-  C39: "Combat",
-
-  // Uncommon
-  U1: "Global", U2: "Global", U3: "Global", U4: "Foraging", U5: "Fishing",
-  U6: "Mining", U7: "Global", U8: "Hunting", U9: "Hunting", U10: "Farming",
-  U11: "Hunting", U12: "Combat", U15: "Combat", U16: "Foraging", U18: "Global",
-  U20: "Fishing", U21: "Hunting", U22: "Farming", U23: "Foraging", U24: "Combat",
-  U25: "Foraging", U27: "Combat", U28: "Foraging", U29: "Combat", U30: "Combat",
-  U31: "Foraging", U32: "Fishing", U33: "Combat", U34: "Taming", U36: "Combat",
-  U38: "Combat", U39: "Taming", U40: "Farming", U41: "Hunting", U59: "Foraging",
-
-  // Rare
-  R1: "Global", R2: "Global", R3: "Global", R4: "Foraging", R5: "Hunting",
-  R6: "Global", R7: "Foraging", R8: "Hunting", R9: "Hunting", R10: "Farming",
-  R11: "Global", R13: "Global", R15: "Enchanting", R16: "Farming", R18: "Combat",
-  R21: "Combat", R22: "Global", R23: "Global", R24: "Global", R25: "Global",
-  R27: "Global", R29: "Global", R30: "Combat", R31: "Combat", R32: "Hunting",
-  R33: "Mining", R34: "Global", R35: "Global", R36: "Combat", R38: "Global",
-  R39: "Combat", R42: "Combat", R43: "Farming", R44: "Global", R45: "Hunting",
-  R46: "Foraging", R49: "Global", R50: "Global", R51: "Combat", R52: "Combat",
-  R53: "Hunting", R54: "Hunting", R56: "Fishing", R57: "Global", R58: "Taming",
-  R59: "Global", R60: "Global", R61: "Hunting", R63: "Combat", R64: "Foraging",
-
-  // Epic
-  E1: "Global", E2: "Global", E3: "Global", E4: "Foraging", E5: "Hunting",
-  E6: "Hunting", E7: "Hunting", E9: "Hunting", E10: "Hunting", E11: "Hunting",
-  E13: "Farming", E14: "Fishing", E15: "Mining", E16: "Global", E17: "Fishing",
-  E18: "Combat", E20: "Fishing", E21: "Global", E22: "Hunting", E24: "Combat",
-  E26: "Global", E27: "Combat", E28: "Taming", E29: "Combat", E30: "Hunting",
-  E31: "Farming", E32: "Hunting", E33: "Combat", E34: "Global", E35: "Hunting",
-  E36: "Mining", E37: "Farming", E39: "Combat", E42: "Combat", E45: "Mining",
-
-  // Legendary
-  L1: "Global", L2: "Global", L3: "Global", L4: "Hunting", L5: "Fishing",
-  L6: "Hunting", L7: "Hunting", L8: "Hunting", L9: "Combat", L11: "Hunting",
-  L12: "Combat", L13: "Farming", L14: "Foraging", L15: "Global", L17: "Combat",
-  L18: "Global", L20: "Global", L23: "Combat", L24: "Combat", L25: "Global",
-  L26: "Fishing", L27: "Combat", L28: "Global", L29: "Hunting", L30: "Combat",
-  L31: "Taming", L32: "Global", L33: "Combat", L34: "Taming", L36: "Global",
-  L39: "Global", L41: "Global", L42: "Global", L44: "Global", L46: "Farming",
-  L47: "Fishing", L48: "Combat", L51: "Combat",
+/* Bazaar product id -> the SkyBlock skill the in-game Attribute Menu files it
+ * under. Keyed by Bazaar id on purpose: SkyShards reuses its short codes
+ * (C1, U16, ...) and has reassigned several of them, so a code-keyed map
+ * silently mislabels shards after an upstream refresh. Shards missing here
+ * report "Unknown" rather than a guess. */
+const ATTRIBUTE_SKILL_BY_BAZAAR_ID = {
+  "SHARD_ABYSSAL_LANTERN": "Global", "SHARD_AERO": "Global", "SHARD_ALLIGATOR": "Hunting",
+  "SHARD_ANANKE": "Combat", "SHARD_APEX_DRAGON": "Combat", "SHARD_ARACHNE": "Global",
+  "SHARD_AZURE": "Combat", "SHARD_BAL": "Mining", "SHARD_BAMBLOOM": "Foraging",
+  "SHARD_BAMBULEAF": "Foraging", "SHARD_BARBARIAN_DUKE_X": "Combat", "SHARD_BASILISK": "Hunting",
+  "SHARD_BEACONMITE": "Foraging", "SHARD_BEZAL": "Combat", "SHARD_BIRRIES": "Foraging",
+  "SHARD_BITBUG": "Global", "SHARD_BLIZZARD": "Global", "SHARD_BOGGED": "Fishing",
+  "SHARD_BOLT": "Global", "SHARD_BOREAL_OWL": "Taming", "SHARD_BRAMBLE": "Global",
+  "SHARD_BRUISER": "Combat", "SHARD_BULLFROG": "Foraging", "SHARD_BURNINGSOUL": "Combat",
+  "SHARD_CAIMAN": "Hunting", "SHARD_CARROT_KING": "Global", "SHARD_CASCADE": "Global",
+  "SHARD_CAVERNSHADE": "Mining", "SHARD_CHAMELEON": "Hunting", "SHARD_CHILL": "Combat",
+  "SHARD_CINDER_BAT": "Global", "SHARD_COCOALEECH": "Farming", "SHARD_COD": "Fishing",
+  "SHARD_CONDOR": "Taming", "SHARD_CORALOT": "Fishing", "SHARD_CRETAN_BULL": "Combat",
+  "SHARD_CROCODILE": "Hunting", "SHARD_CROPEETLE": "Farming", "SHARD_CROW": "Foraging",
+  "SHARD_CRYO": "Global", "SHARD_CUBOA": "Hunting", "SHARD_DAEMON": "Global",
+  "SHARD_DODO": "Taming", "SHARD_DRACONIC": "Global", "SHARD_DRAGONFLY": "Farming",
+  "SHARD_DREADWING": "Global", "SHARD_DROWNED": "Combat", "SHARD_EEL": "Hunting",
+  "SHARD_ENDSTONE_PROTECTOR": "Combat", "SHARD_ENT": "Combat", "SHARD_ETHERDRAKE": "Global",
+  "SHARD_FALCON": "Taming", "SHARD_FENLORD": "Hunting", "SHARD_FIREFLY": "Farming",
+  "SHARD_FIRE_EEL": "Fishing", "SHARD_FLAMING_SPIDER": "Combat", "SHARD_FLARE": "Combat",
+  "SHARD_FLASH": "Global", "SHARD_FLIP_FLOPPER": "Hunting", "SHARD_FUNGLOOM": "Combat",
+  "SHARD_GALAXY_FISH": "Global", "SHARD_GECKO": "Hunting", "SHARD_GHOST": "Combat",
+  "SHARD_GLACITE_WALKER": "Global", "SHARD_GOLDEN_GHOUL": "Global", "SHARD_GOLDFIN": "Fishing",
+  "SHARD_GROVE": "Global", "SHARD_HARPY": "Hunting", "SHARD_HELLWISP": "Combat",
+  "SHARD_HERON": "Foraging", "SHARD_HIDEONBOX": "Global", "SHARD_HIDEONCAVE": "Global",
+  "SHARD_HIDEONDRA": "Global", "SHARD_HIDEONGEON": "Global", "SHARD_HIDEONGIFT": "Global",
+  "SHARD_HIDEONLEAF": "Mining", "SHARD_HIDEONRING": "Global", "SHARD_HIDEONSACK": "Global",
+  "SHARD_HUMMINGBIRD": "Foraging", "SHARD_IGUANA": "Hunting", "SHARD_INFERNO_KOI": "Global",
+  "SHARD_INVISIBUG": "Farming", "SHARD_JORMUNG": "Global", "SHARD_JOYDIVE": "Global",
+  "SHARD_KADA_KNIGHT": "Combat", "SHARD_KING_COBRA": "Hunting", "SHARD_KING_MINOS": "Combat",
+  "SHARD_KIWI": "Taming", "SHARD_KOMODO_DRAGON": "Hunting", "SHARD_KRAKEN": "Global",
+  "SHARD_LADYBUG": "Farming", "SHARD_LAPIS_CREEPER": "Combat",
+  "SHARD_LAPIS_SKELETON": "Enchanting", "SHARD_LAPIS_ZOMBIE": "Enchanting",
+  "SHARD_LAVA_FLAME": "Fishing", "SHARD_LEATHERBACK": "Hunting", "SHARD_LEVIATHAN": "Hunting",
+  "SHARD_LITTLEFOOT": "Mining", "SHARD_LIZARD_KING": "Hunting", "SHARD_LORD_JAWBUS": "Fishing",
+  "SHARD_LOTUM": "Foraging", "SHARD_LOTUS_FISH": "Fishing", "SHARD_LUMISQUID": "Global",
+  "SHARD_LUNAR_MOTH": "Farming", "SHARD_MAGMA_SLUG": "Fishing", "SHARD_MATCHO": "Combat",
+  "SHARD_MEGALITH": "Hunting", "SHARD_MIMIC": "Combat", "SHARD_MINER_ZOMBIE": "Mining",
+  "SHARD_MINOTAUR": "Combat", "SHARD_MIST": "Global", "SHARD_MOCHIBEAR": "Foraging",
+  "SHARD_MOLTENFISH": "Global", "SHARD_MOLTHORN": "Global", "SHARD_MORAY_EEL": "Hunting",
+  "SHARD_MOSSYBIT": "Hunting", "SHARD_MUDWORM": "Farming", "SHARD_NAGA": "Hunting",
+  "SHARD_NESSIE": "Fishing", "SHARD_NEWT": "Hunting", "SHARD_NIGHT_SQUID": "Fishing",
+  "SHARD_OBSIDIAN_DEFENDER": "Global", "SHARD_PANDARAI": "Foraging", "SHARD_PEST": "Farming",
+  "SHARD_PHANFLARE": "Foraging", "SHARD_PHANPYRE": "Foraging", "SHARD_PIRANHA": "Global",
+  "SHARD_POWER_DRAGON": "Combat", "SHARD_PRAYING_MANTIS": "Farming", "SHARD_PRINCE": "Global",
+  "SHARD_PYTHON": "Hunting", "SHARD_QUAKE": "Global", "SHARD_QUARTZFANG": "Mining",
+  "SHARD_RAIN_SLIME": "Combat", "SHARD_RANA": "Taming", "SHARD_REVENANT": "Global",
+  "SHARD_SALAMANDER": "Hunting", "SHARD_SALMON": "Fishing", "SHARD_SCARF": "Combat",
+  "SHARD_SEAGULL": "Foraging", "SHARD_SEA_EMPEROR": "Fishing", "SHARD_SEA_SERPENT": "Hunting",
+  "SHARD_SEA_SHINE": "Hunting", "SHARD_SEER": "Combat", "SHARD_SHELLWISE": "Global",
+  "SHARD_SHINYFISH": "Combat", "SHARD_SILENTDEPTH": "Global", "SHARD_SKELETOR": "Combat",
+  "SHARD_SNOWFIN": "Global", "SHARD_SOUL_OF_THE_ALPHA": "Combat", "SHARD_SPARROW": "Foraging",
+  "SHARD_SPHINX": "Combat", "SHARD_SPIKE": "Foraging", "SHARD_STALAGMIGHT": "Combat",
+  "SHARD_STARBORN": "Global", "SHARD_STAR_SENTRY": "Combat", "SHARD_STRIDER_SURFER": "Combat",
+  "SHARD_SUN_FISH": "Global", "SHARD_SYCOPHANT": "Combat", "SHARD_SYLVAN": "Global",
+  "SHARD_TADGANG": "Hunting", "SHARD_TANK_ZOMBIE": "Combat", "SHARD_TAURUS": "Combat",
+  "SHARD_TEMPEST": "Global", "SHARD_TENEBRIS": "Global", "SHARD_TERMITE": "Farming",
+  "SHARD_TERRA": "Global", "SHARD_TEWTIL": "Foraging", "SHARD_THORN": "Combat",
+  "SHARD_THYST": "Combat", "SHARD_TIAMAT": "Hunting", "SHARD_TIDE": "Global",
+  "SHARD_TITANOBOA": "Fishing", "SHARD_TOAD": "Hunting", "SHARD_TORTOISE": "Hunting",
+  "SHARD_TOUCAN": "Taming", "SHARD_TROGLOBYTE": "Mining", "SHARD_VERDANT": "Fishing",
+  "SHARD_VIPER": "Hunting", "SHARD_VORACIOUS_SPIDER": "Combat", "SHARD_WARTYBUG": "Farming",
+  "SHARD_WATER_HYDRA": "Fishing", "SHARD_WITHER": "Global", "SHARD_WITHER_SPECTER": "Combat",
+  "SHARD_WYVERN": "Hunting", "SHARD_XYZ": "Global", "SHARD_YOG": "Global",
+  "SHARD_ZEALOT": "Combat", "SHARD_ZOMBIE_SOLDIER": "Combat",
 };
 
-function attributeSkillForCode(code) {
-  return ATTRIBUTE_SKILL_BY_CODE[code] || "Unknown";
+/* Our map is derived from the wiki's per-attribute Skill column and wins.
+ * SkyShards' own `type` field is close but not the same concept (it carries
+ * values like "Alchemy" that the in-game filter has no entry for), so it only
+ * fills shards the wiki never documented, and only for a recognised skill. */
+function attributeSkillForBazaarId(bazaarId, upstreamType = null) {
+  const known = ATTRIBUTE_SKILL_BY_BAZAAR_ID[bazaarId];
+  if (known) return known;
+  if (upstreamType && ATTRIBUTE_SKILLS.includes(upstreamType)) return upstreamType;
+  return "Unknown";
 }
 
-/* ---------- Spelling-difference overrides ----------
+/* Kept for callers that only hold a SkyShards code. Needs the code -> Bazaar id
+ * map the shards DB builds, so it takes it as an argument. */
+function attributeSkillForCode(code, codeToBazaar) {
+  const bazaarId = codeToBazaar && codeToBazaar[code];
+  return bazaarId ? attributeSkillForBazaarId(bazaarId) : "Unknown";
+}
+
+/* ---------- Bazaar id resolution ----------
  *
- * Most SkyShards entries map cleanly to bazaar IDs:
- *   "Loch Emperor"   → SHARD_LOCH_EMPEROR
- *   "Lapis Zombie"   → SHARD_LAPIS_ZOMBIE
+ * SkyShards names a shard the way the wiki does; the Bazaar names it the way
+ * the game's item registry does, and the two drift. Rather than pin a table of
+ * SkyShards codes (which upstream reassigns), we resolve a shard's Bazaar id
+ * from its display name and check the answer against the live Bazaar product
+ * list. Three passes, each claiming ids so two shards can never take the same
+ * one:
  *
- * A handful of shards have different spelling between the wiki/community
- * spreadsheet and the bazaar product ID. We override those manually so the
- * fusion graph correctly links to live bazaar prices. */
-const SKYSHARDS_TO_BAZAAR_OVERRIDES = {
-  /* SkyShards short id → bazaar product id */
-  E20: "SHARD_SEA_EMPEROR",        // "Loch Emperor"
-  L28: "SHARD_CINDER_BAT",         // "Cinderbat"
-  U38: "SHARD_STRIDER_SURFER",     // "Stridersurfer"
-  U41: "SHARD_FLIP_FLOPPER",       // "Flipflopper"
-  R23: "SHARD_ABYSSAL_LANTERN",    // "Abyssal Lanternfish"
-  R32: "SHARD_SEA_SHINE",          // "Seashine"
-  C26: "SHARD_LOTUS_FISH",         // "Lotusfish"
-  E29: "SHARD_HELLWISP",  // explicit, in case naming drifts
+ *   1. an explicit alias, for names no rule can reach ("Inkling" -> NIGHT_SQUID)
+ *   2. the plain normalised name       ("Lapis Zombie" -> SHARD_LAPIS_ZOMBIE)
+ *   3. spelling variants: one underscore added, one removed, or the last word
+ *      dropped  ("Cinderbat" -> CINDER_BAT, "Abyssal Lanternfish" -> ABYSSAL_LANTERN)
+ *
+ * Anything the Bazaar sells that no SkyShards entry claims is added to the
+ * catalogue anyway, so a shard Hypixel ships before SkyShards documents it
+ * still appears and still gets priced. */
+const SHARD_NAME_TO_BAZAAR_ALIASES = {
+  "Inkling":             "SHARD_NIGHT_SQUID",
+  "Field Mouse":         "SHARD_PEST",
+  "Earthworm":           "SHARD_TERMITE",
+  "Beetle":              "SHARD_CROPEETLE",
+  "Loch Emperor":        "SHARD_SEA_EMPEROR",
+  "Zealot Bruiser":      "SHARD_BRUISER",
+  "Abyssal Lanternfish": "SHARD_ABYSSAL_LANTERN",
+  "Wither Spectre":      "SHARD_WITHER_SPECTER",
+  /* Names the older bundled snapshot uses, so the offline fallback resolves too. */
+  "Cinderbat":           "SHARD_CINDER_BAT",
+  "Stridersurfer":       "SHARD_STRIDER_SURFER",
+  "Flipflopper":         "SHARD_FLIP_FLOPPER",
+  "Seashine":            "SHARD_SEA_SHINE",
+  "Lotusfish":           "SHARD_LOTUS_FISH",
 };
 
 /* ---------- Texture / icon packs ----------
@@ -196,17 +244,6 @@ const TEXTURE_PACKS = {
     },
   },
 
-  hypixel_wiki: {
-    label: "Hypixel Wiki",
-    resolve(bazaarId, ctx) {
-      const meta = ctx.shardsDb[bazaarId];
-      if (!meta) return null;
-      /* Wiki file naming convention: "Shard <Name>.png" */
-      const fname = `Shard_${meta.name.replace(/ Shard$/, "").replace(/ /g, "_")}.png`;
-      return `https://wiki.hypixel.net/images/Shard_${encodeURIComponent(fname.replace(/^Shard_/, ""))}`;
-    },
-  },
-
   none: {
     label: "None (text only)",
     resolve() { return null; },
@@ -236,22 +273,100 @@ function prettifyShardId(id) {
   return `${base} Shard`;
 }
 
-/* Build the merged SHARDS_DB from fusion-properties.json.
+/* Every spelling of a Bazaar id we are willing to try for one display name,
+ * cheapest guess first. */
+function bazaarIdVariants(bazaarId) {
+  const body = bazaarId.replace(/^SHARD_/, "");
+  const parts = body.split("_");
+  const out = [];
+  /* one underscore inserted inside a word: CINDERBAT -> CINDER_BAT */
+  parts.forEach((word, wi) => {
+    for (let k = 2; k < word.length - 1; k++) {
+      const copy = parts.slice();
+      copy[wi] = `${word.slice(0, k)}_${word.slice(k)}`;
+      out.push(`SHARD_${copy.join("_")}`);
+    }
+  });
+  /* one underscore removed: END_STONE_PROTECTOR -> ENDSTONE_PROTECTOR */
+  for (let i = 0; i < parts.length - 1; i++) {
+    const copy = parts.slice();
+    copy.splice(i, 2, parts[i] + parts[i + 1]);
+    out.push(`SHARD_${copy.join("_")}`);
+  }
+  /* last word dropped: ABYSSAL_LANTERNFISH -> ABYSSAL_LANTERN is covered above,
+   * but WITHER_SPECTRE -> WITHER needs this. Claim order keeps it safe. */
+  if (parts.length > 1) out.push(`SHARD_${parts.slice(0, -1).join("_")}`);
+  return out;
+}
+
+/* Build the merged SHARDS_DB.
+ *
+ * `fusionProps` is the SkyShards metadata. `bazaarIds` is the set of SHARD_*
+ * product ids the live Bazaar currently sells; pass it and the catalogue is
+ * reconciled against the real market, omit it and we fall back to the plain
+ * name guess (first load, before the Bazaar response arrives).
+ *
  * Returns:
  *   {
- *     shardsDb:        { [bazaarId]:  {name, attribute, rarity, family, category, code} },
- *     codeToBazaar:    { [skyShardsCode]: bazaarId },
- *     bazaarToCode:    { [bazaarId]: skyShardsCode },
+ *     shardsDb:     { [bazaarId]: {name, attribute, rarity, family, category, code} },
+ *     codeToBazaar: { [skyShardsCode]: bazaarId },
+ *     bazaarToCode: { [bazaarId]: skyShardsCode },
+ *     unlisted:     [names SkyShards knows that the Bazaar does not sell],
+ *     bazaarOnly:   [Bazaar ids no SkyShards entry claimed],
  *   } */
-function buildShardsDbFromProperties(fusionProps) {
+function buildShardsDbFromProperties(fusionProps, bazaarIds = null, fusionShards = null) {
   const shardsDb = {};
   const codeToBazaar = {};
   const bazaarToCode = {};
+  const known = bazaarIds instanceof Set ? bazaarIds : (bazaarIds ? new Set(bazaarIds) : null);
+  const entries = Object.entries(fusionProps);
+  const resolved = new Map();   // code -> bazaarId
+  const claimed = new Set();    // bazaarId already taken
 
-  for (const [code, info] of Object.entries(fusionProps)) {
+  const claim = (code, id) => {
+    if (!id || claimed.has(id)) return false;
+    resolved.set(code, id);
+    claimed.add(id);
+    return true;
+  };
+
+  /* Pass 0 — SkyShards' own internal_id, which is the Bazaar product id. This
+   * is authoritative and covers every documented shard, so the name-based
+   * passes below only ever run for data that predates the field. */
+  if (fusionShards) {
+    for (const [code] of entries) {
+      const id = fusionShards[code]?.internal_id;
+      if (id && (!known || known.has(id))) claim(code, id);
+    }
+  }
+  /* Pass 1 — explicit aliases. */
+  for (const [code, info] of entries) {
+    if (resolved.has(code)) continue;
+    const alias = SHARD_NAME_TO_BAZAAR_ALIASES[info.name];
+    if (alias && (!known || known.has(alias))) claim(code, alias);
+  }
+  /* Pass 2 — the plain normalised name. */
+  for (const [code, info] of entries) {
+    if (resolved.has(code)) continue;
+    const id = nameToBazaarId(info.name);
+    if (!known || known.has(id)) claim(code, id);
+  }
+  /* Pass 3 — spelling variants, only against ids the Bazaar really has. */
+  if (known) {
+    for (const [code, info] of entries) {
+      if (resolved.has(code)) continue;
+      for (const variant of bazaarIdVariants(nameToBazaarId(info.name))) {
+        if (known.has(variant) && claim(code, variant)) break;
+      }
+    }
+  }
+
+  const unlisted = [];
+  for (const [code, info] of entries) {
+    const bazaarId = resolved.get(code);
+    if (!bazaarId) { unlisted.push(info.name); continue; }
+
     const rarity = RARITY_FROM_CODE[code[0]] || "UNKNOWN";
-    const bazaarId = SKYSHARDS_TO_BAZAAR_OVERRIDES[code] || nameToBazaarId(info.name);
-
     /* `family` in the JSON is an array of one (rarely two) attribute names. */
     const attribute = (info.family && info.family[0]) || info.name;
 
@@ -261,18 +376,40 @@ function buildShardsDbFromProperties(fusionProps) {
       rarity,
       family:    info.category || "—",  // "Forest", "Water", "Combat", etc.
       category:  info.category || "—",
-      attributeSkill: attributeSkillForCode(code),
+      attributeSkill: attributeSkillForBazaarId(bazaarId, fusionShards?.[code]?.type),
       code,
       huntLevel: null,
     };
-
-    codeToBazaar[code]      = bazaarId;
-    bazaarToCode[bazaarId]  = code;
+    codeToBazaar[code]     = bazaarId;
+    bazaarToCode[bazaarId] = code;
   }
 
-  return { shardsDb, codeToBazaar, bazaarToCode };
+  /* Anything on the Bazaar that SkyShards has not documented yet still belongs
+   * in the market. It gets a name from its id and no fusion metadata, so it
+   * prices and sorts like any other shard and simply has no recipes. */
+  const bazaarOnly = [];
+  if (known) {
+    for (const id of known) {
+      if (shardsDb[id]) continue;
+      bazaarOnly.push(id);
+      shardsDb[id] = {
+        name:      prettifyShardId(id),
+        attribute: prettifyShardId(id).replace(/ Shard$/, ""),
+        rarity:    "UNKNOWN",
+        family:    "—",
+        category:  "—",
+        attributeSkill: attributeSkillForBazaarId(id),
+        code:      null,
+        huntLevel: null,
+        undocumented: true,
+      };
+    }
+  }
+
+  return { shardsDb, codeToBazaar, bazaarToCode, unlisted, bazaarOnly };
 }
 
-window.ATTRIBUTE_SKILL_BY_CODE = ATTRIBUTE_SKILL_BY_CODE;
+window.ATTRIBUTE_SKILL_BY_BAZAAR_ID = ATTRIBUTE_SKILL_BY_BAZAAR_ID;
+window.attributeSkillForBazaarId = attributeSkillForBazaarId;
 window.ATTRIBUTE_SKILLS = ATTRIBUTE_SKILLS;
 window.attributeSkillForCode = attributeSkillForCode;

@@ -2,7 +2,7 @@
  * minions-data.js
  *
  * Minion Maxing Calculator Data and Algorithms.
- * Tracks the 60 current SkyCrypt minion families. Recipes are intentionally
+ * Tracks the 61 current minion families (Hypixel /resources/skyblock/items). Recipes are intentionally
  * conservative: standard bazaar-material upgrades are priced, while special
  * minions with non-standard recipes stay unpriced instead of inventing costs.
  * ======================================================================= */
@@ -33,12 +33,12 @@ const MINIONS_DATA = [
   { id: "RED_SAND", name: "Red Sand", category: "Mining", rawId: "SAND:1", enchId: "ENCHANTED_RED_SAND", maxTier: 12 },
 
   // Foraging (7)
-  { id: "OAK", name: "Oak", category: "Foraging", rawId: "LOG", enchId: "ENCHANTED_OAK_LOG", maxTier: 11 },
-  { id: "SPRUCE", name: "Spruce", category: "Foraging", rawId: "LOG:1", enchId: "ENCHANTED_SPRUCE_LOG", maxTier: 11 },
-  { id: "BIRCH", name: "Birch", category: "Foraging", rawId: "LOG:2", enchId: "ENCHANTED_BIRCH_LOG", maxTier: 11 },
-  { id: "JUNGLE", name: "Jungle", category: "Foraging", rawId: "LOG:3", enchId: "ENCHANTED_JUNGLE_LOG", maxTier: 11 },
-  { id: "ACACIA", name: "Acacia", category: "Foraging", rawId: "LOG_2", enchId: "ENCHANTED_ACACIA_LOG", maxTier: 11 },
-  { id: "DARK_OAK", name: "Dark Oak", category: "Foraging", rawId: "LOG_2:1", enchId: "ENCHANTED_DARK_OAK_LOG", maxTier: 11 },
+  { id: "OAK", name: "Oak", category: "Foraging", rawId: "LOG", enchId: "ENCHANTED_OAK_LOG", maxTier: 12 },
+  { id: "SPRUCE", name: "Spruce", category: "Foraging", rawId: "LOG:1", enchId: "ENCHANTED_SPRUCE_LOG", maxTier: 12 },
+  { id: "BIRCH", name: "Birch", category: "Foraging", rawId: "LOG:2", enchId: "ENCHANTED_BIRCH_LOG", maxTier: 12 },
+  { id: "JUNGLE", name: "Jungle", category: "Foraging", rawId: "LOG:3", enchId: "ENCHANTED_JUNGLE_LOG", maxTier: 12 },
+  { id: "ACACIA", name: "Acacia", category: "Foraging", rawId: "LOG_2", enchId: "ENCHANTED_ACACIA_LOG", maxTier: 12 },
+  { id: "DARK_OAK", name: "Dark Oak", category: "Foraging", rawId: "LOG_2:1", enchId: "ENCHANTED_DARK_OAK_LOG", maxTier: 12 },
   { id: "FLOWER", name: "Flower", category: "Foraging", rawId: null, enchId: null, maxTier: 12, specialRecipe: true },
 
   // Combat (15)
@@ -78,7 +78,8 @@ const MINIONS_DATA = [
 
   // Fishing (3)
   { id: "FISHING", name: "Fishing", category: "Fishing", rawId: "RAW_FISH", enchId: "ENCHANTED_RAW_FISH", maxTier: 12 },
-  { id: "CLAY", name: "Clay", category: "Fishing", rawId: "CLAY_BALL", enchId: "ENCHANTED_CLAY_BALL", maxTier: 12 }
+  { id: "CLAY", name: "Clay", category: "Fishing", rawId: "CLAY_BALL", enchId: "ENCHANTED_CLAY_BALL", maxTier: 12 },
+  { id: "LILY_PAD", name: "Lily Pad", category: "Fishing", rawId: "WATER_LILY", enchId: "ENCHANTED_WATER_LILY", maxTier: 12 }
 ];
 
 /* Helper to get the ingredient count and type for a minion tier upgrade.

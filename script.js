@@ -34,7 +34,14 @@ const CONFIG = {
   /* CORS-friendly Mojang proxy for username → UUID resolution. */
   USERNAME_LOOKUP_URL: "https://api.ashcon.app/mojang/v2/user/",
 
-  /* Static SkyShards datasets (bundled in /data/). */
+  /* SkyShards datasets. Hypixel adds shards faster than we can re-bundle a
+   * snapshot, so we read them straight from the upstream repo over jsDelivr
+   * and keep the copies in /data/ only as an offline fallback. jsDelivr caches
+   * a branch ref for about 12 h, which suits a 24 h TTL. */
+  SKYSHARDS_CDN:    "https://cdn.jsdelivr.net/gh/Campionnn/SkyShards@master",
+  FUSION_PROPS_REMOTE: "https://cdn.jsdelivr.net/gh/Campionnn/SkyShards@master/public/fusion-properties.json",
+  FUSION_DATA_REMOTE:  "https://cdn.jsdelivr.net/gh/Campionnn/SkyShards@master/public/fusion-data.json",
+  ATTR_DESC_REMOTE:    "https://cdn.jsdelivr.net/gh/Campionnn/SkyShards@master/src/desc.json",
   FUSION_PROPS_URL: "data/fusion-properties.json",
   FUSION_DATA_URL:  "data/fusion-data.json",
   ATTR_DESC_URL:    "data/attribute-desc.json",
@@ -66,10 +73,10 @@ const CONFIG = {
   CACHE_TTL_STATIC_MS:  86_400_000,
   CACHE_TTL_PROFILE_MS: 300_000,        // 5 min — profiles change slowly
   CACHE_KEY_BAZAAR:        "shardmarket.cache.bazaar",
-  CACHE_KEY_FUSION_PROPS:  "shardmarket.cache.fusionProps.v1",
-  CACHE_KEY_FUSION_DATA:   "shardmarket.cache.fusionData.v1",
+  CACHE_KEY_FUSION_PROPS:  "shardmarket.cache.fusionProps.v2",
+  CACHE_KEY_FUSION_DATA:   "shardmarket.cache.fusionData.v2",
   CACHE_KEY_ITEMS:         "shardmarket.cache.items.v1",
-  CACHE_KEY_ATTR_DESC:     "shardmarket.cache.attrDesc.v1",
+  CACHE_KEY_ATTR_DESC:     "shardmarket.cache.attrDesc.v2",
   CACHE_KEY_BINS:          "shardmarket.cache.lowestBins.v3",
   CACHE_KEY_FIRESALES:     "shardmarket.cache.fireSales.v1",
   CACHE_KEY_PROFILE_PREFIX: "shardmarket.cache.profile.",  // + uuid
@@ -330,15 +337,77 @@ async function apiFetch(path, { useCache = true, cacheKey = null, cacheTtl = 60_
 }
 
 /* Fetch one of our bundled static JSON files. Same TTL caching as the API. */
-async function staticFetch(url, { cacheKey, cacheTtl }) {
+/* Read a static dataset. `url` is tried first; if it fails, `fallbackUrl` is
+ * tried before giving up, so a CDN outage degrades to the bundled copy instead
+ * of an empty market. `transform` runs on the parsed body before caching. */
+async function staticFetch(url, { cacheKey, cacheTtl, fallbackUrl = null, transform = null }) {
   const cached = cache.read(cacheKey, cacheTtl);
-  if (cached) return { data: cached.data, cached: true, cachedAt: cached.ts };
+  if (cached) return { data: cached.data, cached: true, cachedAt: cached.ts, source: "cache" };
 
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Failed to load ${url}: ${resp.status}`);
-  const data = await resp.json();
-  cache.write(cacheKey, data);
-  return { data, cached: false, cachedAt: Date.now() };
+  const sources = fallbackUrl && fallbackUrl !== url ? [url, fallbackUrl] : [url];
+  let lastError = null;
+  for (const src of sources) {
+    try {
+      const resp = await fetch(src);
+      if (!resp.ok) throw new Error(`${resp.status}`);
+      let data = await resp.json();
+      if (transform) data = transform(data);
+      cache.write(cacheKey, data);
+      return { data, cached: false, cachedAt: Date.now(), source: src };
+    } catch (e) {
+      lastError = e;
+      if (src !== sources[sources.length - 1]) {
+        console.warn(`[Hypixie] ${src} failed (${e.message}); trying the bundled copy.`);
+      }
+    }
+  }
+  throw new Error(`Failed to load ${url}: ${lastError?.message || "unknown error"}`);
+}
+
+/* SkyShards' desc.json carries each attribute description as an array of
+ * Minecraft chat segments: {t: "Grants "}, {range: [2, 20]}, {t: "\ue010 Health"}.
+ * Flatten that to one line, drop the private-use icon glyphs the game uses for
+ * stat symbols, and render a range as "+2 → +20". Already-flat strings (our
+ * bundled fallback) pass through untouched.
+ *
+ * ATTR_TITLE_FIXES corrects titles both SkyShards and the closed official wiki
+ * get wrong; the Fandom wiki and the last official dump agree on these two. */
+const ATTR_TITLE_FIXES = {
+  spirit_axe: "Spirit Axe",   // SkyShards titles this "Woodland Ruler" (Ent Shard)
+  blazing:    "Blazing",      // SkyShards titles this "Infernal Ruler" (Flare Shard)
+};
+
+function flattenAttrSegments(segments) {
+  if (typeof segments === "string") return segments;
+  if (!Array.isArray(segments)) return "";
+  const text = segments.map((seg) => {
+    if (typeof seg === "string") return seg;
+    if (Array.isArray(seg)) return flattenAttrSegments(seg);
+    if (Array.isArray(seg?.range)) {
+      const [lo, hi] = seg.range;
+      const unit = seg.unit || "";
+      return lo === hi ? `+${lo}${unit}` : `+${lo}${unit} → +${hi}${unit}`;
+    }
+    return seg?.t ?? "";
+  }).join("");
+  /* U+E000–U+F8FF is the private use area Hypixel maps its stat icons into. */
+  return text.replace(/[\uE000-\uF8FF]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeAttrDesc(raw) {
+  if (!raw || typeof raw !== "object") return raw;
+  const out = {};
+  for (const [code, info] of Object.entries(raw)) {
+    if (!info) continue;
+    const id = info.id;
+    out[code] = {
+      ...info,
+      title: (id && ATTR_TITLE_FIXES[id]) || info.title,
+      description: flattenAttrSegments(info.description),
+    };
+    delete out[code].how_to_hunt;   // rich text we never render
+  }
+  return out;
 }
 
 const api = {
@@ -346,13 +415,15 @@ const api = {
     cacheKey: CONFIG.CACHE_KEY_BAZAAR,
     cacheTtl: CONFIG.CACHE_TTL_BAZAAR_MS,
   }),
-  fetchFusionProps: () => staticFetch(CONFIG.FUSION_PROPS_URL, {
+  fetchFusionProps: () => staticFetch(CONFIG.FUSION_PROPS_REMOTE, {
     cacheKey: CONFIG.CACHE_KEY_FUSION_PROPS,
     cacheTtl: CONFIG.CACHE_TTL_STATIC_MS,
+    fallbackUrl: CONFIG.FUSION_PROPS_URL,
   }),
-  fetchFusionData: () => staticFetch(CONFIG.FUSION_DATA_URL, {
+  fetchFusionData: () => staticFetch(CONFIG.FUSION_DATA_REMOTE, {
     cacheKey: CONFIG.CACHE_KEY_FUSION_DATA,
     cacheTtl: CONFIG.CACHE_TTL_STATIC_MS,
+    fallbackUrl: CONFIG.FUSION_DATA_URL,
   }),
 
   /* Resolve a Minecraft username → UUID via ashcon (CORS-friendly Mojang proxy). */
@@ -394,10 +465,14 @@ const api = {
     });
   },
 
-  /* Bundled attribute metadata (attribute-id → rarity/title/desc). */
-  fetchAttrDesc: () => staticFetch(CONFIG.ATTR_DESC_URL, {
+  /* Attribute metadata (attribute-id → rarity/title/desc). Upstream ships the
+   * description as coloured Minecraft text segments; normalizeAttrDesc flattens
+   * that to the plain shape the bundled fallback already uses. */
+  fetchAttrDesc: () => staticFetch(CONFIG.ATTR_DESC_REMOTE, {
     cacheKey: CONFIG.CACHE_KEY_ATTR_DESC,
     cacheTtl: CONFIG.CACHE_TTL_STATIC_MS,
+    fallbackUrl: CONFIG.ATTR_DESC_URL,
+    transform: normalizeAttrDesc,
   }),
 };
 
@@ -409,7 +484,7 @@ const api = {
  * table is included so we can extend to other skills cheaply later.
  *
  * Cumulative XP required to reach each level (index = level).
- * Source: https://wiki.hypixel.net/Skills (regular skills, 0 → 60)
+ * Source: https://hypixel-skyblock.fandom.com/wiki/Skills (regular skills, 0 → 60)
  * ======================================================================= */
 const SKILL_XP_TABLE = [
   0, 50, 175, 375, 675, 1175, 1925, 2925, 4425, 6425, 9925, 14925, 22425, 32425,
@@ -908,7 +983,7 @@ async function loadAttributeAnalysis() {
   try {
     if (!state.attributeCatalog) {
       const { data } = await api.fetchAttrDesc();
-      state.attributeCatalog = buildAttributeCatalog(data);
+      state.attributeCatalog = buildAttributeCatalog(data, state.codeToBazaar);
     }
     /* Missing attributes do not appear in profile attributes.stacks at all.
      * Treat a missing stacks object as an empty map so the report can still
@@ -1178,7 +1253,7 @@ function emptyShardMetrics() {
 /* Build enriched rows from the full SkyShards catalog, then merge live Bazaar
  * metrics for shards Hypixel exposes as Bazaar products. Hypixel's Bazaar feed
  * currently contains only a subset of Attribute Shards; iterating products hid
- * the rest of the 189-shard SkyShards catalog from Hypixie. */
+ * the rest of the SkyShards catalog from Hypixie. */
 function rebuildRows() {
   if (state.raw) state.rows = buildRows(state.raw);
 }
@@ -1886,7 +1961,7 @@ function itemNameHTML(item) {
     : "";
   return `
     <a class="acc-card-name wiki-link" href="${url}" target="_blank" rel="noopener noreferrer"
-       title="Open on Hypixel Wiki">${escapeHtml(item.name)}<svg class="wiki-ext" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>${sb}`;
+       title="Open on the Hypixel SkyBlock Wiki">${escapeHtml(item.name)}<svg class="wiki-ext" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>${sb}`;
 }
 
 function accessoryIconUrl(item) {
@@ -2479,7 +2554,7 @@ function renderAttributeRow(r) {
       <article class="attr-card attr-card--maxed" style="--tier-color:${color}">
         <div class="attr-card-head" style="display: flex; align-items: center; gap: 8px;">
           <img src="${iconUrl(shardBazaarId)}" alt="" style="width: 18px; height: 18px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0;" onerror="${fallbackToSkyCryptItemOrHideOnError(shardBazaarId)}">
-          <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
+          <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on the Hypixel SkyBlock Wiki">${escapeHtml(r.title)}</a>
           <span class="attr-skill-badge">${escapeHtml(skillText)}</span>
           <span class="attr-maxed-badge">MAX</span>
         </div>
@@ -2506,7 +2581,7 @@ function renderAttributeRow(r) {
     <article class="attr-card ${r.missing ? "attr-card--missing" : ""}" style="--tier-color:${color}">
       <div class="attr-card-head" style="display: flex; align-items: center; gap: 8px;">
         <img src="${iconUrl(shardBazaarId)}" alt="" style="width: 18px; height: 18px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0;" onerror="this.style.display='none';">
-        <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on Hypixel Wiki">${escapeHtml(r.title)}</a>
+        <a class="attr-name wiki-link" href="${wikiUrl(r.title)}" target="_blank" rel="noopener noreferrer" title="Open on the Hypixel SkyBlock Wiki">${escapeHtml(r.title)}</a>
         <span class="attr-skill-badge">${escapeHtml(skillText)}</span>
         ${statusBadge}
         ${lockedBadge}
@@ -2873,7 +2948,7 @@ function renderSweepView() {
       <div>
         <h2 class="acc-page-title">Sweep Optimizer</h2>
         <p class="acc-page-sub">
-          Every Sweep source from the Hypixel Wiki page, priced from the official Bazaar and Auction House where possible.
+          Every Sweep source from the wiki Sweep page, priced from the official Bazaar and Auction House where possible.
           ${state.player.sweepAnalysis ? `Completed sources are hidden by default for ${escapeHtml(state.player.username || "the linked profile")}.` : "Link a player to hide sources they already have."}
           Cheapest known next method: <strong>${cheapest ? `${escapeHtml(cheapest.name)} (${fmtCoins(cheapest.totalCost)})` : "load prices first"}</strong>.
         </p>
@@ -3038,11 +3113,33 @@ async function ensureFusionDataLoaded() {
   ]);
   state.fusionProps   = propsResp.data;
   state.fusionRecipes = recipesResp.data;
+  rebuildShardsDb();
+}
 
-  const built = buildShardsDbFromProperties(state.fusionProps);
+/* Reconcile the SkyShards metadata with the live Bazaar product list. Called
+ * once when the fusion data lands (before any Bazaar response, so name-guess
+ * only) and again as soon as the Bazaar responds, which is when shards the
+ * metadata does not cover get added from the market itself. */
+function rebuildShardsDb() {
+  if (!state.fusionProps) return;
+  const products = state.raw?.products;
+  const bazaarIds = products
+    ? new Set(Object.keys(products).filter((id) => id.startsWith("SHARD_")))
+    : null;
+
+  const built = buildShardsDbFromProperties(state.fusionProps, bazaarIds, state.fusionRecipes?.shards || null);
   state.shardsDb     = built.shardsDb;
   state.codeToBazaar = built.codeToBazaar;
   state.bazaarToCode = built.bazaarToCode;
+  state.shardCatalog = {
+    total:      Object.keys(built.shardsDb).length,
+    documented: Object.keys(built.codeToBazaar).length,
+    unlisted:   built.unlisted,
+    bazaarOnly: built.bazaarOnly,
+  };
+  if (bazaarIds && built.bazaarOnly.length) {
+    console.info(`[Hypixie] ${built.bazaarOnly.length} Bazaar shard(s) have no SkyShards entry yet:`, built.bazaarOnly);
+  }
 }
 
 async function loadData(forceRefresh = false) {
@@ -3060,6 +3157,9 @@ async function loadData(forceRefresh = false) {
     state.raw = data;
     state.lastUpdated = data.lastUpdated || cachedAt;
     state.fetchedAt = Date.now();
+    /* The Bazaar is the authority on which shards exist, so rebuild the
+     * catalogue against it before pricing anything. */
+    rebuildShardsDb();
     state.rows = buildRows(data);
 
     $("#cache-badge").style.display = cached ? "inline-flex" : "none";
@@ -3088,6 +3188,12 @@ function populateTexturePackSelect() {
     opt.value = key;
     opt.textContent = pack.label;
     sel.appendChild(opt);
+  }
+  /* A pack that no longer exists (the Hypixel Wiki pack died with the wiki)
+   * must not leave the control blank. */
+  if (!TEXTURE_PACKS[state.texturePack]) {
+    state.texturePack = CONFIG.DEFAULT_TEXTURE;
+    localStorage.setItem(CONFIG.TEXTURE_STORAGE, state.texturePack);
   }
   sel.value = state.texturePack;
 }
@@ -3300,7 +3406,7 @@ function renderHomeView() {
   const pane = $("#view-home");
   if (!pane) return;
 
-  const shardsCount = state.rows ? state.rows.length : 189;
+  const shardsCount = state.rows ? state.rows.length : (state.shardCatalog?.total || 0);
 
   let mpBadge = "Link Profile";
   if (state.player && state.player.accessoryAnalysis) {
@@ -3393,7 +3499,7 @@ function renderHomeView() {
           <span class="home-card-badge">${cheapestUpgradeStr}</span>
         </div>
         <h3 class="home-card-title">Minion Calculator</h3>
-        <p class="home-card-desc">Identify the cheapest slots and copy smart, consolidated bazaar shopping lists to max your minions to T11.</p>
+        <p class="home-card-desc">Identify the cheapest slots and copy smart, consolidated bazaar shopping lists to max your minions to T11 or T12.</p>
         <button class="btn-secondary btn-small home-card-btn">Open Minion Calculator →</button>
       </article>
 
@@ -4599,7 +4705,7 @@ function renderFarmingView() {
           </article>
           <article class="farm-card"><h3>Crop Milestones</h3><div class="farm-list compact">${cropRows.slice().sort((a,b) => b.milestone.level - a.milestone.level || b.collection - a.collection).map((r) => `<div class="farm-row"><img src="${getUniversalItemIconUrl(r.icon)}" alt="" loading="lazy" onerror="${fallbackToSkyCryptItemOnError(r.icon)}"><div><strong>${escapeHtml(r.name)}</strong><span>${fmtInt(r.collection)} collected</span></div><div>${farmingMiniBar(r.collection, cropMaxCollection, `Milestone ${fmtInt(r.milestone.level)}`)}</div></div>`).join("")}</div></article>
           <article class="farm-card"><h3>Unlocked Plots</h3>${farmingPlotGridHTML(garden.unlockedPlots)}<h3>Crop Upgrades</h3><div class="farm-upgrade-mini">${garden.cropUpgradeRows.map((r) => `<span title="${escapeHtml(r.crop.name)} crop upgrade">${escapeHtml(r.crop.name)} <b>${fmtInt(r.level)}/9</b></span>`).join("")}</div></article>
-          <article class="farm-card farm-card-wide"><div class="farm-card-head"><h3>Visitor Tracker</h3><span class="farm-badge">${fmtInt(garden.visitors.accepted)} accepted</span></div>${state.player.gardenLoading ? `<div class="acc-loading"><span class="spinner"></span> Loading standalone Garden visitor data…</div>` : ""}${state.player.gardenError ? `<p class="farm-note warn">Garden API fetch failed: ${escapeHtml(state.player.gardenError)}. Showing profile fallback data.</p>` : ""}<div class="farm-metrics">${farmingMetric("Unique accepted", `${fmtInt(garden.visitors.count)} / ${fmtInt(window.HYPIXIE_GARDEN_VISITOR_TOTAL || 83)}`, "commission_data.unique_npcs_served")}${farmingMetric("Missing", fmtInt(garden.visitors.missingCount), "not accepted yet")}${farmingMetric("Total visits", fmtInt(garden.visitors.totalVisits), garden.visitors.source)}${farmingMetric("Acceptance rate", `${garden.visitors.acceptanceRate.toFixed(2)}%`, "accepted / total")}</div><div class="farm-card-head sub"><h3>Missing visitors</h3><span class="farm-badge">${fmtInt(garden.visitors.missingCount)} left</span></div><div class="farm-visitor-grid missing">${garden.visitors.missing.map((v) => farmingVisitorPill(v, "missing")).join("") || `<span class="farm-note">All catalog visitors have been accepted.</span>`}</div><div class="farm-card-head sub"><h3>Completed visitors</h3><span class="farm-badge green">${fmtInt(garden.visitors.completed?.length || garden.visitors.top.length)} shown</span></div><div class="farm-visitor-grid completed">${(garden.visitors.completed || garden.visitors.top).length ? (garden.visitors.completed || garden.visitors.top).map((v) => farmingVisitorPill(v)).join("") : `<span class="farm-note">No accepted visitor map found yet.</span>`}</div><p class="farm-note">Uses the same EliteFarmers rule: accepted/missing comes from Hypixel Garden <code>commission_data.completed</code>; current active commissions are subtracted from visit totals.</p></article>
+          <article class="farm-card farm-card-wide"><div class="farm-card-head"><h3>Visitor Tracker</h3><span class="farm-badge">${fmtInt(garden.visitors.accepted)} accepted</span></div>${state.player.gardenLoading ? `<div class="acc-loading"><span class="spinner"></span> Loading standalone Garden visitor data…</div>` : ""}${state.player.gardenError ? `<p class="farm-note warn">Garden API fetch failed: ${escapeHtml(state.player.gardenError)}. Showing profile fallback data.</p>` : ""}<div class="farm-metrics">${farmingMetric("Unique accepted", `${fmtInt(garden.visitors.count)} / ${fmtInt(window.HYPIXIE_GARDEN_VISITOR_TOTAL || 137)}`, "commission_data.unique_npcs_served")}${farmingMetric("Missing", fmtInt(garden.visitors.missingCount), "not accepted yet")}${farmingMetric("Total visits", fmtInt(garden.visitors.totalVisits), garden.visitors.source)}${farmingMetric("Acceptance rate", `${garden.visitors.acceptanceRate.toFixed(2)}%`, "accepted / total")}</div><div class="farm-card-head sub"><h3>Missing visitors</h3><span class="farm-badge">${fmtInt(garden.visitors.missingCount)} left</span></div><div class="farm-visitor-grid missing">${garden.visitors.missing.map((v) => farmingVisitorPill(v, "missing")).join("") || `<span class="farm-note">All catalog visitors have been accepted.</span>`}</div><div class="farm-card-head sub"><h3>Completed visitors</h3><span class="farm-badge green">${fmtInt(garden.visitors.completed?.length || garden.visitors.top.length)} shown</span></div><div class="farm-visitor-grid completed">${(garden.visitors.completed || garden.visitors.top).length ? (garden.visitors.completed || garden.visitors.top).map((v) => farmingVisitorPill(v)).join("") : `<span class="farm-note">No accepted visitor map found yet.</span>`}</div><p class="farm-note">Accepted and missing come from Hypixel Garden <code>commission_data.completed</code>; current active commissions are subtracted from visit totals. The denominator is the ${fmtInt(window.HYPIXIE_GARDEN_VISITOR_TOTAL || 137)} visitors the wiki lists. The missing list only names the ${fmtInt(window.HYPIXIE_GARDEN_VISITOR_KNOWN_IDS || 0)} whose API id we have confirmed, so it can be shorter than the count above.</p></article>
         </div>
       </section>
 
@@ -4814,7 +4920,10 @@ function renderGardenChipsView() {
   bindCopyButtons(pane);
 }
 
-const MUTATION_TRACKER_EXCLUDES = new Set(["CONDENSED_HELIANTHUS", "FERMENTO", "FERTILIZED_JERRYSEED"]);
+/* Ingredients and rewards that sit in MUTATIONS_DATA so the recipe tree can
+ * resolve them, but that are not mutations you discover. ROSE_DRAGON_EGG is
+ * the pet egg Ludleth sells for mutation materials. */
+const MUTATION_TRACKER_EXCLUDES = new Set(["CONDENSED_HELIANTHUS", "FERMENTO", "FERTILIZED_JERRYSEED", "ROSE_DRAGON_EGG"]);
 const MUTATION_DISCOVERY_RARITIES = new Set(["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY"]);
 const MUTATION_STORAGE_KEY = "hypixie.mutations.discovered.v1";
 
@@ -5693,10 +5802,21 @@ function getSkillXpAndProgress(xp) {
   return { level, progress, currentXp: xp, nextLevelXp, xpInLevel, xpNeeded };
 }
 
-function getSlayerLvlAndProgress(xp, isVampire = false) {
-  const table = isVampire ? 
-    [0, 20, 75, 240, 840, 3400, 15000, 50000, 140000, 300000] :
-    [0, 10, 50, 250, 1500, 5000, 20000, 100000, 400000, 1000000];
+/* Cumulative slayer XP per level, from the wiki Slayer page. The five coin
+ * slayers do not share one curve: zombie and spider start cheaper than
+ * wolf/enderman/blaze, and all five converge from level 5. The vampire
+ * (Riftstalker) track stops at level 5. */
+const SLAYER_XP_TABLES = {
+  zombie:   [0, 5, 15, 200, 1000, 5000, 20000, 100000, 400000, 1000000],
+  spider:   [0, 5, 25, 200, 1000, 5000, 20000, 100000, 400000, 1000000],
+  wolf:     [0, 10, 30, 250, 1500, 5000, 20000, 100000, 400000, 1000000],
+  enderman: [0, 10, 30, 250, 1500, 5000, 20000, 100000, 400000, 1000000],
+  blaze:    [0, 10, 30, 250, 1500, 5000, 20000, 100000, 400000, 1000000],
+  vampire:  [0, 20, 75, 240, 840, 2400],
+};
+
+function getSlayerLvlAndProgress(xp, slayerKey = "zombie") {
+  const table = SLAYER_XP_TABLES[slayerKey] || SLAYER_XP_TABLES.zombie;
     
   if (xp == null || !Number.isFinite(xp) || xp <= 0) {
     return { level: 0, progress: 0, xpInLevel: 0, xpNeeded: table[1] };
@@ -5725,7 +5845,7 @@ function getSlayerLvlAndProgress(xp, isVampire = false) {
 }
 
 function getDungeonLvlAndProgress(xp) {
-  const table = [0, 50, 125, 235, 395, 625, 955, 1425, 2095, 3045, 4385, 6275, 8940, 12700, 17960, 25340, 35640, 50040, 70040, 97640, 135640, 188140, 259640, 356640, 488640, 668640, 911640, 1239640, 1684640, 2284640, 3084640, 4149640, 5559640, 7419640, 9859640, 13039640, 17139640, 22439640, 29189640, 37789640, 48689640, 62389640, 79389640, 100389640, 126389640, 158389640, 197389640, 244389640, 301389640, 369389640, 449389640];
+  const table = [0, 50, 125, 235, 395, 625, 955, 1425, 2095, 3045, 4385, 6275, 8940, 12700, 17960, 25340, 35640, 50040, 70040, 97640, 135640, 188140, 259640, 356640, 488640, 668640, 911640, 1239640, 1684640, 2284640, 3084640, 4149640, 5559640, 7459640, 9959640, 13259640, 17559640, 23159640, 30359640, 39559640, 51559640, 66559640, 85559640, 109559640, 139559640, 177559640, 225559640, 285559640, 360559640, 453559640, 569809640];
   
   if (xp == null || !Number.isFinite(xp) || xp <= 0) {
     return { level: 0, progress: 0, xpInLevel: 0, xpNeeded: table[1] };
@@ -6164,14 +6284,14 @@ function renderProfileView() {
     { key: "spider", name: "Tarantula", icon: "SPIDER_EYE" },
     { key: "wolf", name: "Sven Packmaster", icon: "BONE" },
     { key: "enderman", name: "Voidgloom Seraph", icon: "ENDER_PEARL" },
-    { key: "blaze", name: "Infernum Demonlord", icon: "BLAZE_ROD" },
-    { key: "vampire", name: "Riftstalker", icon: "REDSTONE", isVampire: true },
+    { key: "blaze", name: "Inferno Demonlord", icon: "BLAZE_ROD" },
+    { key: "vampire", name: "Riftstalker", icon: "REDSTONE" },
   ];
   
   const slayersHTML = SLAYERS_META.map(sl => {
     const sData = member.slayer?.slayer_bosses?.[sl.key] || {};
     const xp = sData.xp || 0;
-    const { level, progress, xpInLevel, xpNeeded } = getSlayerLvlAndProgress(xp, sl.isVampire);
+    const { level, progress, xpInLevel, xpNeeded } = getSlayerLvlAndProgress(xp, sl.key);
     const pct = xpNeeded ? (progress * 100).toFixed(0) : "100";
     const isMax = level >= 9 || xpNeeded === null;
     

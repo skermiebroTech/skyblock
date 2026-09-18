@@ -20,7 +20,7 @@
 "use strict";
 
 /* Magical Power granted by an accessory, purely by rarity.
- * Source: https://wiki.hypixel.net/Magical_Power
+ * Source: https://hypixel-skyblock.fandom.com/wiki/Magical_Power
  * Special/very-special rarities (e.g. Hegemony, Abicase) have per-item
  * overrides handled separately. */
 const MP_BY_RARITY = {
@@ -201,13 +201,13 @@ function recombGain(item) {
 }
 
 /* Build the Hypixel Wiki URL for an item by display name.
- *   "Tarantula Ring"        → https://wiki.hypixel.net/Tarantula_Ring
- *   "Anita's Talisman"      → https://wiki.hypixel.net/Anita's_Talisman
- *   "Nature Elemental Shard"→ https://wiki.hypixel.net/Nature_Elemental_Shard */
+ *   "Tarantula Ring"        → https://hypixel-skyblock.fandom.com/wiki/Tarantula_Ring
+ *   "Anita's Talisman"      → https://hypixel-skyblock.fandom.com/wiki/Anita's_Talisman
+ *   "Nature Elemental Shard"→ https://hypixel-skyblock.fandom.com/wiki/Attributes/List */
 function wikiUrl(displayName) {
   if (!displayName) return null;
   const slug = displayName.trim().replace(/ /g, "_");
-  return `https://wiki.hypixel.net/${encodeURI(slug)}`;
+  return `https://hypixel-skyblock.fandom.com/wiki/${encodeURI(slug)}`;
 }
 
 /* Strip the upgrade suffix off an accessory name, returning its family base.
